@@ -1,26 +1,26 @@
 /target/
-/chainlink/target/
-/chainlink-simple/target/
+/crosslink/target/
+/crosslink-simple/target/
 *.pyc
 __pycache__/
 
 beads/
 .claude/settings.local.json
-.chainlink/daemon.pid
-.chainlink/last_test_run
-.chainlink/daemon.log
-.chainlink/issues.db
-.chainlink/session.json
-vscode-extension/bin/chainlink-linux
-vscode-extension/bin/chainlink-win.exe
+.crosslink/daemon.pid
+.crosslink/last_test_run
+.crosslink/daemon.log
+.crosslink/issues.db
+.crosslink/session.json
+vscode-extension/bin/crosslink-linux
+vscode-extension/bin/crosslink-win.exe
 
 # Fuzz testing artifacts
-chainlink/fuzz/target/
-chainlink/fuzz/artifacts/
-chainlink/fuzz/corpus/
+crosslink/fuzz/target/
+crosslink/fuzz/artifacts/
+crosslink/fuzz/corpus/
 /mutants.out/
-chainlink/mutants.out/
-chainlink/.chainlink/.cache/last-edit-time
-.chainlink/.cache/guard-full-sent
+crosslink/mutants.out/
+crosslink/.crosslink/.cache/last-edit-time
+.crosslink/.cache/guard-full-sent
 OPUS_4_6_SUGGESTIONS.md
-chainlink-enterprise/
+crosslink-enterprise/

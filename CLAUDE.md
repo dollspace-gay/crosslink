@@ -1,25 +1,25 @@
-# Chainlink Issue Tracker
+# Crosslink Issue Tracker
 
-Track tasks across AI sessions. Data in `.chainlink/issues.db`.
+Track tasks across AI sessions. Data in `.crosslink/issues.db`.
 
 ## Commands
 
 ```bash
 # Issues
-chainlink create "title" [-p high] [-d "desc"]
-chainlink list [-s all|closed] [-l label] [-p priority]
-chainlink show|update|close|reopen|delete <id>
-chainlink subissue <parent> "title"
+crosslink create "title" [-p high] [-d "desc"]
+crosslink list [-s all|closed] [-l label] [-p priority]
+crosslink show|update|close|reopen|delete <id>
+crosslink subissue <parent> "title"
 
 # Organization
-chainlink comment <id> "text"
-chainlink label|unlabel <id> <label>
-chainlink block|unblock <id> <blocker>
-chainlink blocked|ready
+crosslink comment <id> "text"
+crosslink label|unlabel <id> <label>
+crosslink block|unblock <id> <blocker>
+crosslink blocked|ready
 
 # Sessions
-chainlink session start|end|status|work <id>
-chainlink session end --notes "handoff context"
+crosslink session start|end|status|work <id>
+crosslink session end --notes "handoff context"
 ```
 
 ## Workflow
@@ -38,4 +38,4 @@ chainlink session end --notes "handoff context"
 
 ---
 
-*Language rules, security requirements, and testing guidelines are in `.chainlink/rules/` and auto-injected based on detected project languages.*
+*Language rules, security requirements, and testing guidelines are in `.crosslink/rules/` and auto-injected based on detected project languages.*

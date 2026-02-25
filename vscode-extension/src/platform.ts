@@ -50,18 +50,18 @@ function getBinaryName(platform: Platform, arch: Architecture): string {
 
     switch (platform) {
         case 'win32':
-            return `chainlink-win${archSuffix}.exe`;
+            return `crosslink-win${archSuffix}.exe`;
         case 'linux':
-            return `chainlink-linux${archSuffix}`;
+            return `crosslink-linux${archSuffix}`;
         case 'darwin':
-            return `chainlink-darwin${archSuffix}`;
+            return `crosslink-darwin${archSuffix}`;
         default:
             throw new Error(`Unknown platform: ${platform}`);
     }
 }
 
 /**
- * Resolves the path to the chainlink binary.
+ * Resolves the path to the crosslink binary.
  *
  * @param extensionPath - The path to the extension directory
  * @param overridePath - Optional user-configured override path

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
 """
 Post-edit hook that detects stub patterns, runs linters, and reminds about tests.
 Runs after Write/Edit tool usage.
@@ -246,7 +250,7 @@ def get_test_reminder(file_path, project_root):
 
     # Check for marker file
     marker_dir = project_root or os.path.dirname(file_path)
-    marker_file = os.path.join(marker_dir, '.chainlink', 'last_test_run')
+    marker_file = os.path.join(marker_dir, '.crosslink', 'last_test_run')
 
     code_modified_after_tests = False
 
@@ -334,8 +338,8 @@ def main():
     linter_errors = []
     lint_marker = None
     if project_root:
-        chainlink_cache = os.path.join(project_root, '.chainlink', '.cache')
-        lint_marker = os.path.join(chainlink_cache, 'last-edit-time')
+        crosslink_cache = os.path.join(project_root, '.crosslink', '.cache')
+        lint_marker = os.path.join(crosslink_cache, 'last-edit-time')
 
     should_lint = True
     if lint_marker:

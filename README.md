@@ -1,20 +1,20 @@
-# Chainlink
+# Crosslink
 
-[![Crates.io](https://img.shields.io/crates/v/chainlink-tracker?style=flat-square)](https://crates.io/crates/chainlink-tracker)
-[![Downloads](https://img.shields.io/crates/d/chainlink-tracker?style=flat-square)](https://crates.io/crates/chainlink-tracker)
-[![License: MIT](https://img.shields.io/crates/l/chainlink-tracker?style=flat-square)](LICENSE)
+[![Crates.io](https://img.shields.io/crates/v/crosslink-tracker?style=flat-square)](https://crates.io/crates/crosslink-tracker)
+[![Downloads](https://img.shields.io/crates/d/crosslink-tracker?style=flat-square)](https://crates.io/crates/crosslink-tracker)
+[![License: MIT](https://img.shields.io/crates/l/crosslink-tracker?style=flat-square)](LICENSE)
 ![AI Generated](https://img.shields.io/badge/Code-AI_Generated-blue?style=flat-square&logo=probot&logoColor=white)
 
 A simple, lean issue tracker CLI designed for AI-assisted development. Track tasks across sessions with context preservation.
 
-![Chainlink: The Missing Memory Layer for AI-Assisted Development](images/infographic.png)
+![Crosslink: The Missing Memory Layer for AI-Assisted Development](images/infographic.png)
 
 ## Features
 
-- **Local-first**: All data stored in SQLite (`.chainlink/issues.db`)
+- **Local-first**: All data stored in SQLite (`.crosslink/issues.db`)
 - **Session management**: Preserve context across Claude/AI sessions with handoff notes
 - **Context compression resilience**: Breadcrumb tracking via `session action` survives context resets
-- **Quick workflow**: `chainlink quick` creates, labels, and starts work in one command
+- **Quick workflow**: `crosslink quick` creates, labels, and starts work in one command
 - **Issue templates**: Built-in templates for bugs, features, audits, investigations, and more
 - **Subissues**: Break large tasks into smaller, trackable pieces
 - **Dependencies**: Track blocking relationships between issues
@@ -22,8 +22,8 @@ A simple, lean issue tracker CLI designed for AI-assisted development. Track tas
 - **Labels & priorities**: Organize issues with labels and priority levels
 - **Milestones**: Group issues into milestones/epics for release planning
 - **Time tracking**: Start/stop timers to track time spent on issues
-- **Smart recommendations**: `chainlink next` suggests what to work on based on priority and progress
-- **Tree view**: Visualize issue hierarchy with `chainlink tree`
+- **Smart recommendations**: `crosslink next` suggests what to work on based on priority and progress
+- **Tree view**: Visualize issue hierarchy with `crosslink tree`
 - **JSON output**: `--json` flag for structured, machine-readable output
 - **Quiet mode**: `--quiet` flag for minimal, pipe-friendly output
 - **Batch operations**: `close-all` with label/priority filtering
@@ -31,28 +31,28 @@ A simple, lean issue tracker CLI designed for AI-assisted development. Track tas
 - **Issue archiving**: Archive old closed issues to keep the active list clean
 - **Claude Code hooks**: Behavioral guardrails that inject best practices into AI sessions
 - **Stale session detection**: Auto-ends sessions idle >4 hours on next startup
-- **Multi-agent coordination**: Distributed issue locking via a `chainlink/locks` git branch
+- **Multi-agent coordination**: Distributed issue locking via a `crosslink/locks` git branch
 - **Agent identity**: Machine-local agent registration for lock ownership tracking
 - **Lock-aware workflows**: `next`, `session work`, and `create --work` respect lock state
 - **Daemon heartbeat**: Background agent heartbeat for stale lock detection
 - **GPG signature verification**: Verify integrity of the shared locks branch
-- **Customizable rules**: Override default rules via `.chainlink/rules/` markdown files
+- **Customizable rules**: Override default rules via `.crosslink/rules/` markdown files
 - **No sync complexity**: No git hooks, no auto-push, just simple local storage
 
 ## Installation
 
 ```bash
 # Install from crates.io
-cargo install chainlink-tracker
+cargo install crosslink-tracker
 ```
 
-The binary is named `chainlink` and will be available in your PATH after install.
+The binary is named `crosslink` and will be available in your PATH after install.
 
 ### Build from Source
 
 ```bash
-git clone https://github.com/dollspace-gay/chainlink.git
-cd chainlink/chainlink
+git clone https://github.com/forecast-bio/crosslink.git
+cd crosslink/crosslink
 cargo install --path .
 # The binary will be at ~/.cargo/bin
 ```
@@ -61,36 +61,36 @@ cargo install --path .
 # Or build without installing
 
 cargo build --release
-# The binary will be at target/release/chainlink
+# The binary will be at target/release/crosslink
 ```
 
 ## Quick Start
 
 ```bash
 # Initialize in any project
-chainlink init
+crosslink init
 
 # Start a session when you begin work
-chainlink session start
+crosslink session start
 
 # Create issues
-chainlink create "Fix login bug" -p high
-chainlink create "Add dark mode" -d "Support light/dark theme toggle"
+crosslink create "Fix login bug" -p high
+crosslink create "Add dark mode" -d "Support light/dark theme toggle"
 
 # Quick create + label + start working in one command
-chainlink quick "Fix login bug" -p high -l bug
+crosslink quick "Fix login bug" -p high -l bug
 
 # Use a template for structured issues
-chainlink create "Login fails on refresh" --template bug
+crosslink create "Login fails on refresh" --template bug
 
 # Set what you're working on
-chainlink session work 1
+crosslink session work 1
 
 # Record breadcrumbs before context compression
-chainlink session action "Investigating token refresh logic"
+crosslink session action "Investigating token refresh logic"
 
 # End session with handoff notes
-chainlink session end --notes "Fixed auth bug, dark mode is next"
+crosslink session end --notes "Fixed auth bug, dark mode is next"
 ```
 
 ## Commands
@@ -99,33 +99,33 @@ chainlink session end --notes "Fixed auth bug, dark mode is next"
 
 | Command | Description |
 |---------|-------------|
-| `chainlink create <title>` | Create a new issue |
-| `chainlink create <title> -p high` | Create with priority (low/medium/high/critical) |
-| `chainlink create <title> -d "desc"` | Create with description |
-| `chainlink create <title> --template bug` | Create from template (bug/feature/refactor/research/audit/continuation/investigation) |
-| `chainlink create <title> --work -l bug` | Create, label, and start working on it |
-| `chainlink quick <title> [-p high] [-l label]` | Shorthand: create + label + set as active work item |
-| `chainlink subissue <parent_id> <title>` | Create a subissue under a parent |
-| `chainlink subissue <parent_id> <title> -p high` | Subissue with priority |
-| `chainlink list` | List open issues |
-| `chainlink list -s all` | List all issues |
-| `chainlink list -s closed` | List closed issues |
-| `chainlink list -l bug` | Filter by label |
-| `chainlink list -p high` | Filter by priority |
-| `chainlink show <id>` | Show issue details |
-| `chainlink show <id> --json` | Show issue details as JSON |
-| `chainlink update <id> --title "New"` | Update title |
-| `chainlink update <id> -d "desc"` | Update description |
-| `chainlink update <id> -p critical` | Update priority |
-| `chainlink close <id>` | Close an issue |
-| `chainlink close <id> --no-changelog` | Close without adding a changelog entry (e.g. internal scaffolding subissues) |
-| `chainlink close-all` | Close all open issues |
-| `chainlink close-all --no-changelog` | Close all without changelog entries (e.g. internal scaffolding subissues) |
-| `chainlink close-all -l bug` | Close all issues with a specific label |
-| `chainlink close-all -p low` | Close all issues with a specific priority |
-| `chainlink reopen <id>` | Reopen a closed issue |
-| `chainlink delete <id>` | Delete an issue (with confirmation) |
-| `chainlink delete <id> -f` | Delete without confirmation |
+| `crosslink create <title>` | Create a new issue |
+| `crosslink create <title> -p high` | Create with priority (low/medium/high/critical) |
+| `crosslink create <title> -d "desc"` | Create with description |
+| `crosslink create <title> --template bug` | Create from template (bug/feature/refactor/research/audit/continuation/investigation) |
+| `crosslink create <title> --work -l bug` | Create, label, and start working on it |
+| `crosslink quick <title> [-p high] [-l label]` | Shorthand: create + label + set as active work item |
+| `crosslink subissue <parent_id> <title>` | Create a subissue under a parent |
+| `crosslink subissue <parent_id> <title> -p high` | Subissue with priority |
+| `crosslink list` | List open issues |
+| `crosslink list -s all` | List all issues |
+| `crosslink list -s closed` | List closed issues |
+| `crosslink list -l bug` | Filter by label |
+| `crosslink list -p high` | Filter by priority |
+| `crosslink show <id>` | Show issue details |
+| `crosslink show <id> --json` | Show issue details as JSON |
+| `crosslink update <id> --title "New"` | Update title |
+| `crosslink update <id> -d "desc"` | Update description |
+| `crosslink update <id> -p critical` | Update priority |
+| `crosslink close <id>` | Close an issue |
+| `crosslink close <id> --no-changelog` | Close without adding a changelog entry (e.g. internal scaffolding subissues) |
+| `crosslink close-all` | Close all open issues |
+| `crosslink close-all --no-changelog` | Close all without changelog entries (e.g. internal scaffolding subissues) |
+| `crosslink close-all -l bug` | Close all issues with a specific label |
+| `crosslink close-all -p low` | Close all issues with a specific priority |
+| `crosslink reopen <id>` | Reopen a closed issue |
+| `crosslink delete <id>` | Delete an issue (with confirmation) |
+| `crosslink delete <id> -f` | Delete without confirmation |
 
 > **Tip:** Add `--quiet` / `-q` to any command for minimal output (just the ID), useful for scripting and piping.
 
@@ -133,72 +133,72 @@ chainlink session end --notes "Fixed auth bug, dark mode is next"
 
 | Command | Description |
 |---------|-------------|
-| `chainlink comment <id> "text"` | Add a comment to an issue |
-| `chainlink label <id> <label>` | Add a label to an issue |
-| `chainlink unlabel <id> <label>` | Remove a label from an issue |
+| `crosslink comment <id> "text"` | Add a comment to an issue |
+| `crosslink label <id> <label>` | Add a label to an issue |
+| `crosslink unlabel <id> <label>` | Remove a label from an issue |
 
 ### Dependencies
 
 | Command | Description |
 |---------|-------------|
-| `chainlink block <id> <blocker_id>` | Mark issue as blocked by another |
-| `chainlink unblock <id> <blocker_id>` | Remove blocking relationship |
-| `chainlink blocked` | List all blocked issues |
-| `chainlink ready` | List issues ready to work on (no blockers) |
+| `crosslink block <id> <blocker_id>` | Mark issue as blocked by another |
+| `crosslink unblock <id> <blocker_id>` | Remove blocking relationship |
+| `crosslink blocked` | List all blocked issues |
+| `crosslink ready` | List issues ready to work on (no blockers) |
 
 ### Related Issues
 
 | Command | Description |
 |---------|-------------|
-| `chainlink relate <id1> <id2>` | Link two related issues together |
-| `chainlink unrelate <id1> <id2>` | Remove relationship between issues |
+| `crosslink relate <id1> <id2>` | Link two related issues together |
+| `crosslink unrelate <id1> <id2>` | Remove relationship between issues |
 
 ### Milestones
 
 | Command | Description |
 |---------|-------------|
-| `chainlink milestone create <name>` | Create a new milestone |
-| `chainlink milestone create <name> -d "desc"` | Create with description |
-| `chainlink milestone list` | List all milestones |
-| `chainlink milestone show <id>` | Show milestone details and progress |
-| `chainlink milestone add <milestone_id> <issue_id>` | Add an issue to a milestone |
-| `chainlink milestone remove <milestone_id> <issue_id>` | Remove an issue from a milestone |
-| `chainlink milestone close <id>` | Close a milestone |
-| `chainlink milestone reopen <id>` | Reopen a closed milestone |
+| `crosslink milestone create <name>` | Create a new milestone |
+| `crosslink milestone create <name> -d "desc"` | Create with description |
+| `crosslink milestone list` | List all milestones |
+| `crosslink milestone show <id>` | Show milestone details and progress |
+| `crosslink milestone add <milestone_id> <issue_id>` | Add an issue to a milestone |
+| `crosslink milestone remove <milestone_id> <issue_id>` | Remove an issue from a milestone |
+| `crosslink milestone close <id>` | Close a milestone |
+| `crosslink milestone reopen <id>` | Reopen a closed milestone |
 
 ### Archiving
 
 | Command | Description |
 |---------|-------------|
-| `chainlink archive <id>` | Archive a closed issue |
-| `chainlink unarchive <id>` | Restore an archived issue |
-| `chainlink archived` | List all archived issues |
-| `chainlink archive-older <days>` | Archive issues closed more than N days ago |
+| `crosslink archive <id>` | Archive a closed issue |
+| `crosslink unarchive <id>` | Restore an archived issue |
+| `crosslink archived` | List all archived issues |
+| `crosslink archive-older <days>` | Archive issues closed more than N days ago |
 
 ### Export/Import
 
 | Command | Description |
 |---------|-------------|
-| `chainlink export` | Export all issues to JSON (stdout) |
-| `chainlink export -o backup.json` | Export to a file |
-| `chainlink import backup.json` | Import issues from JSON file |
-| `chainlink import backup.json --merge` | Merge with existing issues |
+| `crosslink export` | Export all issues to JSON (stdout) |
+| `crosslink export -o backup.json` | Export to a file |
+| `crosslink import backup.json` | Import issues from JSON file |
+| `crosslink import backup.json --merge` | Merge with existing issues |
 
 ### Smart Navigation
 
 | Command | Description |
 |---------|-------------|
-| `chainlink next` | Recommend the next issue to work on (by priority/progress) |
-| `chainlink tree` | Show all issues in a tree hierarchy |
-| `chainlink tree -s open` | Show only open issues in tree view |
+| `crosslink next` | Recommend the next issue to work on (by priority/progress) |
+| `crosslink tree` | Show all issues in a tree hierarchy |
+| `crosslink tree -s open` | Show only open issues in tree view |
 
 ### Time Tracking
 
 | Command | Description |
 |---------|-------------|
-| `chainlink start <id>` | Start a timer for an issue |
-| `chainlink stop` | Stop the current timer |
-| `chainlink timer` | Show current timer status |
+| `crosslink start <id>` | Start a timer for an issue |
+| `crosslink stop` | Stop the current timer |
+| `crosslink timer` | Show current timer status |
 
 ### Session Management
 
@@ -206,13 +206,13 @@ Sessions preserve context across AI assistant restarts. Stale sessions (idle >4 
 
 | Command | Description |
 |---------|-------------|
-| `chainlink session start` | Start a session, shows previous handoff notes |
-| `chainlink session work <id>` | Set the issue you're currently working on |
-| `chainlink session action "..."` | Record a breadcrumb (survives context compression) |
-| `chainlink session status` | Show current session info and last action |
-| `chainlink session end` | End the current session |
-| `chainlink session end --notes "..."` | End with handoff notes for next session |
-| `chainlink session last-handoff` | Retrieve handoff notes from the previous session |
+| `crosslink session start` | Start a session, shows previous handoff notes |
+| `crosslink session work <id>` | Set the issue you're currently working on |
+| `crosslink session action "..."` | Record a breadcrumb (survives context compression) |
+| `crosslink session status` | Show current session info and last action |
+| `crosslink session end` | End the current session |
+| `crosslink session end --notes "..."` | End with handoff notes for next session |
+| `crosslink session last-handoff` | Retrieve handoff notes from the previous session |
 
 ### Multi-Agent Coordination
 
@@ -220,15 +220,15 @@ Register agents and coordinate work across multiple AI sessions or machines via 
 
 | Command | Description |
 |---------|-------------|
-| `chainlink agent init <id>` | Register this machine as an agent (stored in `.chainlink/agent.json`) |
-| `chainlink agent init <id> -d "desc"` | Register with a description |
-| `chainlink agent status` | Show agent identity, machine ID, and held locks |
-| `chainlink locks list` | Show all active issue locks (with stale detection) |
-| `chainlink locks list --json` | Show locks as JSON |
-| `chainlink locks check <id>` | Check if an issue is available or locked by another agent |
-| `chainlink sync` | Fetch lock state from coordination branch and verify GPG signatures |
+| `crosslink agent init <id>` | Register this machine as an agent (stored in `.crosslink/agent.json`) |
+| `crosslink agent init <id> -d "desc"` | Register with a description |
+| `crosslink agent status` | Show agent identity, machine ID, and held locks |
+| `crosslink locks list` | Show all active issue locks (with stale detection) |
+| `crosslink locks list --json` | Show locks as JSON |
+| `crosslink locks check <id>` | Check if an issue is available or locked by another agent |
+| `crosslink sync` | Fetch lock state from coordination branch and verify GPG signatures |
 
-Lock state is stored on a `chainlink/locks` branch and synchronized via git. Agent identity files are machine-local and gitignored.
+Lock state is stored on a `crosslink/locks` branch and synchronized via git. Agent identity files are machine-local and gitignored.
 
 ### Daemon (Optional)
 
@@ -236,14 +236,14 @@ The daemon auto-flushes session state every 30 seconds and pushes agent heartbea
 
 | Command | Description |
 |---------|-------------|
-| `chainlink daemon start` | Start background daemon |
-| `chainlink daemon status` | Check if daemon is running |
-| `chainlink daemon stop` | Stop the daemon |
+| `crosslink daemon start` | Start background daemon |
+| `crosslink daemon status` | Check if daemon is running |
+| `crosslink daemon stop` | Stop the daemon |
 
 ## Workflow Example
 
 ```bash
-$ chainlink session start
+$ crosslink session start
 Previous session ended: 2026-01-15 09:00
 Handoff notes:
   Working on auth bug. Found issue in token refresh.
@@ -251,35 +251,35 @@ Handoff notes:
 Session #5 started.
 
 # Quick create + label + start working in one step
-$ chainlink quick "Fix token refresh" -p high -l bug
+$ crosslink quick "Fix token refresh" -p high -l bug
 Created issue #3
 Now working on: #3 Fix token refresh
 
 # Record breadcrumbs as you work (survives context compression)
-$ chainlink session action "Found root cause in refresh_token()"
+$ crosslink session action "Found root cause in refresh_token()"
 
-$ chainlink comment 3 "Fixed the token refresh issue"
+$ crosslink comment 3 "Fixed the token refresh issue"
 Added comment to issue #3
 
-$ chainlink close 3
+$ crosslink close 3
 Closed issue #3
 
-$ chainlink ready
+$ crosslink ready
 Ready issues (no blockers):
   #2    medium   Add dark mode
 
-$ chainlink session end --notes "Closed auth bug #3. Dark mode is next."
+$ crosslink session end --notes "Closed auth bug #3. Dark mode is next."
 Session #5 ended.
 Handoff notes saved.
 ```
 
 ## Storage
 
-All data is stored locally in `.chainlink/issues.db` (SQLite). No external services, no network requests.
+All data is stored locally in `.crosslink/issues.db` (SQLite). No external services, no network requests.
 
 ## Claude Code Hooks
 
-Chainlink includes behavioral hooks for [Claude Code](https://claude.com/claude-code) that inject best practice reminders into AI sessions. These hooks help ensure Claude follows coding standards without requiring manual prompting.
+Crosslink includes behavioral hooks for [Claude Code](https://claude.com/claude-code) that inject best practice reminders into AI sessions. These hooks help ensure Claude follows coding standards without requiring manual prompting.
 
 > **Requirement:** Python 3.6+ must be installed and available in your PATH for hooks to work. The VS Code extension will warn you if Python is not detected.
 
@@ -323,27 +323,27 @@ The hooks auto-detect the project language(s) and inject relevant best practices
 
 ### Configuring Hook Behavior
 
-Hook behavior is controlled by `.chainlink/hook-config.json`:
+Hook behavior is controlled by `.crosslink/hook-config.json`:
 
 ```json
 {
   "tracking_mode": "strict",
   "blocked_git_commands": ["git push", "git commit", "..."],
-  "allowed_bash_prefixes": ["chainlink ", "git status", "..."]
+  "allowed_bash_prefixes": ["crosslink ", "git status", "..."]
 }
 ```
 
 #### Tracking Mode
 
-Controls how aggressively chainlink enforces issue creation before code changes:
+Controls how aggressively crosslink enforces issue creation before code changes:
 
 | Mode | Hook Behavior | Prompt Language | Best For |
 |------|---------------|-----------------|----------|
 | `strict` | **Blocks** Write/Edit/Bash without an active issue | ALL CAPS MANDATORY, "ABSOLUTE RULE" | Teams that want every change tracked |
 | `normal` | **Reminds** but allows proceeding without an issue | Soft "should" language, gentle nudges | Balanced — tracks most work, doesn't block quick fixes |
-| `relaxed` | **No enforcement** — only git mutation blocks apply | Minimal — just mentions chainlink is available | Users who want tracking opt-in only |
+| `relaxed` | **No enforcement** — only git mutation blocks apply | Minimal — just mentions crosslink is available | Users who want tracking opt-in only |
 
-Each mode loads its instructions from `.chainlink/rules/tracking-{mode}.md`, so you can edit the wording per-mode.
+Each mode loads its instructions from `.crosslink/rules/tracking-{mode}.md`, so you can edit the wording per-mode.
 
 #### Blocked Git Commands
 
@@ -357,7 +357,7 @@ Commands that bypass the issue-required check (read-only and infrastructure comm
 
 ### Customizable Rules
 
-Rules are stored in `.chainlink/rules/` as markdown files:
+Rules are stored in `.crosslink/rules/` as markdown files:
 
 | File | Purpose |
 |------|---------|
@@ -369,32 +369,32 @@ Rules are stored in `.chainlink/rules/` as markdown files:
 | `rust.md`, `python.md`, etc. | Language-specific best practices |
 
 To customize:
-1. Edit the appropriate file in `.chainlink/rules/`
+1. Edit the appropriate file in `.crosslink/rules/`
 2. Changes take effect immediately on the next prompt
 
 To reset rules to defaults:
 ```bash
-chainlink init --force
+crosslink init --force
 ```
 
 ### Installing Hooks in Other Projects
 
-Use `chainlink init` in any project to set up hooks and rules:
+Use `crosslink init` in any project to set up hooks and rules:
 
 ```bash
 cd /your/project
-chainlink init
+crosslink init
 ```
 
 Or copy manually:
 ```bash
-cp -r /path/to/chainlink/.claude /your/project/
-cp -r /path/to/chainlink/.chainlink/rules /your/project/.chainlink/
+cp -r /path/to/crosslink/.claude /your/project/
+cp -r /path/to/crosslink/.crosslink/rules /your/project/.crosslink/
 ```
 
-## Using Chainlink with Any AI Agent
+## Using Crosslink with Any AI Agent
 
-While chainlink includes native hooks for Claude Code, the context provider script allows integration with **any** AI coding assistant.
+While crosslink includes native hooks for Claude Code, the context provider script allows integration with **any** AI coding assistant.
 
 ### The Context Provider
 
@@ -406,7 +406,7 @@ The context provider (`context-provider.py`) generates intelligent context that 
 - Shows project structure
 - Outputs in XML, Markdown, or JSON formats
 
-**Location:** `.chainlink/integrations/context-provider.py`
+**Location:** `.crosslink/integrations/context-provider.py`
 
 ### Quick Setup (Shell Aliases)
 
@@ -414,21 +414,21 @@ Add these to your `~/.bashrc`, `~/.zshrc`, or PowerShell profile:
 
 **Bash/Zsh:**
 ```bash
-# Generic AI wrapper - prepends chainlink context to any prompt
+# Generic AI wrapper - prepends crosslink context to any prompt
 ai() {
-    local ctx=$(python ~/.chainlink/integrations/context-provider.py 2>/dev/null)
+    local ctx=$(python ~/.crosslink/integrations/context-provider.py 2>/dev/null)
     echo -e "$ctx\n\n---\nUser: $*" | your-llm-cli
 }
 
-# Aider with chainlink context
+# Aider with crosslink context
 aider-cl() {
-    python ~/.chainlink/integrations/context-provider.py --format md > /tmp/chainlink-ctx.md
-    aider --read /tmp/chainlink-ctx.md "$@"
+    python ~/.crosslink/integrations/context-provider.py --format md > /tmp/crosslink-ctx.md
+    aider --read /tmp/crosslink-ctx.md "$@"
 }
 
 # Copy context to clipboard for pasting into web UIs
-chainlink-ctx() {
-    python ~/.chainlink/integrations/context-provider.py --clipboard
+crosslink-ctx() {
+    python ~/.crosslink/integrations/context-provider.py --clipboard
 }
 ```
 
@@ -436,13 +436,13 @@ chainlink-ctx() {
 ```powershell
 # Generic AI wrapper
 function ai {
-    $ctx = python "$env:USERPROFILE\.chainlink\integrations\context-provider.py" 2>$null
+    $ctx = python "$env:USERPROFILE\.crosslink\integrations\context-provider.py" 2>$null
     "$ctx`n`n---`nUser: $($args -join ' ')" | your-llm-cli
 }
 
 # Copy context to clipboard
-function chainlink-ctx {
-    python "$env:USERPROFILE\.chainlink\integrations\context-provider.py" | Set-Clipboard
+function crosslink-ctx {
+    python "$env:USERPROFILE\.crosslink\integrations\context-provider.py" | Set-Clipboard
 }
 ```
 
@@ -473,7 +473,7 @@ python context-provider.py --env                          # Output as env vars
 
 **Cursor:**
 ```bash
-# Generate .cursorrules with chainlink context (run once per session)
+# Generate .cursorrules with crosslink context (run once per session)
 python context-provider.py --format md --rules > .cursorrules
 ```
 
@@ -495,7 +495,7 @@ Add to `.continue/config.json`:
     {
       "name": "exec",
       "params": {
-        "command": "python .chainlink/integrations/context-provider.py --format md"
+        "command": "python .crosslink/integrations/context-provider.py --format md"
       }
     }
   ]
@@ -526,19 +526,19 @@ python context-provider.py --clipboard
 The context provider outputs:
 
 ```xml
-<chainlink-session>
+<crosslink-session>
 Session #5 active
 Working on: #12 Fix authentication bug
 Handoff notes: Found issue in token refresh logic
-</chainlink-session>
+</crosslink-session>
 
-<chainlink-issues>
+<crosslink-issues>
 Ready issues (unblocked):
   #12   high     Fix authentication bug
   #15   medium   Add dark mode toggle
 Open issues:
   #18   low      Update documentation
-</chainlink-issues>
+</crosslink-issues>
 
 <coding-rules>
 ### General Requirements
@@ -552,10 +552,10 @@ Open issues:
 </coding-rules>
 
 <workflow-reminder>
-- Use `chainlink session start` at the beginning of work
-- Use `chainlink session work <id>` to mark current focus
-- Add comments: `chainlink comment <id> "..."`
-- End with notes: `chainlink session end --notes "..."`
+- Use `crosslink session start` at the beginning of work
+- Use `crosslink session work <id>` to mark current focus
+- Add comments: `crosslink comment <id> "..."`
+- End with notes: `crosslink session end --notes "..."`
 </workflow-reminder>
 ```
 
@@ -571,14 +571,14 @@ For the best experience with non-Claude agents, use the shell alias approach to 
 
 ## VS Code Extension
 
-Chainlink is also available as a VS Code extension that bundles the CLI binary:
+Crosslink is also available as a VS Code extension that bundles the CLI binary:
 
-**Install:** Search "Chainlink Issue Tracker" in VS Code Extensions, or visit the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Dollspace-gay.chainlink-issue-tracker).
+**Install:** Search "Crosslink Issue Tracker" in VS Code Extensions, or visit the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=forecast-bio.crosslink-issue-tracker).
 
 **Features:**
 - Commands accessible from Command Palette (Ctrl+Shift+P)
 - Status bar indicator for daemon status
-- Auto-starts daemon when `.chainlink` project detected
+- Auto-starts daemon when `.crosslink` project detected
 - Works on Windows, Linux, and macOS
 
 ## Development

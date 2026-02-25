@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
 """
-Chainlink web security hook for Claude Code.
+Crosslink web security hook for Claude Code.
 Injects RFIP (Recursive Framing Interdiction Protocol) before web tool calls.
 Triggered by PreToolUse on WebFetch|WebSearch to defend against prompt injection.
 """
@@ -22,21 +26,21 @@ def _project_root_from_script():
         return None
 
 
-def find_chainlink_dir():
-    """Find the .chainlink directory.
+def find_crosslink_dir():
+    """Find the .crosslink directory.
 
     Prefers the project root derived from the hook script's own path,
     falling back to walking up from cwd.
     """
     root = _project_root_from_script()
     if root:
-        candidate = os.path.join(root, '.chainlink')
+        candidate = os.path.join(root, '.crosslink')
         if os.path.isdir(candidate):
             return candidate
 
     current = os.getcwd()
     for _ in range(10):
-        candidate = os.path.join(current, '.chainlink')
+        candidate = os.path.join(current, '.crosslink')
         if os.path.isdir(candidate):
             return candidate
         parent = os.path.dirname(current)
@@ -46,12 +50,12 @@ def find_chainlink_dir():
     return None
 
 
-def load_web_rules(chainlink_dir):
-    """Load web.md rules from .chainlink/rules/."""
-    if not chainlink_dir:
+def load_web_rules(crosslink_dir):
+    """Load web.md rules from .crosslink/rules/."""
+    if not crosslink_dir:
         return get_fallback_rules()
 
-    rules_path = os.path.join(chainlink_dir, 'rules', 'web.md')
+    rules_path = os.path.join(crosslink_dir, 'rules', 'web.md')
     try:
         with open(rules_path, 'r', encoding='utf-8') as f:
             return f.read().strip()
@@ -109,9 +113,9 @@ def main():
     except (json.JSONDecodeError, Exception):
         tool_name = ''
 
-    # Find chainlink directory and load web rules
-    chainlink_dir = find_chainlink_dir()
-    web_rules = load_web_rules(chainlink_dir)
+    # Find crosslink directory and load web rules
+    crosslink_dir = find_crosslink_dir()
+    web_rules = load_web_rules(crosslink_dir)
 
     # Output RFIP rules as context injection
     output = f"""<web-security-protocol>

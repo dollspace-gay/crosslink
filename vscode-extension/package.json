@@ -1,9 +1,9 @@
 {
-  "name": "chainlink-issue-tracker",
-  "displayName": "Chainlink Issue Tracker",
+  "name": "crosslink-issue-tracker",
+  "displayName": "Crosslink Issue Tracker",
   "description": "A simple, lean issue tracker for AI-assisted development",
   "version": "0.5.1",
-  "publisher": "Dollspace-gay",
+  "publisher": "forecast-bio",
   "icon": "images/icon.png",
   "engines": {
     "vscode": "^1.109.0"
@@ -19,158 +19,158 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "workspaceContains:.chainlink"
+    "workspaceContains:.crosslink"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "chainlink.init",
-        "title": "Chainlink: Initialize Project"
+        "command": "crosslink.init",
+        "title": "Crosslink: Initialize Project"
       },
       {
-        "command": "chainlink.sessionStart",
-        "title": "Chainlink: Start Session"
+        "command": "crosslink.sessionStart",
+        "title": "Crosslink: Start Session"
       },
       {
-        "command": "chainlink.sessionEnd",
-        "title": "Chainlink: End Session"
+        "command": "crosslink.sessionEnd",
+        "title": "Crosslink: End Session"
       },
       {
-        "command": "chainlink.sessionStatus",
-        "title": "Chainlink: Session Status"
+        "command": "crosslink.sessionStatus",
+        "title": "Crosslink: Session Status"
       },
       {
-        "command": "chainlink.sessionWork",
-        "title": "Chainlink: Set Working Issue"
+        "command": "crosslink.sessionWork",
+        "title": "Crosslink: Set Working Issue"
       },
       {
-        "command": "chainlink.sessionAction",
-        "title": "Chainlink: Record Action Breadcrumb"
+        "command": "crosslink.sessionAction",
+        "title": "Crosslink: Record Action Breadcrumb"
       },
       {
-        "command": "chainlink.sessionLastHandoff",
-        "title": "Chainlink: Show Last Handoff Notes"
+        "command": "crosslink.sessionLastHandoff",
+        "title": "Crosslink: Show Last Handoff Notes"
       },
       {
-        "command": "chainlink.daemonStart",
-        "title": "Chainlink: Start Daemon"
+        "command": "crosslink.daemonStart",
+        "title": "Crosslink: Start Daemon"
       },
       {
-        "command": "chainlink.daemonStop",
-        "title": "Chainlink: Stop Daemon"
+        "command": "crosslink.daemonStop",
+        "title": "Crosslink: Stop Daemon"
       },
       {
-        "command": "chainlink.daemonStatus",
-        "title": "Chainlink: Daemon Status"
+        "command": "crosslink.daemonStatus",
+        "title": "Crosslink: Daemon Status"
       },
       {
-        "command": "chainlink.listIssues",
-        "title": "Chainlink: List Issues"
+        "command": "crosslink.listIssues",
+        "title": "Crosslink: List Issues"
       },
       {
-        "command": "chainlink.createIssue",
-        "title": "Chainlink: Create Issue"
+        "command": "crosslink.createIssue",
+        "title": "Crosslink: Create Issue"
       },
       {
-        "command": "chainlink.quickCreate",
-        "title": "Chainlink: Quick Create (Create + Label + Work)"
+        "command": "crosslink.quickCreate",
+        "title": "Crosslink: Quick Create (Create + Label + Work)"
       },
       {
-        "command": "chainlink.createWithTemplate",
-        "title": "Chainlink: Create from Template"
+        "command": "crosslink.createWithTemplate",
+        "title": "Crosslink: Create from Template"
       },
       {
-        "command": "chainlink.createSubissue",
-        "title": "Chainlink: Create Subissue"
+        "command": "crosslink.createSubissue",
+        "title": "Crosslink: Create Subissue"
       },
       {
-        "command": "chainlink.showIssue",
-        "title": "Chainlink: Show Issue Details"
+        "command": "crosslink.showIssue",
+        "title": "Crosslink: Show Issue Details"
       },
       {
-        "command": "chainlink.updateIssue",
-        "title": "Chainlink: Update Issue"
+        "command": "crosslink.updateIssue",
+        "title": "Crosslink: Update Issue"
       },
       {
-        "command": "chainlink.closeIssue",
-        "title": "Chainlink: Close Issue"
+        "command": "crosslink.closeIssue",
+        "title": "Crosslink: Close Issue"
       },
       {
-        "command": "chainlink.closeAllIssues",
-        "title": "Chainlink: Close All Issues"
+        "command": "crosslink.closeAllIssues",
+        "title": "Crosslink: Close All Issues"
       },
       {
-        "command": "chainlink.reopenIssue",
-        "title": "Chainlink: Reopen Issue"
+        "command": "crosslink.reopenIssue",
+        "title": "Crosslink: Reopen Issue"
       },
       {
-        "command": "chainlink.deleteIssue",
-        "title": "Chainlink: Delete Issue"
+        "command": "crosslink.deleteIssue",
+        "title": "Crosslink: Delete Issue"
       },
       {
-        "command": "chainlink.addComment",
-        "title": "Chainlink: Add Comment"
+        "command": "crosslink.addComment",
+        "title": "Crosslink: Add Comment"
       },
       {
-        "command": "chainlink.addLabel",
-        "title": "Chainlink: Add Label"
+        "command": "crosslink.addLabel",
+        "title": "Crosslink: Add Label"
       },
       {
-        "command": "chainlink.removeLabel",
-        "title": "Chainlink: Remove Label"
+        "command": "crosslink.removeLabel",
+        "title": "Crosslink: Remove Label"
       },
       {
-        "command": "chainlink.blockIssue",
-        "title": "Chainlink: Block Issue"
+        "command": "crosslink.blockIssue",
+        "title": "Crosslink: Block Issue"
       },
       {
-        "command": "chainlink.unblockIssue",
-        "title": "Chainlink: Unblock Issue"
+        "command": "crosslink.unblockIssue",
+        "title": "Crosslink: Unblock Issue"
       },
       {
-        "command": "chainlink.readyIssues",
-        "title": "Chainlink: Show Ready Issues"
+        "command": "crosslink.readyIssues",
+        "title": "Crosslink: Show Ready Issues"
       },
       {
-        "command": "chainlink.blockedIssues",
-        "title": "Chainlink: Show Blocked Issues"
+        "command": "crosslink.blockedIssues",
+        "title": "Crosslink: Show Blocked Issues"
       },
       {
-        "command": "chainlink.relateIssues",
-        "title": "Chainlink: Relate Issues"
+        "command": "crosslink.relateIssues",
+        "title": "Crosslink: Relate Issues"
       },
       {
-        "command": "chainlink.unrelateIssues",
-        "title": "Chainlink: Unrelate Issues"
+        "command": "crosslink.unrelateIssues",
+        "title": "Crosslink: Unrelate Issues"
       },
       {
-        "command": "chainlink.nextIssue",
-        "title": "Chainlink: Suggest Next Issue"
+        "command": "crosslink.nextIssue",
+        "title": "Crosslink: Suggest Next Issue"
       },
       {
-        "command": "chainlink.treeView",
-        "title": "Chainlink: Show Issue Tree"
+        "command": "crosslink.treeView",
+        "title": "Crosslink: Show Issue Tree"
       },
       {
-        "command": "chainlink.searchIssues",
-        "title": "Chainlink: Search Issues"
+        "command": "crosslink.searchIssues",
+        "title": "Crosslink: Search Issues"
       }
     ],
     "configuration": {
-      "title": "Chainlink Issue Tracker",
+      "title": "Crosslink Issue Tracker",
       "properties": {
-        "chainlink.binaryPath": {
+        "crosslink.binaryPath": {
           "type": "string",
           "default": "",
-          "description": "Override path to the chainlink binary (for development/debugging). Leave empty to use bundled binary."
+          "description": "Override path to the crosslink binary (for development/debugging). Leave empty to use bundled binary."
         },
-        "chainlink.autoStartDaemon": {
+        "crosslink.autoStartDaemon": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically start the daemon when a .chainlink project is detected."
+          "description": "Automatically start the daemon when a .crosslink project is detected."
         },
-        "chainlink.showOutputChannel": {
+        "crosslink.showOutputChannel": {
           "type": "boolean",
           "default": false,
           "description": "Show output channel for daemon logs."
@@ -198,11 +198,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/dollspace-gay/chainlink"
+    "url": "https://github.com/forecast-bio/crosslink"
   },
   "bugs": {
-    "url": "https://github.com/dollspace-gay/chainlink/issues"
+    "url": "https://github.com/forecast-bio/crosslink/issues"
   },
-  "homepage": "https://github.com/dollspace-gay/chainlink#readme",
+  "homepage": "https://github.com/forecast-bio/crosslink#readme",
   "license": "MIT"
 }

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Chainlink will be documented in this file.
+All notable changes to Crosslink will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
@@ -8,21 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Multi-Agent Collaboration
 
-Distributed issue locking and agent coordination, ported from chainlink-enterprise.
+Distributed issue locking and agent coordination, ported from crosslink-enterprise.
 
 #### Agent Identity
-- `chainlink agent init <id>` — register a machine-local agent identity (stored in `.chainlink/agent.json`, gitignored)
-- `chainlink agent status` — show agent identity and currently held locks
+- `crosslink agent init <id>` — register a machine-local agent identity (stored in `.crosslink/agent.json`, gitignored)
+- `crosslink agent status` — show agent identity and currently held locks
 
 #### Distributed Locking
-- `chainlink locks list` — show all active issue locks with stale detection
-- `chainlink locks check <id>` — check if a specific issue is available or claimed
-- `chainlink sync` — fetch lock state from the `chainlink/locks` coordination branch, verify GPG signatures, display cache path and commit info
+- `crosslink locks list` — show all active issue locks with stale detection
+- `crosslink locks check <id>` — check if a specific issue is available or claimed
+- `crosslink sync` — fetch lock state from the `crosslink/locks` coordination branch, verify GPG signatures, display cache path and commit info
 
 #### Lock-Aware Workflows
-- `chainlink next` now skips issues locked by other agents
-- `chainlink session work <id>` enforces lock ownership before allowing work
-- `chainlink create --work` and `chainlink subissue --work` check locks before claiming
+- `crosslink next` now skips issues locked by other agents
+- `crosslink session work <id>` enforces lock ownership before allowing work
+- `crosslink create --work` and `crosslink subissue --work` check locks before claiming
 - Session start records agent identity in the database (schema v8 to v9 migration)
 
 #### Daemon Heartbeat
@@ -30,20 +30,20 @@ Distributed issue locking and agent coordination, ported from chainlink-enterpri
 - Stale lock detection based on heartbeat freshness
 
 #### Hook Enhancements
-- `session-start.py` runs `chainlink sync` and displays active locks on startup
+- `session-start.py` runs `crosslink sync` and displays active locks on startup
 - `work-check.py` warns (in strict mode) when working on an issue locked by another agent
 
 #### Init Improvements
-- `chainlink init` now writes `.chainlink/.gitignore` to exclude machine-local files (`agent.json`, `.locks-cache/`)
+- `crosslink init` now writes `.crosslink/.gitignore` to exclude machine-local files (`agent.json`, `.locks-cache/`)
 
 ### Claude 4.6 Opus Optimization Epic (#99)
 
-Comprehensive overhaul to make chainlink work seamlessly with Claude 4.6 Opus,
+Comprehensive overhaul to make crosslink work seamlessly with Claude 4.6 Opus,
 reducing tool-call overhead, improving machine-parseable output, and adding
 context-compression resilience.
 
 #### CLI Enhancements
-- `chainlink quick` compound command — create + label + work in one call (#100)
+- `crosslink quick` compound command — create + label + work in one call (#100)
 - `--json` output flag on show command for structured machine-readable output (#101)
 - `--quiet` / `-q` mode for minimal, pipe-friendly output (#108)
 - `--work` and `--label` flags on `create` and `subissue` commands (#104)
@@ -79,10 +79,10 @@ context-compression resilience.
 - Auto-create CHANGELOG.md if it doesn't exist when closing issues
 - Automatic CHANGELOG.md updates when closing issues (based on labels)
 - `--no-changelog` flag to skip changelog entry for internal work
-- `chainlink export` now outputs to stdout by default, use `-o` for file output
+- `crosslink export` now outputs to stdout by default, use `-o` for file output
 
 ### Fixed
-- Fix hooks to always find parent .chainlink directory regardless of cwd (#123)
+- Fix hooks to always find parent .crosslink directory regardless of cwd (#123)
 - Fix CI test failure on latest commit (#122)
 - Fix vscode engine version to match @types/vscode (#115)
 - Fix SQL injection vulnerability in milestone listing (#97)
@@ -186,15 +186,15 @@ context-compression resilience.
 - Tree view for issue hierarchy
 - Search functionality
 - Priority levels (low, medium, high, critical)
-- SQLite storage (`.chainlink/issues.db`)
+- SQLite storage (`.crosslink/issues.db`)
 - Claude Code hooks integration
 - Smart navigation suggestions
-- `chainlink next` command for work suggestions
+- `crosslink next` command for work suggestions
 
 ## Project Goals
 
-Chainlink is designed to be:
-- **Simple**: No complex setup, just `chainlink init`
+Crosslink is designed to be:
+- **Simple**: No complex setup, just `crosslink init`
 - **Lean**: Single binary, SQLite storage, no external dependencies
 - **AI-First**: Built for AI-assisted development workflows
 - **Context-Preserving**: Session handoff notes survive context resets

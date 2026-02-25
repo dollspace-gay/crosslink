@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Build script for chainlink binaries.
+ * Build script for crosslink binaries.
  * Compiles Windows, Linux, and macOS binaries from Rust source and copies to bin/.
  * Uses Docker with macos-cross-compiler for cross-compilation to macOS.
  * Requires: Docker, WSL (for Linux on Windows)
@@ -12,7 +12,7 @@ const path = require('path');
 const os = require('os');
 
 const ROOT_DIR = path.resolve(__dirname, '..', '..');
-const CHAINLINK_DIR = path.join(ROOT_DIR, 'chainlink');
+const CROSSLINK_DIR = path.join(ROOT_DIR, 'crosslink');
 const BIN_DIR = path.join(__dirname, '..', 'bin');
 
 // Add common tool directories to PATH for child processes
@@ -60,11 +60,11 @@ function checkCommand(cmd) {
 function buildWindows() {
     console.log('\n=== Building Windows binary ===');
     console.log('Cleaning previous build...');
-    run('cargo clean', { cwd: CHAINLINK_DIR });
-    const success = run('cargo build --release', { cwd: CHAINLINK_DIR });
+    run('cargo clean', { cwd: CROSSLINK_DIR });
+    const success = run('cargo build --release', { cwd: CROSSLINK_DIR });
     if (success) {
-        const src = path.join(CHAINLINK_DIR, 'target', 'release', 'chainlink.exe');
-        const dest = path.join(BIN_DIR, 'chainlink-win.exe');
+        const src = path.join(CROSSLINK_DIR, 'target', 'release', 'crosslink.exe');
+        const dest = path.join(BIN_DIR, 'crosslink-win.exe');
         if (fs.existsSync(src)) {
             fs.copyFileSync(src, dest);
             console.log(`Copied: ${dest}`);
@@ -82,18 +82,18 @@ function buildLinux() {
     if (process.platform === 'win32') {
         // Clean and build via WSL with musl target for static linking
         console.log('Cleaning previous Linux build...');
-        run(`wsl -d FedoraLinux-42 -- bash -c "source ~/.cargo/env && cd /mnt/c/Users/texas/chainlink/chainlink/chainlink && cargo clean --target ${MUSL_TARGET} 2>/dev/null || true"`);
+        run(`wsl -d FedoraLinux-42 -- bash -c "source ~/.cargo/env && cd /mnt/c/Users/texas/crosslink/crosslink/crosslink && cargo clean --target ${MUSL_TARGET} 2>/dev/null || true"`);
         console.log('Ensuring musl target is installed...');
         run(`wsl -d FedoraLinux-42 -- bash -c "source ~/.cargo/env && rustup target add ${MUSL_TARGET}"`);
-        const wslCmd = `wsl -d FedoraLinux-42 -- bash -c "source ~/.cargo/env && cd /mnt/c/Users/texas/chainlink/chainlink/chainlink && cargo build --release --target ${MUSL_TARGET}"`;
+        const wslCmd = `wsl -d FedoraLinux-42 -- bash -c "source ~/.cargo/env && cd /mnt/c/Users/texas/crosslink/crosslink/crosslink && cargo build --release --target ${MUSL_TARGET}"`;
         const success = run(wslCmd);
         if (success) {
-            const src = path.join(CHAINLINK_DIR, 'target', MUSL_TARGET, 'release', 'chainlink');
-            const dest = path.join(BIN_DIR, 'chainlink-linux');
+            const src = path.join(CROSSLINK_DIR, 'target', MUSL_TARGET, 'release', 'crosslink');
+            const dest = path.join(BIN_DIR, 'crosslink-linux');
             if (fs.existsSync(src)) {
                 fs.copyFileSync(src, dest);
                 console.log(`Copied: ${dest}`);
-                run('wsl -d FedoraLinux-42 -- bash -c "chmod +x /mnt/c/Users/texas/chainlink/chainlink/vscode-extension/bin/chainlink-linux"');
+                run('wsl -d FedoraLinux-42 -- bash -c "chmod +x /mnt/c/Users/texas/crosslink/crosslink/vscode-extension/bin/crosslink-linux"');
                 return true;
             }
         }
@@ -101,13 +101,13 @@ function buildLinux() {
     } else {
         // Native Linux build with musl target for static linking
         console.log('Cleaning previous build...');
-        run(`cargo clean --target ${MUSL_TARGET}`, { cwd: CHAINLINK_DIR });
+        run(`cargo clean --target ${MUSL_TARGET}`, { cwd: CROSSLINK_DIR });
         console.log('Ensuring musl target is installed...');
         run(`rustup target add ${MUSL_TARGET}`);
-        const success = run(`cargo build --release --target ${MUSL_TARGET}`, { cwd: CHAINLINK_DIR });
+        const success = run(`cargo build --release --target ${MUSL_TARGET}`, { cwd: CROSSLINK_DIR });
         if (success) {
-            const src = path.join(CHAINLINK_DIR, 'target', MUSL_TARGET, 'release', 'chainlink');
-            const dest = path.join(BIN_DIR, 'chainlink-linux');
+            const src = path.join(CROSSLINK_DIR, 'target', MUSL_TARGET, 'release', 'crosslink');
+            const dest = path.join(BIN_DIR, 'crosslink-linux');
             if (fs.existsSync(src)) {
                 fs.copyFileSync(src, dest);
                 fs.chmodSync(dest, 0o755);
@@ -140,15 +140,15 @@ function buildMacOS() {
 
     // Clean macOS targets first
     console.log('\n--- Cleaning macOS targets ---');
-    run(`docker run --platform=linux/amd64 -v "${dockerWorkspace}:/workspace" --rm ${DOCKER_IMAGE} bash -c "cd /workspace/chainlink && cargo clean --target aarch64-apple-darwin --target x86_64-apple-darwin 2>/dev/null || true"`);
+    run(`docker run --platform=linux/amd64 -v "${dockerWorkspace}:/workspace" --rm ${DOCKER_IMAGE} bash -c "cd /workspace/crosslink && cargo clean --target aarch64-apple-darwin --target x86_64-apple-darwin 2>/dev/null || true"`);
 
     // Build for aarch64 (Apple Silicon M1/M2/M3)
     console.log('\n--- Building for aarch64-apple-darwin ---');
-    const arm64Cmd = `docker run --platform=linux/amd64 -v "${dockerWorkspace}:/workspace" --rm ${DOCKER_IMAGE} bash -c "cd /workspace/chainlink && export CC=aarch64-apple-darwin24-gcc && export AR=aarch64-apple-darwin24-ar && export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=aarch64-apple-darwin24-gcc && cargo build --release --target aarch64-apple-darwin"`;
+    const arm64Cmd = `docker run --platform=linux/amd64 -v "${dockerWorkspace}:/workspace" --rm ${DOCKER_IMAGE} bash -c "cd /workspace/crosslink && export CC=aarch64-apple-darwin24-gcc && export AR=aarch64-apple-darwin24-ar && export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=aarch64-apple-darwin24-gcc && cargo build --release --target aarch64-apple-darwin"`;
     const arm64Success = run(arm64Cmd);
     if (arm64Success) {
-        const src = path.join(CHAINLINK_DIR, 'target', 'aarch64-apple-darwin', 'release', 'chainlink');
-        const dest = path.join(BIN_DIR, 'chainlink-darwin-arm64');
+        const src = path.join(CROSSLINK_DIR, 'target', 'aarch64-apple-darwin', 'release', 'crosslink');
+        const dest = path.join(BIN_DIR, 'crosslink-darwin-arm64');
         if (fs.existsSync(src)) {
             fs.copyFileSync(src, dest);
             console.log(`Copied: ${dest}`);
@@ -158,11 +158,11 @@ function buildMacOS() {
 
     // Build for x86_64 (Intel Macs)
     console.log('\n--- Building for x86_64-apple-darwin ---');
-    const x64Cmd = `docker run --platform=linux/amd64 -v "${dockerWorkspace}:/workspace" --rm ${DOCKER_IMAGE} bash -c "cd /workspace/chainlink && export CC=x86_64-apple-darwin24-gcc && export AR=x86_64-apple-darwin24-ar && export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=x86_64-apple-darwin24-gcc && cargo build --release --target x86_64-apple-darwin"`;
+    const x64Cmd = `docker run --platform=linux/amd64 -v "${dockerWorkspace}:/workspace" --rm ${DOCKER_IMAGE} bash -c "cd /workspace/crosslink && export CC=x86_64-apple-darwin24-gcc && export AR=x86_64-apple-darwin24-ar && export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=x86_64-apple-darwin24-gcc && cargo build --release --target x86_64-apple-darwin"`;
     const x64Success = run(x64Cmd);
     if (x64Success) {
-        const src = path.join(CHAINLINK_DIR, 'target', 'x86_64-apple-darwin', 'release', 'chainlink');
-        const dest = path.join(BIN_DIR, 'chainlink-darwin');
+        const src = path.join(CROSSLINK_DIR, 'target', 'x86_64-apple-darwin', 'release', 'crosslink');
+        const dest = path.join(BIN_DIR, 'crosslink-darwin');
         if (fs.existsSync(src)) {
             fs.copyFileSync(src, dest);
             console.log(`Copied: ${dest}`);
@@ -174,8 +174,8 @@ function buildMacOS() {
 }
 
 function main() {
-    console.log('Building chainlink binaries from source...');
-    console.log(`Chainlink source: ${CHAINLINK_DIR}`);
+    console.log('Building crosslink binaries from source...');
+    console.log(`Crosslink source: ${CROSSLINK_DIR}`);
     console.log(`Output directory: ${BIN_DIR}`);
 
     let windowsOk = false;
@@ -194,11 +194,11 @@ function main() {
         // Native macOS build
         console.log('\n=== Building macOS binary (native) ===');
         console.log('Cleaning previous build...');
-        run('cargo clean', { cwd: CHAINLINK_DIR });
-        const success = run('cargo build --release', { cwd: CHAINLINK_DIR });
+        run('cargo clean', { cwd: CROSSLINK_DIR });
+        const success = run('cargo build --release', { cwd: CROSSLINK_DIR });
         if (success) {
-            const src = path.join(CHAINLINK_DIR, 'target', 'release', 'chainlink');
-            const arch = process.arch === 'arm64' ? 'chainlink-darwin-arm64' : 'chainlink-darwin';
+            const src = path.join(CROSSLINK_DIR, 'target', 'release', 'crosslink');
+            const arch = process.arch === 'arm64' ? 'crosslink-darwin-arm64' : 'crosslink-darwin';
             const dest = path.join(BIN_DIR, arch);
             if (fs.existsSync(src)) {
                 fs.copyFileSync(src, dest);

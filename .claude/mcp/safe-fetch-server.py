@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Chainlink Safe Fetch MCP Server
+Crosslink Safe Fetch MCP Server
 
 An MCP (Model Context Protocol) server that provides sanitized web fetching.
 Filters out malicious strings that could disrupt Claude before returning content.
 
 Usage:
     Registered in .claude/settings.json as an MCP server.
-    Claude calls mcp__chainlink-safe-fetch__safe_fetch(url, prompt) to fetch web content.
+    Claude calls mcp__crosslink-safe-fetch__safe_fetch(url, prompt) to fetch web content.
 """
 
 import json
@@ -42,11 +42,11 @@ def log(message: str) -> None:
     print(f"[safe-fetch] {message}", file=sys.stderr)
 
 
-def find_chainlink_dir() -> Path | None:
-    """Find the .chainlink directory by walking up from cwd."""
+def find_crosslink_dir() -> Path | None:
+    """Find the .crosslink directory by walking up from cwd."""
     current = Path.cwd()
     for _ in range(10):
-        candidate = current / '.chainlink'
+        candidate = current / '.crosslink'
         if candidate.is_dir():
             return candidate
         parent = current.parent
@@ -57,12 +57,12 @@ def find_chainlink_dir() -> Path | None:
 
 
 def load_patterns() -> list[tuple[str, str]]:
-    """Load sanitization patterns from .chainlink/rules/sanitize-patterns.txt"""
+    """Load sanitization patterns from .crosslink/rules/sanitize-patterns.txt"""
     patterns = []
 
-    chainlink_dir = find_chainlink_dir()
-    if chainlink_dir:
-        patterns_file = chainlink_dir / 'rules' / 'sanitize-patterns.txt'
+    crosslink_dir = find_crosslink_dir()
+    if crosslink_dir:
+        patterns_file = crosslink_dir / 'rules' / 'sanitize-patterns.txt'
         if patterns_file.exists():
             try:
                 for line in patterns_file.read_text(encoding='utf-8').splitlines():
@@ -100,7 +100,7 @@ def sanitize(content: str, patterns: list[tuple[str, str]]) -> tuple[str, int]:
 def fetch_url(url: str) -> str:
     """Fetch content from URL using available HTTP client."""
     headers = {
-        'User-Agent': 'Mozilla/5.0 (compatible; ChainlinkSafeFetch/1.0)'
+        'User-Agent': 'Mozilla/5.0 (compatible; CrosslinkSafeFetch/1.0)'
     }
 
     if HTTP_CLIENT == 'httpx':
@@ -209,7 +209,7 @@ def handle_request(request: dict[str, Any]) -> dict[str, Any]:
                     'tools': {}
                 },
                 'serverInfo': {
-                    'name': 'chainlink-safe-fetch',
+                    'name': 'crosslink-safe-fetch',
                     'version': '1.0.0'
                 }
             }

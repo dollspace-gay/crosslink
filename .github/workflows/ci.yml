@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: chainlink
+        working-directory: crosslink
     steps:
       - uses: actions/checkout@v4
 
@@ -35,8 +35,8 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            chainlink/target/
-          key: ${{ runner.os }}-cargo-lint-${{ hashFiles('chainlink/Cargo.lock') }}
+            crosslink/target/
+          key: ${{ runner.os }}-cargo-lint-${{ hashFiles('crosslink/Cargo.lock') }}
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: chainlink
+        working-directory: crosslink
     steps:
       - uses: actions/checkout@v4
 
@@ -74,7 +74,7 @@ jobs:
     timeout-minutes: 30
     defaults:
       run:
-        working-directory: chainlink
+        working-directory: crosslink
     strategy:
       fail-fast: false
       matrix:
@@ -96,14 +96,14 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            chainlink/target/
-          key: ${{ runner.os }}-cargo-test-${{ hashFiles('chainlink/Cargo.lock') }}
+            crosslink/target/
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('crosslink/Cargo.lock') }}
 
       - name: Build
         run: cargo build --verbose
 
       - name: Run unit tests
-        run: cargo test --bin chainlink --verbose
+        run: cargo test --bin crosslink --verbose
 
       - name: Run integration tests
         run: cargo test --test cli_integration --verbose
@@ -116,7 +116,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: chainlink
+        working-directory: crosslink
     steps:
       - uses: actions/checkout@v4
 
@@ -131,11 +131,11 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            chainlink/target/
-          key: ${{ runner.os }}-cargo-proptest-${{ hashFiles('chainlink/Cargo.lock') }}
+            crosslink/target/
+          key: ${{ runner.os }}-cargo-proptest-${{ hashFiles('crosslink/Cargo.lock') }}
 
       - name: Run property-based tests (extended)
-        run: cargo test proptest --bin chainlink -- --test-threads=1
+        run: cargo test proptest --bin crosslink -- --test-threads=1
         env:
           PROPTEST_CASES: 1000
 
@@ -147,7 +147,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: chainlink
+        working-directory: crosslink
     steps:
       - uses: actions/checkout@v4
 
@@ -165,9 +165,9 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            chainlink/target/
-            chainlink/fuzz/target/
-          key: ${{ runner.os }}-cargo-fuzz-${{ hashFiles('chainlink/Cargo.lock') }}
+            crosslink/target/
+            crosslink/fuzz/target/
+          key: ${{ runner.os }}-cargo-fuzz-${{ hashFiles('crosslink/Cargo.lock') }}
 
       - name: Fuzz create_issue (30 seconds)
         run: cargo +nightly fuzz run fuzz_create_issue -- -max_total_time=30
@@ -189,19 +189,19 @@ jobs:
     runs-on: ${{ matrix.os }}
     defaults:
       run:
-        working-directory: chainlink
+        working-directory: crosslink
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
-            artifact: chainlink-linux
+            artifact: crosslink-linux
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact: chainlink-macos
+            artifact: crosslink-macos
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact: chainlink-win.exe
+            artifact: crosslink-win.exe
     steps:
       - uses: actions/checkout@v4
 
@@ -221,4 +221,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: chainlink/target/${{ matrix.target }}/release/chainlink${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          path: crosslink/target/${{ matrix.target }}/release/crosslink${{ matrix.os == 'windows-latest' && '.exe' || '' }}

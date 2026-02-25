@@ -11,12 +11,12 @@ let outputChannel: vscode.OutputChannel;
 let statusBarItem: vscode.StatusBarItem;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-    outputChannel = vscode.window.createOutputChannel('Chainlink');
+    outputChannel = vscode.window.createOutputChannel('Crosslink');
     context.subscriptions.push(outputChannel);
 
     // Create status bar item
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    statusBarItem.command = 'chainlink.daemonStatus';
+    statusBarItem.command = 'crosslink.daemonStatus';
     context.subscriptions.push(statusBarItem);
 
     // Validate binaries are present
@@ -24,7 +24,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (!validation.valid) {
         outputChannel.appendLine(`Binary validation failed: ${validation.error}`);
         vscode.window.showErrorMessage(
-            `Chainlink: Binary not found for your platform. ${validation.error}`
+            `Crosslink: Binary not found for your platform. ${validation.error}`
         );
         return;
     }
@@ -39,7 +39,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     try {
         const installed = await installToUserBin(context.extensionPath, outputChannel);
         if (installed) {
-            outputChannel.appendLine(`Installed chainlink to user bin directory`);
+            outputChannel.appendLine(`Installed crosslink to user bin directory`);
         }
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -56,7 +56,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
 
     // Get configuration
-    const config = vscode.workspace.getConfiguration('chainlink');
+    const config = vscode.workspace.getConfiguration('crosslink');
     const overridePath = config.get<string>('binaryPath');
     const autoStart = config.get<boolean>('autoStartDaemon', true);
     const showOutput = config.get<boolean>('showOutputChannel', false);
@@ -72,8 +72,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Register commands
     registerCommands(context);
 
-    // Auto-start daemon if configured and .chainlink exists
-    if (autoStart && daemonManager.hasChainlinkProject()) {
+    // Auto-start daemon if configured and .crosslink exists
+    if (autoStart && daemonManager.hasCrosslinkProject()) {
         try {
             await daemonManager.start();
             updateStatusBar(true);
@@ -92,7 +92,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Watch for configuration changes
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration((e) => {
-            if (e.affectsConfiguration('chainlink')) {
+            if (e.affectsConfiguration('crosslink')) {
                 handleConfigChange();
             }
         })
@@ -103,7 +103,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         checkPythonForHooks(workspaceFolder, outputChannel);
     }
 
-    outputChannel.appendLine('Chainlink extension activated');
+    outputChannel.appendLine('Crosslink extension activated');
 }
 
 export function deactivate(): void {
@@ -113,7 +113,7 @@ export function deactivate(): void {
         daemonManager.dispose();
         daemonManager = null;
     }
-    outputChannel?.appendLine('Chainlink extension deactivated');
+    outputChannel?.appendLine('Crosslink extension deactivated');
 }
 
 function registerCommands(context: vscode.ExtensionContext): void {
@@ -122,16 +122,16 @@ function registerCommands(context: vscode.ExtensionContext): void {
     };
 
     // ── Init ──
-    reg('chainlink.init', async () => {
-        await executeChainlinkCommand(['init'], 'Initializing chainlink project...');
+    reg('crosslink.init', async () => {
+        await executeCrosslinkCommand(['init'], 'Initializing crosslink project...');
     });
 
     // ── Session commands ──
-    reg('chainlink.sessionStart', async () => {
-        await executeChainlinkCommand(['session', 'start'], 'Starting session...');
+    reg('crosslink.sessionStart', async () => {
+        await executeCrosslinkCommand(['session', 'start'], 'Starting session...');
     });
 
-    reg('chainlink.sessionEnd', async () => {
+    reg('crosslink.sessionEnd', async () => {
         const notes = await vscode.window.showInputBox({
             prompt: 'Enter handoff notes (optional)',
             placeHolder: 'What should the next session know?',
@@ -140,37 +140,37 @@ function registerCommands(context: vscode.ExtensionContext): void {
         if (notes) {
             args.push('--notes', notes);
         }
-        await executeChainlinkCommand(args, 'Ending session...');
+        await executeCrosslinkCommand(args, 'Ending session...');
     });
 
-    reg('chainlink.sessionStatus', async () => {
-        await executeChainlinkCommand(['session', 'status'], 'Getting session status...');
+    reg('crosslink.sessionStatus', async () => {
+        await executeCrosslinkCommand(['session', 'status'], 'Getting session status...');
     });
 
-    reg('chainlink.sessionWork', async () => {
+    reg('crosslink.sessionWork', async () => {
         const id = await vscode.window.showInputBox({
             prompt: 'Issue ID to work on',
             placeHolder: 'Enter issue number',
         });
         if (!id) { return; }
-        await executeChainlinkCommand(['session', 'work', id], `Setting working issue to #${id}...`);
+        await executeCrosslinkCommand(['session', 'work', id], `Setting working issue to #${id}...`);
     });
 
-    reg('chainlink.sessionAction', async () => {
+    reg('crosslink.sessionAction', async () => {
         const text = await vscode.window.showInputBox({
             prompt: 'Action breadcrumb',
             placeHolder: 'What are you working on right now?',
         });
         if (!text) { return; }
-        await executeChainlinkCommand(['session', 'action', text], 'Recording action...');
+        await executeCrosslinkCommand(['session', 'action', text], 'Recording action...');
     });
 
-    reg('chainlink.sessionLastHandoff', async () => {
-        await executeChainlinkCommand(['session', 'last-handoff'], 'Getting last handoff notes...');
+    reg('crosslink.sessionLastHandoff', async () => {
+        await executeCrosslinkCommand(['session', 'last-handoff'], 'Getting last handoff notes...');
     });
 
     // ── Daemon commands ──
-    reg('chainlink.daemonStart', async () => {
+    reg('crosslink.daemonStart', async () => {
         if (!daemonManager) {
             vscode.window.showErrorMessage('No workspace folder open');
             return;
@@ -178,69 +178,69 @@ function registerCommands(context: vscode.ExtensionContext): void {
         try {
             await daemonManager.start();
             updateStatusBar(true);
-            vscode.window.showInformationMessage('Chainlink daemon started');
+            vscode.window.showInformationMessage('Crosslink daemon started');
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             vscode.window.showErrorMessage(`Failed to start daemon: ${message}`);
         }
     });
 
-    reg('chainlink.daemonStop', async () => {
+    reg('crosslink.daemonStop', async () => {
         if (!daemonManager) {
             vscode.window.showErrorMessage('No workspace folder open');
             return;
         }
         daemonManager.stop();
         updateStatusBar(false);
-        vscode.window.showInformationMessage('Chainlink daemon stopped');
+        vscode.window.showInformationMessage('Crosslink daemon stopped');
     });
 
-    reg('chainlink.daemonStatus', async () => {
+    reg('crosslink.daemonStatus', async () => {
         if (!daemonManager) {
-            vscode.window.showInformationMessage('Chainlink: No workspace open');
+            vscode.window.showInformationMessage('Crosslink: No workspace open');
             return;
         }
         const running = daemonManager.isRunning();
         const pid = daemonManager.getPid();
         if (running && pid) {
-            vscode.window.showInformationMessage(`Chainlink daemon running (PID: ${pid})`);
+            vscode.window.showInformationMessage(`Crosslink daemon running (PID: ${pid})`);
         } else {
-            vscode.window.showInformationMessage('Chainlink daemon not running');
+            vscode.window.showInformationMessage('Crosslink daemon not running');
         }
     });
 
     // ── Issue listing & navigation ──
-    reg('chainlink.listIssues', async () => {
-        await executeChainlinkCommand(['list'], 'Listing issues...');
+    reg('crosslink.listIssues', async () => {
+        await executeCrosslinkCommand(['list'], 'Listing issues...');
     });
 
-    reg('chainlink.readyIssues', async () => {
-        await executeChainlinkCommand(['ready'], 'Listing ready issues...');
+    reg('crosslink.readyIssues', async () => {
+        await executeCrosslinkCommand(['ready'], 'Listing ready issues...');
     });
 
-    reg('chainlink.blockedIssues', async () => {
-        await executeChainlinkCommand(['blocked'], 'Listing blocked issues...');
+    reg('crosslink.blockedIssues', async () => {
+        await executeCrosslinkCommand(['blocked'], 'Listing blocked issues...');
     });
 
-    reg('chainlink.nextIssue', async () => {
-        await executeChainlinkCommand(['next'], 'Suggesting next issue...');
+    reg('crosslink.nextIssue', async () => {
+        await executeCrosslinkCommand(['next'], 'Suggesting next issue...');
     });
 
-    reg('chainlink.treeView', async () => {
-        await executeChainlinkCommand(['tree'], 'Showing issue tree...');
+    reg('crosslink.treeView', async () => {
+        await executeCrosslinkCommand(['tree'], 'Showing issue tree...');
     });
 
-    reg('chainlink.searchIssues', async () => {
+    reg('crosslink.searchIssues', async () => {
         const query = await vscode.window.showInputBox({
             prompt: 'Search query',
             placeHolder: 'Enter search terms',
         });
         if (!query) { return; }
-        await executeChainlinkCommand(['search', query], `Searching for "${query}"...`);
+        await executeCrosslinkCommand(['search', query], `Searching for "${query}"...`);
     });
 
     // ── Issue creation ──
-    reg('chainlink.createIssue', async () => {
+    reg('crosslink.createIssue', async () => {
         const title = await vscode.window.showInputBox({
             prompt: 'Issue title',
             placeHolder: 'Enter issue title',
@@ -257,10 +257,10 @@ function registerCommands(context: vscode.ExtensionContext): void {
             args.push('-p', priority);
         }
 
-        await executeChainlinkCommand(args, 'Creating issue...');
+        await executeCrosslinkCommand(args, 'Creating issue...');
     });
 
-    reg('chainlink.quickCreate', async () => {
+    reg('crosslink.quickCreate', async () => {
         const title = await vscode.window.showInputBox({
             prompt: 'Issue title',
             placeHolder: 'Enter issue title',
@@ -285,10 +285,10 @@ function registerCommands(context: vscode.ExtensionContext): void {
             args.push('-l', label);
         }
 
-        await executeChainlinkCommand(args, 'Quick creating issue...');
+        await executeCrosslinkCommand(args, 'Quick creating issue...');
     });
 
-    reg('chainlink.createWithTemplate', async () => {
+    reg('crosslink.createWithTemplate', async () => {
         const title = await vscode.window.showInputBox({
             prompt: 'Issue title',
             placeHolder: 'Enter issue title',
@@ -301,10 +301,10 @@ function registerCommands(context: vscode.ExtensionContext): void {
         );
         if (!template) { return; }
 
-        await executeChainlinkCommand(['create', title, '--template', template], `Creating ${template} issue...`);
+        await executeCrosslinkCommand(['create', title, '--template', template], `Creating ${template} issue...`);
     });
 
-    reg('chainlink.createSubissue', async () => {
+    reg('crosslink.createSubissue', async () => {
         const parentId = await vscode.window.showInputBox({
             prompt: 'Parent issue ID',
             placeHolder: 'Enter parent issue number',
@@ -317,20 +317,20 @@ function registerCommands(context: vscode.ExtensionContext): void {
         });
         if (!title) { return; }
 
-        await executeChainlinkCommand(['subissue', parentId, title], 'Creating subissue...');
+        await executeCrosslinkCommand(['subissue', parentId, title], 'Creating subissue...');
     });
 
     // ── Issue details & modification ──
-    reg('chainlink.showIssue', async () => {
+    reg('crosslink.showIssue', async () => {
         const id = await vscode.window.showInputBox({
             prompt: 'Issue ID',
             placeHolder: 'Enter issue number',
         });
         if (!id) { return; }
-        await executeChainlinkCommand(['show', id], `Showing issue #${id}...`);
+        await executeCrosslinkCommand(['show', id], `Showing issue #${id}...`);
     });
 
-    reg('chainlink.updateIssue', async () => {
+    reg('crosslink.updateIssue', async () => {
         const id = await vscode.window.showInputBox({
             prompt: 'Issue ID to update',
             placeHolder: 'Enter issue number',
@@ -361,38 +361,38 @@ function registerCommands(context: vscode.ExtensionContext): void {
         }
         if (!newValue) { return; }
 
-        await executeChainlinkCommand(['update', id, field.value, newValue], `Updating issue #${id}...`);
+        await executeCrosslinkCommand(['update', id, field.value, newValue], `Updating issue #${id}...`);
     });
 
-    reg('chainlink.closeIssue', async () => {
+    reg('crosslink.closeIssue', async () => {
         const id = await vscode.window.showInputBox({
             prompt: 'Issue ID to close',
             placeHolder: 'Enter issue number',
         });
         if (!id) { return; }
-        await executeChainlinkCommand(['close', id], `Closing issue #${id}...`);
+        await executeCrosslinkCommand(['close', id], `Closing issue #${id}...`);
     });
 
-    reg('chainlink.closeAllIssues', async () => {
+    reg('crosslink.closeAllIssues', async () => {
         const confirm = await vscode.window.showWarningMessage(
             'Close all open issues?',
             { modal: true },
             'Close All'
         );
         if (confirm !== 'Close All') { return; }
-        await executeChainlinkCommand(['close-all'], 'Closing all issues...');
+        await executeCrosslinkCommand(['close-all'], 'Closing all issues...');
     });
 
-    reg('chainlink.reopenIssue', async () => {
+    reg('crosslink.reopenIssue', async () => {
         const id = await vscode.window.showInputBox({
             prompt: 'Issue ID to reopen',
             placeHolder: 'Enter issue number',
         });
         if (!id) { return; }
-        await executeChainlinkCommand(['reopen', id], `Reopening issue #${id}...`);
+        await executeCrosslinkCommand(['reopen', id], `Reopening issue #${id}...`);
     });
 
-    reg('chainlink.deleteIssue', async () => {
+    reg('crosslink.deleteIssue', async () => {
         const id = await vscode.window.showInputBox({
             prompt: 'Issue ID to delete',
             placeHolder: 'Enter issue number',
@@ -406,11 +406,11 @@ function registerCommands(context: vscode.ExtensionContext): void {
         );
         if (confirm !== 'Delete') { return; }
 
-        await executeChainlinkCommand(['delete', id, '-f'], `Deleting issue #${id}...`);
+        await executeCrosslinkCommand(['delete', id, '-f'], `Deleting issue #${id}...`);
     });
 
     // ── Comments & labels ──
-    reg('chainlink.addComment', async () => {
+    reg('crosslink.addComment', async () => {
         const id = await vscode.window.showInputBox({
             prompt: 'Issue ID',
             placeHolder: 'Enter issue number',
@@ -423,10 +423,10 @@ function registerCommands(context: vscode.ExtensionContext): void {
         });
         if (!text) { return; }
 
-        await executeChainlinkCommand(['comment', id, text], `Adding comment to #${id}...`);
+        await executeCrosslinkCommand(['comment', id, text], `Adding comment to #${id}...`);
     });
 
-    reg('chainlink.addLabel', async () => {
+    reg('crosslink.addLabel', async () => {
         const id = await vscode.window.showInputBox({
             prompt: 'Issue ID',
             placeHolder: 'Enter issue number',
@@ -439,10 +439,10 @@ function registerCommands(context: vscode.ExtensionContext): void {
         });
         if (!label) { return; }
 
-        await executeChainlinkCommand(['label', id, label], `Adding label to #${id}...`);
+        await executeCrosslinkCommand(['label', id, label], `Adding label to #${id}...`);
     });
 
-    reg('chainlink.removeLabel', async () => {
+    reg('crosslink.removeLabel', async () => {
         const id = await vscode.window.showInputBox({
             prompt: 'Issue ID',
             placeHolder: 'Enter issue number',
@@ -455,11 +455,11 @@ function registerCommands(context: vscode.ExtensionContext): void {
         });
         if (!label) { return; }
 
-        await executeChainlinkCommand(['unlabel', id, label], `Removing label from #${id}...`);
+        await executeCrosslinkCommand(['unlabel', id, label], `Removing label from #${id}...`);
     });
 
     // ── Dependencies & relations ──
-    reg('chainlink.blockIssue', async () => {
+    reg('crosslink.blockIssue', async () => {
         const id = await vscode.window.showInputBox({
             prompt: 'Issue ID that is blocked',
             placeHolder: 'Enter blocked issue number',
@@ -472,10 +472,10 @@ function registerCommands(context: vscode.ExtensionContext): void {
         });
         if (!blockerId) { return; }
 
-        await executeChainlinkCommand(['block', id, blockerId], `Blocking #${id} with #${blockerId}...`);
+        await executeCrosslinkCommand(['block', id, blockerId], `Blocking #${id} with #${blockerId}...`);
     });
 
-    reg('chainlink.unblockIssue', async () => {
+    reg('crosslink.unblockIssue', async () => {
         const id = await vscode.window.showInputBox({
             prompt: 'Issue ID to unblock',
             placeHolder: 'Enter blocked issue number',
@@ -488,10 +488,10 @@ function registerCommands(context: vscode.ExtensionContext): void {
         });
         if (!blockerId) { return; }
 
-        await executeChainlinkCommand(['unblock', id, blockerId], `Unblocking #${id} from #${blockerId}...`);
+        await executeCrosslinkCommand(['unblock', id, blockerId], `Unblocking #${id} from #${blockerId}...`);
     });
 
-    reg('chainlink.relateIssues', async () => {
+    reg('crosslink.relateIssues', async () => {
         const id1 = await vscode.window.showInputBox({
             prompt: 'First issue ID',
             placeHolder: 'Enter issue number',
@@ -504,10 +504,10 @@ function registerCommands(context: vscode.ExtensionContext): void {
         });
         if (!id2) { return; }
 
-        await executeChainlinkCommand(['relate', id1, id2], `Relating #${id1} and #${id2}...`);
+        await executeCrosslinkCommand(['relate', id1, id2], `Relating #${id1} and #${id2}...`);
     });
 
-    reg('chainlink.unrelateIssues', async () => {
+    reg('crosslink.unrelateIssues', async () => {
         const id1 = await vscode.window.showInputBox({
             prompt: 'First issue ID',
             placeHolder: 'Enter issue number',
@@ -520,11 +520,11 @@ function registerCommands(context: vscode.ExtensionContext): void {
         });
         if (!id2) { return; }
 
-        await executeChainlinkCommand(['unrelate', id1, id2], `Unrelating #${id1} and #${id2}...`);
+        await executeCrosslinkCommand(['unrelate', id1, id2], `Unrelating #${id1} and #${id2}...`);
     });
 }
 
-async function executeChainlinkCommand(args: string[], statusMessage: string): Promise<void> {
+async function executeCrosslinkCommand(args: string[], statusMessage: string): Promise<void> {
     if (!daemonManager) {
         vscode.window.showErrorMessage('No workspace folder open');
         return;
@@ -540,7 +540,7 @@ async function executeChainlinkCommand(args: string[], statusMessage: string): P
             async () => {
                 const output = await daemonManager!.executeCommand(args);
                 if (output) {
-                    outputChannel.appendLine(`$ chainlink ${args.join(' ')}`);
+                    outputChannel.appendLine(`$ crosslink ${args.join(' ')}`);
                     outputChannel.appendLine(output);
                     outputChannel.show(true);
 
@@ -555,7 +555,7 @@ async function executeChainlinkCommand(args: string[], statusMessage: string): P
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         outputChannel.appendLine(`Error: ${message}`);
-        vscode.window.showErrorMessage(`Chainlink: ${message}`);
+        vscode.window.showErrorMessage(`Crosslink: ${message}`);
     }
 }
 
@@ -570,19 +570,19 @@ function getWorkspaceFolder(): string | undefined {
 
 function updateStatusBar(running: boolean): void {
     if (running) {
-        statusBarItem.text = '$(pulse) Chainlink';
-        statusBarItem.tooltip = 'Chainlink daemon running (click for status)';
+        statusBarItem.text = '$(pulse) Crosslink';
+        statusBarItem.tooltip = 'Crosslink daemon running (click for status)';
         statusBarItem.backgroundColor = undefined;
     } else {
-        statusBarItem.text = '$(circle-slash) Chainlink';
-        statusBarItem.tooltip = 'Chainlink daemon not running (click for status)';
+        statusBarItem.text = '$(circle-slash) Crosslink';
+        statusBarItem.tooltip = 'Crosslink daemon not running (click for status)';
         statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
     }
     statusBarItem.show();
 }
 
 function handleConfigChange(): void {
-    const config = vscode.workspace.getConfiguration('chainlink');
+    const config = vscode.workspace.getConfiguration('crosslink');
     const newOverridePath = config.get<string>('binaryPath');
 
     // If binary path changed, we need to restart the daemon
@@ -593,7 +593,7 @@ function handleConfigChange(): void {
         const workspaceFolder = getWorkspaceFolder();
         if (workspaceFolder) {
             daemonManager = new DaemonManager({
-                extensionPath: vscode.extensions.getExtension('chainlink.chainlink-issue-tracker')?.extensionPath || '',
+                extensionPath: vscode.extensions.getExtension('crosslink.crosslink-issue-tracker')?.extensionPath || '',
                 workspaceFolder,
                 outputChannel,
                 overrideBinaryPath: newOverridePath,
@@ -611,9 +611,9 @@ function handleConfigChange(): void {
 }
 
 /**
- * Adds the chainlink binary directory to PATH for all VS Code terminals and tasks.
+ * Adds the crosslink binary directory to PATH for all VS Code terminals and tasks.
  * Uses VS Code's EnvironmentVariableCollection API which persists across sessions.
- * This allows `chainlink` commands to work in terminals and from AI agents.
+ * This allows `crosslink` commands to work in terminals and from AI agents.
  */
 function addToPath(context: vscode.ExtensionContext, binDir: string): void {
     const envCollection = context.environmentVariableCollection;
@@ -636,7 +636,7 @@ function addToPath(context: vscode.ExtensionContext, binDir: string): void {
 }
 
 /**
- * Installs chainlink binary to user's personal bin directory.
+ * Installs crosslink binary to user's personal bin directory.
  * This ensures the binary is available in shells that bypass VS Code's environment,
  * such as Git Bash spawned by Claude Code or other AI coding assistants.
  *
@@ -661,7 +661,7 @@ async function installToUserBin(extensionPath: string, output: vscode.OutputChan
 
     // Find source binary
     const sourceBinary = resolveBinaryPath(extensionPath);
-    const targetName = isWindows ? 'chainlink.exe' : 'chainlink';
+    const targetName = isWindows ? 'crosslink.exe' : 'crosslink';
 
     // Try each candidate directory
     for (const binDir of candidates) {
@@ -674,7 +674,7 @@ async function installToUserBin(extensionPath: string, output: vscode.OutputChan
 
         // Always overwrite to ensure latest version
         if (fs.existsSync(targetPath)) {
-            output.appendLine(`Updating chainlink at ${targetPath}`);
+            output.appendLine(`Updating crosslink at ${targetPath}`);
         }
 
         // Copy binary to user bin
@@ -686,7 +686,7 @@ async function installToUserBin(extensionPath: string, output: vscode.OutputChan
                 fs.chmodSync(targetPath, 0o755);
             }
 
-            output.appendLine(`Installed chainlink to ${targetPath}`);
+            output.appendLine(`Installed crosslink to ${targetPath}`);
             return true;
         } catch (err) {
             output.appendLine(`Failed to copy to ${targetPath}: ${err}`);
@@ -709,7 +709,7 @@ async function installToUserBin(extensionPath: string, output: vscode.OutputChan
             fs.chmodSync(targetPath, 0o755);
         }
 
-        output.appendLine(`Installed chainlink to ${targetPath}`);
+        output.appendLine(`Installed crosslink to ${targetPath}`);
 
         // Warn user they may need to add to PATH
         const pathHint = isWindows
@@ -717,7 +717,7 @@ async function installToUserBin(extensionPath: string, output: vscode.OutputChan
             : `Add 'export PATH="$PATH:${fallbackDir}"' to your ~/.bashrc or ~/.zshrc`;
 
         vscode.window.showInformationMessage(
-            `Chainlink installed to ${fallbackDir}. ${pathHint}`,
+            `Crosslink installed to ${fallbackDir}. ${pathHint}`,
             'OK'
         );
 
@@ -775,7 +775,7 @@ function checkPythonForHooks(workspaceFolder: string, output: vscode.OutputChann
     if (!pythonFound) {
         output.appendLine('WARNING: Python not found but Claude Code hooks require it');
         vscode.window.showWarningMessage(
-            'Chainlink: Python is required for Claude Code hooks but was not found. ' +
+            'Crosslink: Python is required for Claude Code hooks but was not found. ' +
             'Install Python and ensure it\'s in your PATH for hooks to work.',
             'Install Python',
             'Dismiss'

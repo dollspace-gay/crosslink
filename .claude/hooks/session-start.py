@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
 """
-Session start hook that loads chainlink context and auto-starts sessions.
+Session start hook that loads crosslink context and auto-starts sessions.
 """
 
 import json
@@ -15,11 +19,11 @@ from datetime import datetime, timezone
 STALE_SESSION_HOURS = 4
 
 
-def run_chainlink(args):
-    """Run a chainlink command and return output."""
+def run_crosslink(args):
+    """Run a crosslink command and return output."""
     try:
         result = subprocess.run(
-            ["chainlink"] + args,
+            ["crosslink"] + args,
             capture_output=True,
             text=True,
             timeout=5
@@ -29,8 +33,8 @@ def run_chainlink(args):
         return None
 
 
-def check_chainlink_initialized():
-    """Check if .chainlink directory exists.
+def check_crosslink_initialized():
+    """Check if .crosslink directory exists.
 
     Prefers the project root derived from the hook script's own path
     (reliable even when cwd is a subdirectory), falling back to walking
@@ -39,7 +43,7 @@ def check_chainlink_initialized():
     # Primary: resolve from script location (.claude/hooks/ -> project root)
     try:
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        if os.path.isdir(os.path.join(root, ".chainlink")):
+        if os.path.isdir(os.path.join(root, ".crosslink")):
             return True
     except (NameError, OSError):
         pass
@@ -47,7 +51,7 @@ def check_chainlink_initialized():
     # Fallback: walk up from cwd
     current = os.getcwd()
     while True:
-        candidate = os.path.join(current, ".chainlink")
+        candidate = os.path.join(current, ".crosslink")
         if os.path.isdir(candidate):
             return True
         parent = os.path.dirname(current)
@@ -60,7 +64,7 @@ def check_chainlink_initialized():
 
 def get_session_age_minutes():
     """Parse session status to get duration in minutes. Returns None if no active session."""
-    result = run_chainlink(["session", "status"])
+    result = run_crosslink(["session", "status"])
     if not result or "Session #" not in result:
         return None
     match = re.search(r'Duration:\s*(\d+)\s*minutes', result)
@@ -70,8 +74,8 @@ def get_session_age_minutes():
 
 
 def has_active_session():
-    """Check if there's an active chainlink session."""
-    result = run_chainlink(["session", "status"])
+    """Check if there's an active crosslink session."""
+    result = run_crosslink(["session", "status"])
     if result and "Session #" in result and "(started" in result:
         return True
     return False
@@ -81,7 +85,7 @@ def auto_end_stale_session():
     """End session if it's been open longer than STALE_SESSION_HOURS."""
     age_minutes = get_session_age_minutes()
     if age_minutes is not None and age_minutes > STALE_SESSION_HOURS * 60:
-        run_chainlink([
+        run_crosslink([
             "session", "end", "--notes",
             f"Session auto-ended (stale after {age_minutes} minutes). No handoff notes provided."
         ])
@@ -123,15 +127,15 @@ def auto_comment_on_resume(session_status):
     else:
         comment = "[auto] Session resumed after context compression."
 
-    run_chainlink(["comment", issue_id, comment])
+    run_crosslink(["comment", issue_id, comment])
 
 
 def main():
-    if not check_chainlink_initialized():
-        # No chainlink repo, skip
+    if not check_crosslink_initialized():
+        # No crosslink repo, skip
         sys.exit(0)
 
-    context_parts = ["<chainlink-session-context>"]
+    context_parts = ["<crosslink-session-context>"]
 
     is_resume = detect_resume_event()
 
@@ -147,15 +151,15 @@ def main():
             )
 
     # Get handoff notes from previous session before starting new one
-    last_handoff = run_chainlink(["session", "last-handoff"])
+    last_handoff = run_crosslink(["session", "last-handoff"])
 
     # Auto-start session if none active
     if not has_active_session():
-        run_chainlink(["session", "start"])
+        run_crosslink(["session", "start"])
 
     # If resuming, add breadcrumb comment and context
     if is_resume:
-        session_status = run_chainlink(["session", "status"])
+        session_status = run_crosslink(["session", "status"])
         auto_comment_on_resume(session_status)
 
         last_action = get_last_action_from_status(session_status)
@@ -169,7 +173,7 @@ def main():
             context_parts.append(
                 "## Context Compression Breadcrumb\n"
                 "This session resumed after context compression.\n"
-                "No last action was recorded. Use `chainlink session action \"...\"` to track progress."
+                "No last action was recorded. Use `crosslink session action \"...\"` to track progress."
             )
 
     # Include previous session handoff notes if available
@@ -177,28 +181,28 @@ def main():
         context_parts.append(f"## Previous Session Handoff\n{last_handoff}")
 
     # Try to get session status
-    session_status = run_chainlink(["session", "status"])
+    session_status = run_crosslink(["session", "status"])
     if session_status:
         context_parts.append(f"## Current Session\n{session_status}")
 
     # Get ready issues (unblocked work)
-    ready_issues = run_chainlink(["ready"])
+    ready_issues = run_crosslink(["ready"])
     if ready_issues:
         context_parts.append(f"## Ready Issues (unblocked)\n{ready_issues}")
 
     # Get open issues summary
-    open_issues = run_chainlink(["list", "-s", "open"])
+    open_issues = run_crosslink(["list", "-s", "open"])
     if open_issues:
         context_parts.append(f"## Open Issues\n{open_issues}")
 
     context_parts.append("""
-## Chainlink Workflow Reminder
-- Use `chainlink session start` at the beginning of work
-- Use `chainlink session work <id>` to mark current focus
-- Use `chainlink session action "..."` to record breadcrumbs before context compression
-- Add comments as you discover things: `chainlink comment <id> "..."`
-- End with handoff notes: `chainlink session end --notes "..."`
-</chainlink-session-context>""")
+## Crosslink Workflow Reminder
+- Use `crosslink session start` at the beginning of work
+- Use `crosslink session work <id>` to mark current focus
+- Use `crosslink session action "..."` to record breadcrumbs before context compression
+- Add comments as you discover things: `crosslink comment <id> "..."`
+- End with handoff notes: `crosslink session end --notes "..."`
+</crosslink-session-context>""")
 
     print("\n\n".join(context_parts))
     sys.exit(0)

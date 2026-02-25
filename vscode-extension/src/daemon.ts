@@ -14,7 +14,7 @@ export interface DaemonOptions {
 export class DaemonManager {
     private process: cp.ChildProcess | null = null;
     private binaryPath: string;
-    private chainlinkDir: string;
+    private crosslinkDir: string;
     private outputChannel: vscode.OutputChannel;
     private isShuttingDown = false;
 
@@ -23,15 +23,15 @@ export class DaemonManager {
             options.extensionPath,
             options.overrideBinaryPath
         );
-        this.chainlinkDir = path.join(options.workspaceFolder, '.chainlink');
+        this.crosslinkDir = path.join(options.workspaceFolder, '.crosslink');
         this.outputChannel = options.outputChannel;
     }
 
     /**
-     * Checks if the .chainlink directory exists in the workspace.
+     * Checks if the .crosslink directory exists in the workspace.
      */
-    public hasChainlinkProject(): boolean {
-        return fs.existsSync(this.chainlinkDir);
+    public hasCrosslinkProject(): boolean {
+        return fs.existsSync(this.crosslinkDir);
     }
 
     /**
@@ -44,10 +44,10 @@ export class DaemonManager {
             return;
         }
 
-        if (!this.hasChainlinkProject()) {
+        if (!this.hasCrosslinkProject()) {
             throw new Error(
-                `No .chainlink directory found in ${this.options.workspaceFolder}. ` +
-                'Run "chainlink init" first.'
+                `No .crosslink directory found in ${this.options.workspaceFolder}. ` +
+                'Run "crosslink init" first.'
             );
         }
 
@@ -55,13 +55,13 @@ export class DaemonManager {
         ensureExecutable(this.binaryPath);
 
         this.outputChannel.appendLine(`Starting daemon: ${this.binaryPath}`);
-        this.outputChannel.appendLine(`Chainlink dir: ${this.chainlinkDir}`);
+        this.outputChannel.appendLine(`Crosslink dir: ${this.crosslinkDir}`);
 
         this.isShuttingDown = false;
 
         // Spawn the daemon with stdin pipe for zombie prevention
         // When VS Code crashes/closes, the pipe breaks and the daemon exits
-        this.process = cp.spawn(this.binaryPath, ['daemon', 'run', '--dir', this.chainlinkDir], {
+        this.process = cp.spawn(this.binaryPath, ['daemon', 'run', '--dir', this.crosslinkDir], {
             stdio: ['pipe', 'pipe', 'pipe'],
             detached: false, // Keep attached to parent
             windowsHide: true,
@@ -98,7 +98,7 @@ export class DaemonManager {
         // Handle errors
         this.process.on('error', (err) => {
             this.outputChannel.appendLine(`Daemon error: ${err.message}`);
-            vscode.window.showErrorMessage(`Chainlink daemon error: ${err.message}`);
+            vscode.window.showErrorMessage(`Crosslink daemon error: ${err.message}`);
             this.process = null;
         });
 
@@ -166,7 +166,7 @@ export class DaemonManager {
     }
 
     /**
-     * Executes a chainlink command and returns the output.
+     * Executes a crosslink command and returns the output.
      */
     public async executeCommand(args: string[]): Promise<string> {
         ensureExecutable(this.binaryPath);

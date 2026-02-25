@@ -1,0 +1,20 @@
+{
+  "tracking_mode": "strict",
+  "blocked_git_commands": [
+    "git push", "git merge", "git rebase", "git cherry-pick",
+    "git reset", "git checkout .", "git restore .", "git clean",
+    "git stash", "git tag", "git am", "git apply",
+    "git branch -d", "git branch -D", "git branch -m"
+  ],
+  "gated_git_commands": [
+    "git commit"
+  ],
+  "allowed_bash_prefixes": [
+    "crosslink ",
+    "git status", "git diff", "git log", "git branch", "git show",
+    "cargo test", "cargo build", "cargo check", "cargo clippy", "cargo fmt",
+    "npm test", "npm run", "npx ",
+    "tsc", "node ", "python ",
+    "ls", "dir", "pwd", "echo"
+  ]
+}
