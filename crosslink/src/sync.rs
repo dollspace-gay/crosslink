@@ -83,12 +83,7 @@ impl SyncManager {
                 .is_ok();
 
             if has_local {
-                self.git_in_repo(&[
-                    "worktree",
-                    "add",
-                    &self.cache_path_str(),
-                    LOCKS_BRANCH,
-                ])?;
+                self.git_in_repo(&["worktree", "add", &self.cache_path_str(), LOCKS_BRANCH])?;
             } else {
                 // Create local branch tracking remote
                 self.git_in_repo(&[
@@ -140,11 +135,8 @@ impl SyncManager {
         }
 
         // Reset local to match remote
-        let reset_result = self.git_in_cache(&[
-            "reset",
-            "--hard",
-            &format!("origin/{}", LOCKS_BRANCH),
-        ]);
+        let reset_result =
+            self.git_in_cache(&["reset", "--hard", &format!("origin/{}", LOCKS_BRANCH)]);
         if let Err(e) = &reset_result {
             let err_str = e.to_string();
             // If the remote branch doesn't exist yet, that's fine
@@ -200,9 +192,7 @@ impl SyncManager {
                 commit,
                 fingerprint,
             })
-        } else if stderr.contains("NODATA")
-            || stderr.contains("no signature")
-            || stderr.is_empty()
+        } else if stderr.contains("NODATA") || stderr.contains("no signature") || stderr.is_empty()
         {
             Ok(GpgVerification::Unsigned { commit })
         } else {
@@ -214,11 +204,7 @@ impl SyncManager {
     }
 
     /// Write and optionally push a heartbeat file for this agent.
-    pub fn push_heartbeat(
-        &self,
-        agent: &AgentConfig,
-        active_issue_id: Option<i64>,
-    ) -> Result<()> {
+    pub fn push_heartbeat(&self, agent: &AgentConfig, active_issue_id: Option<i64>) -> Result<()> {
         let heartbeat = Heartbeat {
             agent_id: agent.agent_id.clone(),
             last_heartbeat: Utc::now(),
@@ -297,8 +283,7 @@ impl SyncManager {
     pub fn find_stale_locks(&self) -> Result<Vec<(i64, String)>> {
         let locks = self.read_locks()?;
         let heartbeats = self.read_heartbeats()?;
-        let timeout =
-            chrono::Duration::minutes(locks.settings.stale_lock_timeout_minutes as i64);
+        let timeout = chrono::Duration::minutes(locks.settings.stale_lock_timeout_minutes as i64);
         let now = Utc::now();
 
         let mut stale = Vec::new();

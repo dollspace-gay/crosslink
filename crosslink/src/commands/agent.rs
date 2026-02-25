@@ -83,7 +83,10 @@ mod tests {
         init(&crosslink_dir, "worker-1", None).unwrap();
         let result = init(&crosslink_dir, "worker-2", None);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("already configured"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("already configured"));
     }
 
     #[test]

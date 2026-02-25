@@ -82,10 +82,7 @@ pub fn check(crosslink_dir: &Path, issue_id: i64) -> Result<()> {
             }
         }
         None => {
-            println!(
-                "Issue #{} is not locked. Available for claiming.",
-                issue_id
-            );
+            println!("Issue #{} is not locked. Available for claiming.", issue_id);
         }
     }
     Ok(())

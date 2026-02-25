@@ -862,12 +862,8 @@ fn main() -> Result<()> {
             let crosslink_dir = find_crosslink_dir()?;
             let db = get_db()?;
             match action {
-                LocksCommands::List => {
-                    commands::locks_cmd::list(&crosslink_dir, &db, cli.json)
-                }
-                LocksCommands::Check { id } => {
-                    commands::locks_cmd::check(&crosslink_dir, id)
-                }
+                LocksCommands::List => commands::locks_cmd::list(&crosslink_dir, &db, cli.json),
+                LocksCommands::Check { id } => commands::locks_cmd::check(&crosslink_dir, id),
             }
         }
 

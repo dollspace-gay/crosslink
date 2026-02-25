@@ -251,7 +251,8 @@ mod tests {
 
     #[test]
     fn test_custom_stale_timeout() {
-        let json = r#"{"version": 1, "locks": {}, "settings": {"stale_lock_timeout_minutes": 120}}"#;
+        let json =
+            r#"{"version": 1, "locks": {}, "settings": {"stale_lock_timeout_minutes": 120}}"#;
         let locks: LocksFile = serde_json::from_str(json).unwrap();
         assert_eq!(locks.settings.stale_lock_timeout_minutes, 120);
     }
