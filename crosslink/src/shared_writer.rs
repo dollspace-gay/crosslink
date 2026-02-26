@@ -48,12 +48,11 @@ fn replace_local_refs(text: &str, replacements: &[(String, String)]) -> Option<S
             let end_pos = abs_pos + old.len();
 
             // Check word boundary before: must be start of string or non-alphanumeric
-            let before_ok = abs_pos == 0
-                || !result.as_bytes()[abs_pos - 1].is_ascii_alphanumeric();
+            let before_ok = abs_pos == 0 || !result.as_bytes()[abs_pos - 1].is_ascii_alphanumeric();
 
             // Check word boundary after: must be end of string or non-alphanumeric
-            let after_ok = end_pos >= result.len()
-                || !result.as_bytes()[end_pos].is_ascii_alphanumeric();
+            let after_ok =
+                end_pos >= result.len() || !result.as_bytes()[end_pos].is_ascii_alphanumeric();
 
             if before_ok && after_ok {
                 result = format!("{}{}{}", &result[..abs_pos], new, &result[end_pos..]);
@@ -64,7 +63,11 @@ fn replace_local_refs(text: &str, replacements: &[(String, String)]) -> Option<S
             }
         }
     }
-    if changed { Some(result) } else { None }
+    if changed {
+        Some(result)
+    } else {
+        None
+    }
 }
 
 /// Content to write in a single atomic commit-push operation.
@@ -1168,10 +1171,13 @@ mod tests {
         assert_eq!(result, Some("Fixed #5.".to_string()));
 
         // "L1," in a list
-        let result = replace_local_refs("L1, L2 are done", &[
-            ("L1".to_string(), "#5".to_string()),
-            ("L2".to_string(), "#6".to_string()),
-        ]);
+        let result = replace_local_refs(
+            "L1, L2 are done",
+            &[
+                ("L1".to_string(), "#5".to_string()),
+                ("L2".to_string(), "#6".to_string()),
+            ],
+        );
         assert_eq!(result, Some("#5, #6 are done".to_string()));
     }
 

@@ -1681,7 +1681,9 @@ mod tests {
         let issue_id = db.create_issue("Test", None, "medium").unwrap();
         let comment_id = db.add_comment(issue_id, "See L1 for details").unwrap();
 
-        let updated = db.update_comment_content(comment_id, "See #5 for details").unwrap();
+        let updated = db
+            .update_comment_content(comment_id, "See #5 for details")
+            .unwrap();
         assert!(updated);
 
         let comments = db.get_comments(issue_id).unwrap();
@@ -1701,7 +1703,9 @@ mod tests {
         let session_id = db.start_session().unwrap();
         db.end_session(session_id, Some("Working on L1")).unwrap();
 
-        let updated = db.update_session_notes(session_id, "Working on #5").unwrap();
+        let updated = db
+            .update_session_notes(session_id, "Working on #5")
+            .unwrap();
         assert!(updated);
 
         let session = db.get_last_session().unwrap().unwrap();
@@ -1726,8 +1730,14 @@ mod tests {
 
         let sessions = db.get_all_sessions_with_notes().unwrap();
         assert_eq!(sessions.len(), 2);
-        assert_eq!(sessions[0].handoff_notes, Some("Handoff for L1".to_string()));
-        assert_eq!(sessions[1].handoff_notes, Some("Continuing L2 work".to_string()));
+        assert_eq!(
+            sessions[0].handoff_notes,
+            Some("Handoff for L1".to_string())
+        );
+        assert_eq!(
+            sessions[1].handoff_notes,
+            Some("Continuing L2 work".to_string())
+        );
     }
 
     #[test]
