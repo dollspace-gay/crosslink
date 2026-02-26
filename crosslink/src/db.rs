@@ -623,10 +623,7 @@ impl Database {
     }
 
     /// Get comments with author field for an issue (author added in migration v10).
-    pub fn get_comments_with_author(
-        &self,
-        issue_id: i64,
-    ) -> Result<Vec<CommentAuthorRow>> {
+    pub fn get_comments_with_author(&self, issue_id: i64) -> Result<Vec<CommentAuthorRow>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, author, content, created_at FROM comments WHERE issue_id = ?1 ORDER BY created_at",
         )?;
@@ -644,10 +641,7 @@ impl Database {
     }
 
     /// Get time entries for an issue.
-    pub fn get_time_entries_for_issue(
-        &self,
-        issue_id: i64,
-    ) -> Result<Vec<TimeEntryRow>> {
+    pub fn get_time_entries_for_issue(&self, issue_id: i64) -> Result<Vec<TimeEntryRow>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, started_at, ended_at, duration_seconds FROM time_entries WHERE issue_id = ?1 ORDER BY id",
         )?;

@@ -33,11 +33,8 @@ fn import_issue_files(db: &Database, issues: &[IssueFile], input_path: &Path) ->
 
         // First pass: create all issues without parent relationships
         for issue in issues {
-            let new_id = db.create_issue(
-                &issue.title,
-                issue.description.as_deref(),
-                &issue.priority,
-            )?;
+            let new_id =
+                db.create_issue(&issue.title, issue.description.as_deref(), &issue.priority)?;
 
             // Add labels
             for label in &issue.labels {

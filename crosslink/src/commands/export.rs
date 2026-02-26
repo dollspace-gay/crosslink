@@ -73,15 +73,11 @@ fn build_issue_file(
     issue: &Issue,
     uuid_map: &HashMap<i64, Uuid>,
 ) -> Result<IssueFile> {
-    let uuid = *uuid_map
-        .get(&issue.id)
-        .expect("issue must be in uuid_map");
+    let uuid = *uuid_map.get(&issue.id).expect("issue must be in uuid_map");
 
     let (_, created_by) = db.get_issue_export_metadata(issue.id)?;
 
-    let parent_uuid = issue
-        .parent_id
-        .map(|pid| resolve_uuid(db, uuid_map, pid));
+    let parent_uuid = issue.parent_id.map(|pid| resolve_uuid(db, uuid_map, pid));
 
     let labels = db.get_labels(issue.id)?;
 
@@ -115,14 +111,12 @@ fn build_issue_file(
     let time_entries_raw = db.get_time_entries_for_issue(issue.id)?;
     let time_entries: Vec<TimeEntry> = time_entries_raw
         .into_iter()
-        .map(
-            |(id, started_at, ended_at, duration_seconds)| TimeEntry {
-                id,
-                started_at,
-                ended_at,
-                duration_seconds,
-            },
-        )
+        .map(|(id, started_at, ended_at, duration_seconds)| TimeEntry {
+            id,
+            started_at,
+            ended_at,
+            duration_seconds,
+        })
         .collect();
 
     Ok(IssueFile {
@@ -406,9 +400,7 @@ mod tests {
     #[test]
     fn test_export_issue_file_roundtrip() {
         let (db, dir) = setup_test_db();
-        let id = db
-            .create_issue("Test", Some("Desc"), "medium")
-            .unwrap();
+        let id = db.create_issue("Test", Some("Desc"), "medium").unwrap();
         db.add_label(id, "bug").unwrap();
         db.add_comment(id, "Comment").unwrap();
         let output_path = dir.path().join("export.json");
