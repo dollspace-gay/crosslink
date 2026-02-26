@@ -3,16 +3,17 @@ use std::io::{self, Write};
 
 use crate::db::Database;
 use crate::shared_writer::SharedWriter;
+use crate::utils::format_issue_id;
 
 pub fn run(db: &Database, writer: Option<&SharedWriter>, id: i64, force: bool) -> Result<()> {
     // Check if issue exists first
     let issue = match db.get_issue(id)? {
         Some(i) => i,
-        None => bail!("Issue #{} not found", id),
+        None => bail!("Issue {} not found", format_issue_id(id)),
     };
 
     if !force {
-        print!("Delete issue #{} \"{}\"? [y/N] ", id, issue.title);
+        print!("Delete issue {} \"{}\"? [y/N] ", format_issue_id(id), issue.title);
         io::stdout().flush()?;
 
         let mut input = String::new();
@@ -26,11 +27,11 @@ pub fn run(db: &Database, writer: Option<&SharedWriter>, id: i64, force: bool) -
 
     if let Some(w) = writer {
         w.delete_issue(db, id)?;
-        println!("Deleted issue #{}", id);
+        println!("Deleted issue {}", format_issue_id(id));
     } else if db.delete_issue(id)? {
-        println!("Deleted issue #{}", id);
+        println!("Deleted issue {}", format_issue_id(id));
     } else {
-        bail!("Failed to delete issue #{}", id);
+        bail!("Failed to delete issue {}", format_issue_id(id));
     }
 
     Ok(())

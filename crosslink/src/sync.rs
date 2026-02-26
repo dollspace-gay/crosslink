@@ -137,9 +137,32 @@ impl SyncManager {
             fetch_result?;
         }
 
-        // Reset local to match remote
+        // Check for unpushed local commits (e.g. offline-created issues).
+        // If any exist, rebase instead of reset --hard to preserve them.
+        let remote_ref = format!("origin/{}", LOCKS_BRANCH);
+        let log_result = self.git_in_cache(&["log", &format!("{}..HEAD", remote_ref), "--oneline"]);
+        if let Ok(output) = &log_result {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            if !stdout.trim().is_empty() {
+                // Unpushed commits exist — rebase to preserve them
+                let rebase_result =
+                    self.git_in_cache(&["rebase", &remote_ref]);
+                if let Err(e) = &rebase_result {
+                    let err_str = e.to_string();
+                    if err_str.contains("unknown revision")
+                        || err_str.contains("ambiguous argument")
+                    {
+                        return Ok(());
+                    }
+                    rebase_result?;
+                }
+                return Ok(());
+            }
+        }
+
+        // No unpushed commits — safe to reset to match remote
         let reset_result =
-            self.git_in_cache(&["reset", "--hard", &format!("origin/{}", LOCKS_BRANCH)]);
+            self.git_in_cache(&["reset", "--hard", &remote_ref]);
         if let Err(e) = &reset_result {
             let err_str = e.to_string();
             // If the remote branch doesn't exist yet, that's fine

@@ -318,6 +318,26 @@ impl Database {
         Ok(issue)
     }
 
+    /// Look up an issue's display ID by its UUID.
+    pub fn get_issue_id_by_uuid(&self, uuid: &str) -> Result<i64> {
+        self.conn
+            .query_row("SELECT id FROM issues WHERE uuid = ?1", params![uuid], |row| {
+                row.get(0)
+            })
+            .context("Issue with given UUID not found")
+    }
+
+    /// Look up an issue's UUID by its display ID (supports negative local IDs).
+    pub fn get_issue_uuid_by_id(&self, id: i64) -> Result<String> {
+        self.conn
+            .query_row(
+                "SELECT uuid FROM issues WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .with_context(|| format!("Issue with id {} not found", id))
+    }
+
     /// Get an issue by ID, returning an error if not found.
     /// Use this instead of get_issue when you need the issue to exist.
     pub fn require_issue(&self, id: i64) -> Result<Issue> {

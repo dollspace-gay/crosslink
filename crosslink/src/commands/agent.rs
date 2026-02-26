@@ -2,6 +2,7 @@ use anyhow::{bail, Result};
 use std::path::Path;
 
 use crate::identity::AgentConfig;
+use crate::utils::format_issue_id;
 
 /// `crosslink agent init <agent-id> [-d "description"]`
 pub fn init(crosslink_dir: &Path, agent_id: &str, description: Option<&str>) -> Result<()> {
@@ -41,7 +42,7 @@ pub fn status(crosslink_dir: &Path) -> Result<()> {
                             "Locks: {}",
                             my_locks
                                 .iter()
-                                .map(|id| format!("#{}", id))
+                                .map(|id| format_issue_id(*id))
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         );

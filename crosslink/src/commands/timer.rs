@@ -2,28 +2,29 @@ use anyhow::{bail, Result};
 use chrono::Utc;
 
 use crate::db::Database;
+use crate::utils::format_issue_id;
 
 pub fn start(db: &Database, issue_id: i64) -> Result<()> {
     // Verify issue exists
     let issue = match db.get_issue(issue_id)? {
         Some(i) => i,
-        None => bail!("Issue #{} not found", issue_id),
+        None => bail!("Issue {} not found", format_issue_id(issue_id)),
     };
 
     // Check if there's already an active timer
     if let Some((active_id, _)) = db.get_active_timer()? {
         if active_id == issue_id {
-            bail!("Timer already running for issue #{}", issue_id);
+            bail!("Timer already running for issue {}", format_issue_id(issue_id));
         } else {
             bail!(
-                "Timer already running for issue #{}. Stop it first with 'crosslink stop'.",
-                active_id
+                "Timer already running for issue {}. Stop it first with 'crosslink stop'.",
+                format_issue_id(active_id)
             );
         }
     }
 
     db.start_timer(issue_id)?;
-    println!("Started timer for #{}: {}", issue_id, issue.title);
+    println!("Started timer for {}: {}", format_issue_id(issue_id), issue.title);
     println!("Run 'crosslink stop' when done.");
 
     Ok(())
@@ -47,7 +48,7 @@ pub fn stop(db: &Database) -> Result<()> {
     let minutes = duration.num_minutes() % 60;
     let seconds = duration.num_seconds() % 60;
 
-    println!("Stopped timer for #{}: {}", issue_id, title);
+    println!("Stopped timer for {}: {}", format_issue_id(issue_id), title);
     println!("Time spent: {}h {}m {}s", hours, minutes, seconds);
 
     // Show total time for this issue
@@ -77,7 +78,7 @@ pub fn status(db: &Database) -> Result<()> {
                 .map(|i| i.title)
                 .unwrap_or_else(|| "(deleted)".to_string());
 
-            println!("Timer running: #{} {}", issue_id, title);
+            println!("Timer running: {} {}", format_issue_id(issue_id), title);
             println!("Elapsed: {}h {}m {}s", hours, minutes, seconds);
         }
         None => {

@@ -5,6 +5,7 @@ use std::io::{self, Write};
 
 use crate::db::Database;
 use crate::models::Issue;
+use crate::utils::format_issue_id;
 
 #[derive(Serialize, Deserialize)]
 pub struct ExportedIssue {
@@ -145,14 +146,14 @@ fn write_issue_md(md: &mut String, db: &Database, issue: &Issue) -> Result<()> {
     };
 
     md.push_str(&format!(
-        "### {} #{}: {}\n\n",
-        checkbox, issue.id, issue.title
+        "### {} {}: {}\n\n",
+        checkbox, format_issue_id(issue.id), issue.title
     ));
     md.push_str(&format!("- **Priority:** {}\n", issue.priority));
     md.push_str(&format!("- **Status:** {}\n", issue.status));
 
     if let Some(parent_id) = issue.parent_id {
-        md.push_str(&format!("- **Parent:** #{}\n", parent_id));
+        md.push_str(&format!("- **Parent:** {}\n", format_issue_id(parent_id)));
     }
 
     let labels = db.get_labels(issue.id)?;

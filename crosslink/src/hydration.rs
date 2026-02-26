@@ -44,7 +44,7 @@ pub fn hydrate_to_sqlite(cache_dir: &Path, db: &Database) -> Result<HydrationSta
     let milestones_file = read_milestones_file(&milestones_path)?;
 
     // Build uuid -> display_id lookup for resolving cross-references
-    let uuid_to_id: HashMap<String, i64> = issue_files
+    let mut uuid_to_id: HashMap<String, i64> = issue_files
         .iter()
         .filter_map(|f| f.display_id.map(|id| (f.uuid.to_string(), id)))
         .collect();
@@ -80,11 +80,18 @@ pub fn hydrate_to_sqlite(cache_dir: &Path, db: &Database) -> Result<HydrationSta
         // Sort issues so parents come before children (foreign key constraint)
         let sorted_issues = topo_sort_issues(&issue_files);
 
-        // Insert issues
+        // Insert issues (offline issues get sequential negative IDs)
+        let mut next_local_id: i64 = -1;
         for issue in &sorted_issues {
             let display_id = match issue.display_id {
                 Some(id) => id,
-                None => continue, // skip unpushed local issues from other agents
+                None => {
+                    let local_id = next_local_id;
+                    next_local_id -= 1;
+                    // Track in uuid_to_id so cross-references resolve
+                    uuid_to_id.insert(issue.uuid.to_string(), local_id);
+                    local_id
+                }
             };
 
             let parent_id = issue
@@ -446,7 +453,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hydrate_skips_null_display_id() {
+    fn test_hydrate_assigns_negative_id_for_null_display_id() {
         let (db, _dir) = setup_test_db();
         let cache = tempdir().unwrap();
 
@@ -457,9 +464,15 @@ mod tests {
         write_issues_to_cache(cache.path(), &[offline, pushed]);
 
         let stats = hydrate_to_sqlite(cache.path(), &db).unwrap();
-        assert_eq!(stats.issues, 1); // only the pushed one
+        assert_eq!(stats.issues, 2); // both get hydrated
 
+        // Pushed issue gets its display_id
         assert!(db.get_issue(1).unwrap().is_some());
+
+        // Offline issue gets a negative ID
+        let offline_issue = db.get_issue(-1).unwrap();
+        assert!(offline_issue.is_some());
+        assert_eq!(offline_issue.unwrap().title, "Offline");
     }
 
     #[test]

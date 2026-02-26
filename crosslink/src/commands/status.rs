@@ -4,6 +4,7 @@ use std::path::Path;
 
 use crate::db::Database;
 use crate::shared_writer::SharedWriter;
+use crate::utils::format_issue_id;
 
 pub fn close(
     db: &Database,
@@ -37,21 +38,21 @@ fn close_inner(
     let issue = db.get_issue(id)?;
     let issue = match issue {
         Some(i) => i,
-        None => bail!("Issue #{} not found", id),
+        None => bail!("Issue {} not found", format_issue_id(id)),
     };
     let labels = db.get_labels(id)?;
 
     if let Some(w) = writer {
         w.close_issue(db, id)?;
         if !quiet {
-            println!("Closed issue #{}", id);
+            println!("Closed issue {}", format_issue_id(id));
         }
     } else if db.close_issue(id)? {
         if !quiet {
-            println!("Closed issue #{}", id);
+            println!("Closed issue {}", format_issue_id(id));
         }
     } else {
-        bail!("Issue #{} not found", id);
+        bail!("Issue {} not found", format_issue_id(id));
     }
 
     // Auto-release lock in multi-agent mode
@@ -59,7 +60,7 @@ fn close_inner(
         if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
             if sync.is_initialized() {
                 match sync.release_lock(&agent, id, false) {
-                    Ok(true) if !quiet => println!("Released lock on issue #{}", id),
+                    Ok(true) if !quiet => println!("Released lock on issue {}", format_issue_id(id)),
                     _ => {}
                 }
             }
@@ -82,7 +83,7 @@ fn close_inner(
 
         if changelog_path.exists() {
             let category = determine_changelog_category(&labels);
-            let entry = format!("- {} (#{})\n", issue.title, id);
+            let entry = format!("- {} ({})\n", issue.title, format_issue_id(id));
 
             if let Err(e) = append_to_changelog(&changelog_path, &category, &entry) {
                 eprintln!("Warning: Could not update CHANGELOG.md: {}", e);
@@ -191,7 +192,7 @@ pub fn close_all(
     for issue in &issues {
         match close(db, writer, issue.id, update_changelog, crosslink_dir) {
             Ok(()) => closed_count += 1,
-            Err(e) => eprintln!("Warning: Failed to close #{}: {}", issue.id, e),
+            Err(e) => eprintln!("Warning: Failed to close {}: {}", format_issue_id(issue.id), e),
         }
     }
 
@@ -202,11 +203,11 @@ pub fn close_all(
 pub fn reopen(db: &Database, writer: Option<&SharedWriter>, id: i64) -> Result<()> {
     if let Some(w) = writer {
         w.reopen_issue(db, id)?;
-        println!("Reopened issue #{}", id);
+        println!("Reopened issue {}", format_issue_id(id));
     } else if db.reopen_issue(id)? {
-        println!("Reopened issue #{}", id);
+        println!("Reopened issue {}", format_issue_id(id));
     } else {
-        bail!("Issue #{} not found", id);
+        bail!("Issue {} not found", format_issue_id(id));
     }
     Ok(())
 }

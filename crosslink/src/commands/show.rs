@@ -3,6 +3,7 @@ use serde::Serialize;
 use serde_json;
 
 use crate::db::Database;
+use crate::utils::format_issue_id;
 
 #[derive(Serialize)]
 struct IssueDetail {
@@ -20,7 +21,7 @@ struct IssueDetail {
 pub fn run_json(db: &Database, id: i64) -> Result<()> {
     let issue = match db.get_issue(id)? {
         Some(i) => i,
-        None => bail!("Issue #{} not found", id),
+        None => bail!("Issue {} not found", format_issue_id(id)),
     };
 
     let detail = IssueDetail {
@@ -41,14 +42,14 @@ pub fn run_json(db: &Database, id: i64) -> Result<()> {
 pub fn run(db: &Database, id: i64) -> Result<()> {
     let issue = match db.get_issue(id)? {
         Some(i) => i,
-        None => bail!("Issue #{} not found", id),
+        None => bail!("Issue {} not found", format_issue_id(id)),
     };
 
-    println!("Issue #{}: {}", issue.id, issue.title);
+    println!("Issue {}: {}", format_issue_id(issue.id), issue.title);
     println!("Status: {}", issue.status);
     println!("Priority: {}", issue.priority);
     if let Some(parent_id) = issue.parent_id {
-        println!("Parent: #{}", parent_id);
+        println!("Parent: {}", format_issue_id(parent_id));
     }
     println!("Created: {}", issue.created_at.format("%Y-%m-%d %H:%M:%S"));
     println!("Updated: {}", issue.updated_at.format("%Y-%m-%d %H:%M:%S"));
@@ -99,14 +100,14 @@ pub fn run(db: &Database, id: i64) -> Result<()> {
     if blockers.is_empty() {
         println!("Blocked by: (none)");
     } else {
-        let blocker_strs: Vec<String> = blockers.iter().map(|b| format!("#{}", b)).collect();
+        let blocker_strs: Vec<String> = blockers.iter().map(|b| format_issue_id(*b)).collect();
         println!("Blocked by: {}", blocker_strs.join(", "));
     }
 
     if blocking.is_empty() {
         println!("Blocking: (none)");
     } else {
-        let blocking_strs: Vec<String> = blocking.iter().map(|b| format!("#{}", b)).collect();
+        let blocking_strs: Vec<String> = blocking.iter().map(|b| format_issue_id(*b)).collect();
         println!("Blocking: {}", blocking_strs.join(", "));
     }
 
@@ -116,8 +117,8 @@ pub fn run(db: &Database, id: i64) -> Result<()> {
         println!("\nSubissues:");
         for sub in subissues {
             println!(
-                "  #{} [{}] {} - {}",
-                sub.id, sub.status, sub.priority, sub.title
+                "  {} [{}] {} - {}",
+                format_issue_id(sub.id), sub.status, sub.priority, sub.title
             );
         }
     }
@@ -129,8 +130,8 @@ pub fn run(db: &Database, id: i64) -> Result<()> {
         for rel in related {
             let status_marker = if rel.status == "closed" { "✓" } else { " " };
             println!(
-                "  #{} [{}] {} - {}",
-                rel.id, status_marker, rel.priority, rel.title
+                "  {} [{}] {} - {}",
+                format_issue_id(rel.id), status_marker, rel.priority, rel.title
             );
         }
     }

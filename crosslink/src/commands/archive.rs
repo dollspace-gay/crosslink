@@ -1,25 +1,26 @@
 use anyhow::{bail, Result};
 
 use crate::db::Database;
+use crate::utils::format_issue_id;
 
 pub fn archive(db: &Database, id: i64) -> Result<()> {
     let issue = match db.get_issue(id)? {
         Some(i) => i,
-        None => bail!("Issue #{} not found", id),
+        None => bail!("Issue {} not found", format_issue_id(id)),
     };
 
     if issue.status != "closed" {
         bail!(
-            "Can only archive closed issues. Issue #{} is '{}'",
-            id,
+            "Can only archive closed issues. Issue {} is '{}'",
+            format_issue_id(id),
             issue.status
         );
     }
 
     if db.archive_issue(id)? {
-        println!("Archived issue #{}", id);
+        println!("Archived issue {}", format_issue_id(id));
     } else {
-        println!("Issue #{} could not be archived", id);
+        println!("Issue {} could not be archived", format_issue_id(id));
     }
 
     Ok(())
@@ -27,9 +28,9 @@ pub fn archive(db: &Database, id: i64) -> Result<()> {
 
 pub fn unarchive(db: &Database, id: i64) -> Result<()> {
     if db.unarchive_issue(id)? {
-        println!("Unarchived issue #{} (now closed)", id);
+        println!("Unarchived issue {} (now closed)", format_issue_id(id));
     } else {
-        bail!("Issue #{} not found or not archived", id);
+        bail!("Issue {} not found or not archived", format_issue_id(id));
     }
 
     Ok(())
@@ -47,11 +48,11 @@ pub fn list(db: &Database) -> Result<()> {
     for issue in issues {
         let parent_str = issue
             .parent_id
-            .map(|p| format!(" (sub of #{})", p))
+            .map(|p| format!(" (sub of {})", format_issue_id(p)))
             .unwrap_or_default();
         println!(
-            "#{:<4} {:8} {}{}",
-            issue.id, issue.priority, issue.title, parent_str
+            "{:<5} {:8} {}{}",
+            format_issue_id(issue.id), issue.priority, issue.title, parent_str
         );
     }
 

@@ -33,6 +33,15 @@ struct WriteSet {
 /// Maximum number of push retries on conflict before giving up.
 const MAX_RETRIES: usize = 3;
 
+/// Outcome of a write_commit_push operation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PushOutcome {
+    /// Commit was pushed to remote successfully.
+    Pushed,
+    /// Commit was saved locally but push failed (offline or all retries exhausted).
+    LocalOnly,
+}
+
 /// Write-side coordinator for multi-agent shared issue tracking.
 ///
 /// Handles: generate UUID → claim display ID → write JSON → commit →
@@ -88,7 +97,7 @@ impl SharedWriter {
         let agent_id = self.agent.agent_id.clone();
         let display_id = Cell::new(0i64);
 
-        self.write_commit_push(
+        let outcome = self.write_commit_push(
             |writer| {
                 let (id, counters) = writer.claim_display_id(1)?;
                 display_id.set(id);
@@ -121,6 +130,12 @@ impl SharedWriter {
             &format!("create issue: {}", title),
         )?;
 
+        if outcome == PushOutcome::LocalOnly {
+            self.rewrite_as_offline(uuid)?;
+            hydrate_to_sqlite(&self.cache_dir, db)?;
+            return db.get_issue_id_by_uuid(&uuid.to_string());
+        }
+
         hydrate_to_sqlite(&self.cache_dir, db)?;
         Ok(display_id.get())
     }
@@ -136,7 +151,7 @@ impl SharedWriter {
         description: Option<&str>,
         priority: &str,
     ) -> Result<i64> {
-        let parent_uuid = self.resolve_uuid(parent_id)?;
+        let parent_uuid = self.resolve_uuid(parent_id, db)?;
         let uuid = Uuid::new_v4();
         let now = Utc::now();
         let title_owned = title.to_string();
@@ -145,7 +160,7 @@ impl SharedWriter {
         let agent_id = self.agent.agent_id.clone();
         let display_id = Cell::new(0i64);
 
-        self.write_commit_push(
+        let outcome = self.write_commit_push(
             |writer| {
                 let (id, counters) = writer.claim_display_id(1)?;
                 display_id.set(id);
@@ -178,6 +193,12 @@ impl SharedWriter {
             &format!("create subissue under #{}: {}", parent_id, title),
         )?;
 
+        if outcome == PushOutcome::LocalOnly {
+            self.rewrite_as_offline(uuid)?;
+            hydrate_to_sqlite(&self.cache_dir, db)?;
+            return db.get_issue_id_by_uuid(&uuid.to_string());
+        }
+
         hydrate_to_sqlite(&self.cache_dir, db)?;
         Ok(display_id.get())
     }
@@ -197,9 +218,9 @@ impl SharedWriter {
         let status_owned = status.map(|s| s.to_string());
         let priority_owned = priority.map(|s| s.to_string());
 
-        self.write_commit_push(
+        let _ = self.write_commit_push(
             |writer| {
-                let mut issue = writer.load_issue_by_display_id(display_id)?;
+                let mut issue = writer.load_issue_by_id(display_id, db)?;
                 if let Some(ref t) = title_owned {
                     issue.title = t.clone();
                 }
@@ -229,9 +250,9 @@ impl SharedWriter {
 
     /// Close an issue (set status to "closed" and record closed_at).
     pub fn close_issue(&self, db: &Database, display_id: i64) -> Result<()> {
-        self.write_commit_push(
+        let _ = self.write_commit_push(
             |writer| {
-                let mut issue = writer.load_issue_by_display_id(display_id)?;
+                let mut issue = writer.load_issue_by_id(display_id, db)?;
                 let now = Utc::now();
                 issue.status = "closed".to_string();
                 issue.closed_at = Some(now);
@@ -252,9 +273,9 @@ impl SharedWriter {
 
     /// Reopen an issue (set status to "open", clear closed_at).
     pub fn reopen_issue(&self, db: &Database, display_id: i64) -> Result<()> {
-        self.write_commit_push(
+        let _ = self.write_commit_push(
             |writer| {
-                let mut issue = writer.load_issue_by_display_id(display_id)?;
+                let mut issue = writer.load_issue_by_id(display_id, db)?;
                 issue.status = "open".to_string();
                 issue.closed_at = None;
                 issue.updated_at = Utc::now();
@@ -274,11 +295,11 @@ impl SharedWriter {
 
     /// Delete an issue JSON file from the coordination branch.
     pub fn delete_issue(&self, db: &Database, display_id: i64) -> Result<()> {
-        let issue = self.load_issue_by_display_id(display_id)?;
+        let issue = self.load_issue_by_id(display_id, db)?;
         let uuid = issue.uuid;
         let rel_path = format!("issues/{}.json", uuid);
 
-        self.write_commit_push(
+        let _ = self.write_commit_push(
             |writer| {
                 // Remove the file from disk (may already be gone on retry)
                 let path = writer.issue_path(&uuid);
@@ -307,9 +328,9 @@ impl SharedWriter {
         let agent_id = self.agent.agent_id.clone();
         let comment_id = Cell::new(0i64);
 
-        self.write_commit_push(
+        let _ = self.write_commit_push(
             |writer| {
-                let mut issue = writer.load_issue_by_display_id(display_id)?;
+                let mut issue = writer.load_issue_by_id(display_id, db)?;
                 let mut counters = writer.read_counters()?;
                 let id = counters.next_comment_id;
                 counters.next_comment_id += 1;
@@ -341,9 +362,9 @@ impl SharedWriter {
     pub fn add_label(&self, db: &Database, display_id: i64, label: &str) -> Result<()> {
         let label_owned = label.to_string();
 
-        self.write_commit_push(
+        let _ = self.write_commit_push(
             |writer| {
-                let mut issue = writer.load_issue_by_display_id(display_id)?;
+                let mut issue = writer.load_issue_by_id(display_id, db)?;
                 if !issue.labels.contains(&label_owned) {
                     issue.labels.push(label_owned.clone());
                     issue.updated_at = Utc::now();
@@ -366,9 +387,9 @@ impl SharedWriter {
     pub fn remove_label(&self, db: &Database, display_id: i64, label: &str) -> Result<()> {
         let label_owned = label.to_string();
 
-        self.write_commit_push(
+        let _ = self.write_commit_push(
             |writer| {
-                let mut issue = writer.load_issue_by_display_id(display_id)?;
+                let mut issue = writer.load_issue_by_id(display_id, db)?;
                 if let Some(pos) = issue.labels.iter().position(|l| l == &label_owned) {
                     issue.labels.remove(pos);
                     issue.updated_at = Utc::now();
@@ -391,11 +412,11 @@ impl SharedWriter {
     ///
     /// Only modifies the blocked issue's file (single-direction storage).
     pub fn add_blocker(&self, db: &Database, blocked_id: i64, blocker_id: i64) -> Result<()> {
-        let blocker_uuid = self.resolve_uuid(blocker_id)?;
+        let blocker_uuid = self.resolve_uuid(blocker_id, db)?;
 
-        self.write_commit_push(
+        let _ = self.write_commit_push(
             |writer| {
-                let mut issue = writer.load_issue_by_display_id(blocked_id)?;
+                let mut issue = writer.load_issue_by_id(blocked_id, db)?;
                 if !issue.blockers.contains(&blocker_uuid) {
                     issue.blockers.push(blocker_uuid);
                     issue.updated_at = Utc::now();
@@ -416,11 +437,11 @@ impl SharedWriter {
 
     /// Remove a blocker dependency.
     pub fn remove_blocker(&self, db: &Database, blocked_id: i64, blocker_id: i64) -> Result<()> {
-        let blocker_uuid = self.resolve_uuid(blocker_id)?;
+        let blocker_uuid = self.resolve_uuid(blocker_id, db)?;
 
-        self.write_commit_push(
+        let _ = self.write_commit_push(
             |writer| {
-                let mut issue = writer.load_issue_by_display_id(blocked_id)?;
+                let mut issue = writer.load_issue_by_id(blocked_id, db)?;
                 if let Some(pos) = issue.blockers.iter().position(|u| u == &blocker_uuid) {
                     issue.blockers.remove(pos);
                     issue.updated_at = Utc::now();
@@ -441,11 +462,11 @@ impl SharedWriter {
 
     /// Add a relation between two issues (single-direction storage).
     pub fn add_relation(&self, db: &Database, issue_id: i64, related_id: i64) -> Result<()> {
-        let related_uuid = self.resolve_uuid(related_id)?;
+        let related_uuid = self.resolve_uuid(related_id, db)?;
 
-        self.write_commit_push(
+        let _ = self.write_commit_push(
             |writer| {
-                let mut issue = writer.load_issue_by_display_id(issue_id)?;
+                let mut issue = writer.load_issue_by_id(issue_id, db)?;
                 if !issue.related.contains(&related_uuid) {
                     issue.related.push(related_uuid);
                     issue.updated_at = Utc::now();
@@ -466,11 +487,11 @@ impl SharedWriter {
 
     /// Remove a relation between two issues.
     pub fn remove_relation(&self, db: &Database, issue_id: i64, related_id: i64) -> Result<()> {
-        let related_uuid = self.resolve_uuid(related_id)?;
+        let related_uuid = self.resolve_uuid(related_id, db)?;
 
-        self.write_commit_push(
+        let _ = self.write_commit_push(
             |writer| {
-                let mut issue = writer.load_issue_by_display_id(issue_id)?;
+                let mut issue = writer.load_issue_by_id(issue_id, db)?;
                 if let Some(pos) = issue.related.iter().position(|u| u == &related_uuid) {
                     issue.related.remove(pos);
                     issue.updated_at = Utc::now();
@@ -489,7 +510,126 @@ impl SharedWriter {
         Ok(())
     }
 
+    /// Promote offline issues (`display_id: null`) to real display IDs.
+    ///
+    /// Called during sync when connectivity is restored. Scans the cache for
+    /// issue files created by this agent with null display_id, bulk-claims
+    /// N sequential IDs, rewrites the JSON files, and pushes.
+    ///
+    /// Returns a vec of `(old_negative_id, new_display_id, title)` for output.
+    pub fn promote_offline_issues(
+        &self,
+        db: &Database,
+    ) -> Result<Vec<(i64, i64, String)>> {
+        let offline = self.find_offline_issues()?;
+        if offline.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let count = offline.len() as i64;
+
+        // Build uuid -> negative_id from current SQLite state
+        let mut uuid_to_neg_id = std::collections::HashMap::new();
+        for issue in &offline {
+            if let Ok(neg_id) = db.get_issue_id_by_uuid(&issue.uuid.to_string()) {
+                uuid_to_neg_id.insert(issue.uuid, neg_id);
+            }
+        }
+
+        let offline_info: Vec<(Uuid, String)> = offline
+            .iter()
+            .map(|i| (i.uuid, i.title.clone()))
+            .collect();
+
+        let first_id = Cell::new(0i64);
+
+        let outcome = self.write_commit_push(
+            |writer| {
+                let (start_id, counters) = writer.claim_display_id(count)?;
+                first_id.set(start_id);
+
+                let mut files = Vec::new();
+                for (i, (uuid, _)) in offline_info.iter().enumerate() {
+                    let path = writer.issue_path(uuid);
+                    let mut issue = read_issue_file(&path)?;
+                    issue.display_id = Some(start_id + i as i64);
+                    let json = serde_json::to_vec_pretty(&issue)?;
+                    files.push((format!("issues/{}.json", uuid), json));
+                }
+
+                Ok(WriteSet {
+                    files,
+                    counters: Some(counters),
+                    use_git_rm: false,
+                })
+            },
+            &format!("promote {} offline issue(s)", count),
+        )?;
+
+        if outcome == PushOutcome::LocalOnly {
+            // Still offline — revert display_id assignments
+            for (uuid, _) in &offline_info {
+                let path = self.issue_path(uuid);
+                if let Ok(mut issue) = read_issue_file(&path) {
+                    issue.display_id = None;
+                    if let Ok(json) = serde_json::to_string_pretty(&issue) {
+                        let _ = std::fs::write(&path, json);
+                    }
+                }
+            }
+            // Revert counter
+            if let Ok(mut counters) = self.read_counters() {
+                counters.next_display_id -= count;
+                let _ = self.write_counters_to_cache(&counters);
+            }
+            // Amend the commit to reflect reverted state
+            let _ = self.git_in_cache(&["add", "."]);
+            let _ = self.git_in_cache(&["commit", "--amend", "--no-edit"]);
+            return Ok(vec![]);
+        }
+
+        // Re-hydrate with new positive IDs
+        hydrate_to_sqlite(&self.cache_dir, db)?;
+
+        let start_id = first_id.get();
+        let mapping: Vec<(i64, i64, String)> = offline_info
+            .iter()
+            .enumerate()
+            .map(|(i, (uuid, title))| {
+                let neg_id = uuid_to_neg_id.get(uuid).copied().unwrap_or(0);
+                let new_id = start_id + i as i64;
+                (neg_id, new_id, title.clone())
+            })
+            .collect();
+
+        Ok(mapping)
+    }
+
     // ───────────────────── Private helpers ─────────────────────
+
+    /// Find all issue files in the cache with `display_id: null` created by this agent.
+    fn find_offline_issues(&self) -> Result<Vec<IssueFile>> {
+        let issues_dir = self.cache_dir.join("issues");
+        let mut offline = Vec::new();
+        if !issues_dir.exists() {
+            return Ok(offline);
+        }
+        for entry in std::fs::read_dir(&issues_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            if let Ok(issue) = read_issue_file(&path) {
+                if issue.display_id.is_none() && issue.created_by == self.agent.agent_id {
+                    offline.push(issue);
+                }
+            }
+        }
+        // Sort by created_at for deterministic ID assignment
+        offline.sort_by_key(|i| i.created_at);
+        Ok(offline)
+    }
 
     /// Claim N sequential display IDs from `meta/counters.json`.
     ///
@@ -499,6 +639,30 @@ impl SharedWriter {
         let first = counters.next_display_id;
         counters.next_display_id += count;
         Ok((first, counters))
+    }
+
+    /// Rewrite a just-committed issue to set `display_id: null` and revert the
+    /// counter bump. Used when a push failed (offline/exhausted retries) so the
+    /// locally-claimed display ID doesn't collide with remote state.
+    fn rewrite_as_offline(&self, uuid: Uuid) -> Result<()> {
+        let path = self.issue_path(&uuid);
+        let mut issue = read_issue_file(&path)?;
+        issue.display_id = None;
+        let json = serde_json::to_string_pretty(&issue)?;
+        std::fs::write(&path, json)?;
+
+        // Revert the counter bump (the remote never saw it)
+        let mut counters = self.read_counters()?;
+        if counters.next_display_id > 1 {
+            counters.next_display_id -= 1;
+        }
+        self.write_counters_to_cache(&counters)?;
+
+        // Amend the local commit with the reverted files
+        self.git_in_cache(&["add", &format!("issues/{}.json", uuid)])?;
+        self.git_in_cache(&["add", "meta/counters.json"])?;
+        self.git_in_cache(&["commit", "--amend", "--no-edit"])?;
+        Ok(())
     }
 
     /// Read counters from the cache.
@@ -540,10 +704,35 @@ impl SharedWriter {
         bail!("Issue #{} not found in shared cache", display_id)
     }
 
-    /// Resolve a display ID to its UUID by scanning the issue files.
-    fn resolve_uuid(&self, display_id: i64) -> Result<Uuid> {
-        let issue = self.load_issue_by_display_id(display_id)?;
-        Ok(issue.uuid)
+    /// Load an issue by ID, supporting both positive (real) and negative (offline) IDs.
+    ///
+    /// For negative IDs, consults SQLite to resolve the UUID first.
+    fn load_issue_by_id(&self, id: i64, db: &Database) -> Result<IssueFile> {
+        if id >= 0 {
+            self.load_issue_by_display_id(id)
+        } else {
+            let uuid_str = db.get_issue_uuid_by_id(id)?;
+            let uuid: Uuid = uuid_str
+                .parse()
+                .with_context(|| format!("Invalid UUID for local issue L{}", id.unsigned_abs()))?;
+            read_issue_file(&self.issue_path(&uuid))
+        }
+    }
+
+    /// Resolve an issue ID (positive or negative) to its UUID.
+    ///
+    /// For positive IDs, scans issue files by display_id.
+    /// For negative IDs, looks up the UUID from SQLite.
+    fn resolve_uuid(&self, id: i64, db: &Database) -> Result<Uuid> {
+        if id >= 0 {
+            let issue = self.load_issue_by_display_id(id)?;
+            Ok(issue.uuid)
+        } else {
+            let uuid_str = db.get_issue_uuid_by_id(id)?;
+            uuid_str
+                .parse()
+                .with_context(|| format!("Invalid UUID for local issue L{}", id.unsigned_abs()))
+        }
     }
 
     /// Generate content, commit, and push with retry.
@@ -552,7 +741,7 @@ impl SharedWriter {
     /// re-read any mutable state (counters, issue files) from the cache
     /// which may have changed after a rebase pull.  This prevents stale
     /// display-ID collisions when two agents race.
-    fn write_commit_push<F>(&self, mut prepare: F, message: &str) -> Result<()>
+    fn write_commit_push<F>(&self, mut prepare: F, message: &str) -> Result<PushOutcome>
     where
         F: FnMut(&Self) -> Result<WriteSet>,
     {
@@ -600,7 +789,7 @@ impl SharedWriter {
             if let Err(e) = &commit_result {
                 let err_str = e.to_string();
                 if err_str.contains("nothing to commit") || err_str.contains("no changes added") {
-                    return Ok(());
+                    return Ok(PushOutcome::Pushed);
                 }
                 commit_result?;
             }
@@ -608,14 +797,14 @@ impl SharedWriter {
             // Push
             let push_result = self.git_in_cache(&["push", "origin", "crosslink/locks"]);
             match push_result {
-                Ok(_) => return Ok(()),
+                Ok(_) => return Ok(PushOutcome::Pushed),
                 Err(e) => {
                     let err_str = e.to_string();
                     // Offline — commit is local, will push on next sync
                     if err_str.contains("Could not resolve host")
                         || err_str.contains("Could not read from remote")
                     {
-                        return Ok(());
+                        return Ok(PushOutcome::LocalOnly);
                     }
                     // Conflict — reset our commit, pull latest, then retry
                     // (the closure will re-read fresh state on the next iteration)
@@ -625,18 +814,15 @@ impl SharedWriter {
                             self.git_in_cache(&["pull", "--rebase", "origin", "crosslink/locks"])?;
                             continue;
                         }
-                        bail!(
-                            "Push failed after {} retries. \
-                             Another agent may be rapidly writing.",
-                            MAX_RETRIES
-                        );
+                        // All retries exhausted — keep as local-only
+                        return Ok(PushOutcome::LocalOnly);
                     }
                     // Other error — propagate
                     return Err(e);
                 }
             }
         }
-        Ok(())
+        Ok(PushOutcome::Pushed)
     }
 
     /// Run a git command in the cache worktree.

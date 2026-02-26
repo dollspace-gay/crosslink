@@ -5,6 +5,7 @@ use std::path::Path;
 
 use super::export::{ExportData, ExportedIssue};
 use crate::db::Database;
+use crate::utils::format_issue_id;
 
 pub fn run_json(db: &Database, input_path: &Path) -> Result<()> {
     let content = fs::read_to_string(input_path).context("Failed to read import file")?;
@@ -75,7 +76,7 @@ fn import_issue(db: &Database, issue: &ExportedIssue, parent_id: Option<i64>) ->
         db.close_issue(id)?;
     }
 
-    println!("  Imported: #{} -> #{} {}", issue.id, id, issue.title);
+    println!("  Imported: #{} -> {} {}", issue.id, format_issue_id(id), issue.title);
     Ok(id)
 }
 

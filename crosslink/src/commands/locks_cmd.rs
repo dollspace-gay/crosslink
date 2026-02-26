@@ -4,8 +4,9 @@ use std::path::Path;
 use crate::db::Database;
 use crate::hydration::hydrate_to_sqlite;
 use crate::identity::AgentConfig;
+use crate::shared_writer::SharedWriter;
 use crate::sync::{GpgVerification, SyncManager};
-use crate::utils::truncate;
+use crate::utils::{format_issue_id, truncate};
 
 /// `crosslink locks list` — show current lock state
 pub fn list(crosslink_dir: &Path, db: &Database, json_output: bool) -> Result<()> {
@@ -44,8 +45,8 @@ pub fn list(crosslink_dir: &Path, db: &Database, json_output: bool) -> Result<()
         };
 
         println!(
-            "  #{:<4} {} -- claimed by {} on {}{}",
-            issue_id,
+            "  {:<5} {} -- claimed by {} on {}{}",
+            format_issue_id(issue_id),
             title,
             lock.agent_id,
             lock.claimed_at.format("%Y-%m-%d %H:%M"),
@@ -69,8 +70,8 @@ pub fn check(crosslink_dir: &Path, issue_id: i64) -> Result<()> {
     match locks_file.get_lock(issue_id) {
         Some(lock) => {
             println!(
-                "Issue #{} is locked by '{}' (claimed {})",
-                issue_id,
+                "Issue {} is locked by '{}' (claimed {})",
+                format_issue_id(issue_id),
                 lock.agent_id,
                 lock.claimed_at.format("%Y-%m-%d %H:%M")
             );
@@ -84,7 +85,7 @@ pub fn check(crosslink_dir: &Path, issue_id: i64) -> Result<()> {
             }
         }
         None => {
-            println!("Issue #{} is not locked. Available for claiming.", issue_id);
+            println!("Issue {} is not locked. Available for claiming.", format_issue_id(issue_id));
         }
     }
     Ok(())
@@ -102,13 +103,13 @@ pub fn claim(crosslink_dir: &Path, issue_id: i64, branch: Option<&str>) -> Resul
 
     match sync.claim_lock(&agent, issue_id, branch, false)? {
         true => {
-            println!("Claimed lock on issue #{}", issue_id);
+            println!("Claimed lock on issue {}", format_issue_id(issue_id));
             if let Some(b) = branch {
                 println!("  Branch: {}", b);
             }
         }
         false => {
-            println!("You already hold the lock on issue #{}", issue_id);
+            println!("You already hold the lock on issue {}", format_issue_id(issue_id));
         }
     }
     Ok(())
@@ -125,8 +126,8 @@ pub fn release(crosslink_dir: &Path, issue_id: i64) -> Result<()> {
     sync.fetch()?;
 
     match sync.release_lock(&agent, issue_id, false)? {
-        true => println!("Released lock on issue #{}", issue_id),
-        false => println!("Issue #{} was not locked.", issue_id),
+        true => println!("Released lock on issue {}", format_issue_id(issue_id)),
+        false => println!("Issue {} was not locked.", format_issue_id(issue_id)),
     }
     Ok(())
 }
@@ -145,7 +146,7 @@ pub fn steal(crosslink_dir: &Path, issue_id: i64) -> Result<()> {
     let locks = sync.read_locks()?;
     if let Some(existing) = locks.get_lock(issue_id) {
         if existing.agent_id == agent.agent_id {
-            println!("You already hold the lock on issue #{}", issue_id);
+            println!("You already hold the lock on issue {}", format_issue_id(issue_id));
             return Ok(());
         }
 
@@ -154,20 +155,20 @@ pub fn steal(crosslink_dir: &Path, issue_id: i64) -> Result<()> {
 
         if !is_stale {
             eprintln!(
-                "Warning: Lock on #{} held by '{}' is NOT stale. Stealing anyway.",
-                issue_id, existing.agent_id
+                "Warning: Lock on {} held by '{}' is NOT stale. Stealing anyway.",
+                format_issue_id(issue_id), existing.agent_id
             );
         }
 
         sync.claim_lock(&agent, issue_id, None, true)?;
         println!(
-            "Stole lock on issue #{} from '{}'",
-            issue_id, existing.agent_id
+            "Stole lock on issue {} from '{}'",
+            format_issue_id(issue_id), existing.agent_id
         );
     } else {
         // Not locked — just claim it
         sync.claim_lock(&agent, issue_id, None, false)?;
-        println!("Claimed lock on issue #{} (was not locked)", issue_id);
+        println!("Claimed lock on issue {} (was not locked)", format_issue_id(issue_id));
     }
 
     Ok(())
@@ -186,6 +187,22 @@ pub fn sync_cmd(crosslink_dir: &Path, db: &Database) -> Result<()> {
             "Hydrated {} issue(s), {} comment(s), {} dep(s), {} relation(s), {} milestone(s).",
             stats.issues, stats.comments, stats.dependencies, stats.relations, stats.milestones
         );
+    }
+
+    // Attempt to promote offline issues (display_id: null → real IDs)
+    if let Some(writer) = SharedWriter::new(crosslink_dir)? {
+        let promoted = writer.promote_offline_issues(db)?;
+        if !promoted.is_empty() {
+            println!("\nPromoted {} offline issue(s):", promoted.len());
+            for (neg_id, new_id, title) in &promoted {
+                if *neg_id != 0 {
+                    println!("  L{} -> #{}: {}", neg_id.unsigned_abs(), new_id, title);
+                } else {
+                    println!("  -> #{}: {}", new_id, title);
+                }
+            }
+            println!();
+        }
     }
 
     println!("Cache: {}", sync.cache_path().display());
@@ -238,7 +255,7 @@ pub fn sync_cmd(crosslink_dir: &Path, db: &Database) -> Result<()> {
     if !stale.is_empty() {
         println!("{} stale lock(s) detected:", stale.len());
         for (id, agent) in &stale {
-            println!("  #{} (held by {})", id, agent);
+            println!("  {} (held by {})", format_issue_id(*id), agent);
         }
     }
 

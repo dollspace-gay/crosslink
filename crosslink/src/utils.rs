@@ -1,3 +1,12 @@
+/// Format a display ID for output. Negative IDs (offline) show as "L1", "L2", etc.
+pub fn format_issue_id(id: i64) -> String {
+    if id < 0 {
+        format!("L{}", id.unsigned_abs())
+    } else {
+        format!("#{}", id)
+    }
+}
+
 /// Truncate a string to a maximum number of characters, adding "..." if truncated.
 /// Handles Unicode correctly by counting characters, not bytes.
 pub fn truncate(s: &str, max_chars: usize) -> String {

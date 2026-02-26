@@ -86,6 +86,7 @@ enum Commands {
     /// Create a subissue under a parent issue
     Subissue {
         /// Parent issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         parent: i64,
         /// Subissue title
         title: String,
@@ -125,12 +126,14 @@ enum Commands {
     /// Show issue details
     Show {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
     },
 
     /// Update an issue
     Update {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
         /// New title
         #[arg(short, long)]
@@ -146,6 +149,7 @@ enum Commands {
     /// Close an issue
     Close {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
         /// Skip changelog entry
         #[arg(long)]
@@ -168,12 +172,14 @@ enum Commands {
     /// Reopen a closed issue
     Reopen {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
     },
 
     /// Delete an issue
     Delete {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
         /// Skip confirmation
         #[arg(short, long)]
@@ -183,6 +189,7 @@ enum Commands {
     /// Add a comment to an issue
     Comment {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
         /// Comment text
         text: String,
@@ -191,6 +198,7 @@ enum Commands {
     /// Add a label to an issue
     Label {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
         /// Label name
         label: String,
@@ -199,6 +207,7 @@ enum Commands {
     /// Remove a label from an issue
     Unlabel {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
         /// Label name
         label: String,
@@ -207,16 +216,20 @@ enum Commands {
     /// Mark an issue as blocked by another
     Block {
         /// Issue ID that is blocked
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
         /// Issue ID that is blocking
+        #[arg(value_parser = parse_issue_id_clap)]
         blocker: i64,
     },
 
     /// Remove a blocking relationship
     Unblock {
         /// Issue ID that was blocked
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
         /// Issue ID that was blocking
+        #[arg(value_parser = parse_issue_id_clap)]
         blocker: i64,
     },
 
@@ -229,22 +242,27 @@ enum Commands {
     /// Link two related issues
     Relate {
         /// First issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
         /// Second issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         related: i64,
     },
 
     /// Remove a relation between issues
     Unrelate {
         /// First issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
         /// Second issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         related: i64,
     },
 
     /// List related issues
     Related {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
     },
 
@@ -261,6 +279,7 @@ enum Commands {
     /// Start a timer for an issue
     Start {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
     },
 
@@ -352,11 +371,13 @@ enum ArchiveCommands {
     /// Archive a closed issue
     Add {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
     },
     /// Unarchive an issue (restore to closed)
     Remove {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
     },
     /// List archived issues
@@ -430,6 +451,7 @@ enum SessionCommands {
     /// Set the issue being worked on
     Work {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
     },
     /// Show handoff notes from the previous session
@@ -500,11 +522,13 @@ enum LocksCommands {
     /// Check if a specific issue is locked
     Check {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
     },
     /// Claim a lock on an issue
     Claim {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
         /// Branch name for context
         #[arg(short, long)]
@@ -513,11 +537,13 @@ enum LocksCommands {
     /// Release a lock on an issue
     Release {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
     },
     /// Steal a stale lock from another agent
     Steal {
         /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
     },
 }
@@ -565,13 +591,17 @@ fn get_writer(crosslink_dir: &std::path::Path) -> Option<shared_writer::SharedWr
     }
 }
 
+/// Clap value parser for issue IDs (supports `L1` offline notation).
+fn parse_issue_id_clap(s: &str) -> std::result::Result<i64, String> {
+    parse_issue_id(s).map_err(|e| e.to_string())
+}
+
 /// Parse an issue ID string, supporting both regular IDs and offline local IDs.
 ///
 /// - `"42"` → `42` (regular display ID)
 /// - `"L1"` or `"l1"` → `-1` (offline local ID, stored as negative in SQLite)
 ///
 /// Used when offline issue creation is enabled (display_id: null in JSON).
-#[allow(dead_code)]
 fn parse_issue_id(s: &str) -> Result<i64> {
     if let Some(n) = s.strip_prefix('L').or_else(|| s.strip_prefix('l')) {
         let num: i64 = n

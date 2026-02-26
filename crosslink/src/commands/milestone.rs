@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 
 use crate::db::Database;
+use crate::utils::format_issue_id;
 
 pub fn create(db: &Database, name: &str, description: Option<&str>) -> Result<()> {
     let id = db.create_milestone(name, description)?;
@@ -66,8 +67,8 @@ pub fn show(db: &Database, id: i64) -> Result<()> {
         for issue in issues {
             let status_marker = if issue.status == "closed" { "✓" } else { " " };
             println!(
-                "  #{:<4} [{}] {:8} {}",
-                issue.id, status_marker, issue.priority, issue.title
+                "  {:<5} [{}] {:8} {}",
+                format_issue_id(issue.id), status_marker, issue.priority, issue.title
             );
         }
     }
@@ -83,14 +84,14 @@ pub fn add(db: &Database, milestone_id: i64, issue_ids: &[i64]) -> Result<()> {
 
     for &issue_id in issue_ids {
         if db.get_issue(issue_id)?.is_none() {
-            println!("Warning: Issue #{} not found, skipping", issue_id);
+            println!("Warning: Issue {} not found, skipping", format_issue_id(issue_id));
             continue;
         }
 
         if db.add_issue_to_milestone(milestone_id, issue_id)? {
-            println!("Added #{} to milestone #{}", issue_id, milestone_id);
+            println!("Added {} to milestone #{}", format_issue_id(issue_id), milestone_id);
         } else {
-            println!("Issue #{} already in milestone #{}", issue_id, milestone_id);
+            println!("Issue {} already in milestone #{}", format_issue_id(issue_id), milestone_id);
         }
     }
 
@@ -99,9 +100,9 @@ pub fn add(db: &Database, milestone_id: i64, issue_ids: &[i64]) -> Result<()> {
 
 pub fn remove(db: &Database, milestone_id: i64, issue_id: i64) -> Result<()> {
     if db.remove_issue_from_milestone(milestone_id, issue_id)? {
-        println!("Removed #{} from milestone #{}", issue_id, milestone_id);
+        println!("Removed {} from milestone #{}", format_issue_id(issue_id), milestone_id);
     } else {
-        println!("Issue #{} not in milestone #{}", issue_id, milestone_id);
+        println!("Issue {} not in milestone #{}", format_issue_id(issue_id), milestone_id);
     }
 
     Ok(())

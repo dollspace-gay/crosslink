@@ -2,6 +2,7 @@ use anyhow::Result;
 
 use crate::db::Database;
 use crate::shared_writer::SharedWriter;
+use crate::utils::format_issue_id;
 
 pub fn add(
     db: &Database,
@@ -14,13 +15,13 @@ pub fn add(
 
     if let Some(w) = writer {
         w.add_relation(db, issue_id, related_id)?;
-        println!("Linked #{} ↔ #{}", issue_id, related_id);
+        println!("Linked {} ↔ {}", format_issue_id(issue_id), format_issue_id(related_id));
     } else if db.add_relation(issue_id, related_id)? {
-        println!("Linked #{} ↔ #{}", issue_id, related_id);
+        println!("Linked {} ↔ {}", format_issue_id(issue_id), format_issue_id(related_id));
     } else {
         println!(
-            "Issues #{} and #{} are already related",
-            issue_id, related_id
+            "Issues {} and {} are already related",
+            format_issue_id(issue_id), format_issue_id(related_id)
         );
     }
 
@@ -35,13 +36,13 @@ pub fn remove(
 ) -> Result<()> {
     if let Some(w) = writer {
         w.remove_relation(db, issue_id, related_id)?;
-        println!("Unlinked #{} ↔ #{}", issue_id, related_id);
+        println!("Unlinked {} ↔ {}", format_issue_id(issue_id), format_issue_id(related_id));
     } else if db.remove_relation(issue_id, related_id)? {
-        println!("Unlinked #{} ↔ #{}", issue_id, related_id);
+        println!("Unlinked {} ↔ {}", format_issue_id(issue_id), format_issue_id(related_id));
     } else {
         println!(
-            "No relation found between #{} and #{}",
-            issue_id, related_id
+            "No relation found between {} and {}",
+            format_issue_id(issue_id), format_issue_id(related_id)
         );
     }
 
@@ -54,16 +55,16 @@ pub fn list(db: &Database, issue_id: i64) -> Result<()> {
     let related = db.get_related_issues(issue_id)?;
 
     if related.is_empty() {
-        println!("No related issues for #{}", issue_id);
+        println!("No related issues for {}", format_issue_id(issue_id));
         return Ok(());
     }
 
-    println!("Related to #{}:", issue_id);
+    println!("Related to {}:", format_issue_id(issue_id));
     for r in related {
         let status_marker = if r.status == "closed" { "✓" } else { " " };
         println!(
-            "  #{:<4} [{}] {:8} {}",
-            r.id, status_marker, r.priority, r.title
+            "  {:<5} [{}] {:8} {}",
+            format_issue_id(r.id), status_marker, r.priority, r.title
         );
     }
 

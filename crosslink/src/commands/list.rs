@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde_json;
 
 use crate::db::Database;
-use crate::utils::truncate;
+use crate::utils::{format_issue_id, truncate};
 
 pub fn run_json(
     db: &Database,
@@ -32,8 +32,8 @@ pub fn run(
         let status_display = format!("[{}]", issue.status);
         let date = issue.created_at.format("%Y-%m-%d");
         println!(
-            "#{:<4} {:8} {:<40} {:8} {}",
-            issue.id,
+            "{:<5} {:8} {:<40} {:8} {}",
+            format_issue_id(issue.id),
             status_display,
             truncate(&issue.title, 40),
             issue.priority,

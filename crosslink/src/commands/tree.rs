@@ -2,6 +2,7 @@ use anyhow::Result;
 
 use crate::db::Database;
 use crate::models::Issue;
+use crate::utils::format_issue_id;
 
 fn status_icon(status: &str) -> &'static str {
     match status {
@@ -15,8 +16,8 @@ fn print_issue(issue: &Issue, indent: usize) {
     let prefix = "  ".repeat(indent);
     let icon = status_icon(&issue.status);
     println!(
-        "{}[{}] #{} {} - {}",
-        prefix, icon, issue.id, issue.priority, issue.title
+        "{}[{}] {} {} - {}",
+        prefix, icon, format_issue_id(issue.id), issue.priority, issue.title
     );
 }
 

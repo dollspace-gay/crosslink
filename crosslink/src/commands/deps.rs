@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 
 use crate::db::Database;
 use crate::shared_writer::SharedWriter;
-use crate::utils::truncate;
+use crate::utils::{format_issue_id, truncate};
 
 pub fn block(
     db: &Database,
@@ -20,9 +20,9 @@ pub fn block(
 
     if let Some(w) = writer {
         w.add_blocker(db, issue_id, blocker_id)?;
-        println!("Issue #{} is now blocked by #{}", issue_id, blocker_id);
+        println!("Issue {} is now blocked by {}", format_issue_id(issue_id), format_issue_id(blocker_id));
     } else if db.add_dependency(issue_id, blocker_id)? {
-        println!("Issue #{} is now blocked by #{}", issue_id, blocker_id);
+        println!("Issue {} is now blocked by {}", format_issue_id(issue_id), format_issue_id(blocker_id));
     } else {
         println!("Dependency already exists");
     }
@@ -38,13 +38,13 @@ pub fn unblock(
     if let Some(w) = writer {
         w.remove_blocker(db, issue_id, blocker_id)?;
         println!(
-            "Removed: #{} no longer blocked by #{}",
-            issue_id, blocker_id
+            "Removed: {} no longer blocked by {}",
+            format_issue_id(issue_id), format_issue_id(blocker_id)
         );
     } else if db.remove_dependency(issue_id, blocker_id)? {
         println!(
-            "Removed: #{} no longer blocked by #{}",
-            issue_id, blocker_id
+            "Removed: {} no longer blocked by {}",
+            format_issue_id(issue_id), format_issue_id(blocker_id)
         );
     } else {
         println!("No such dependency found");
@@ -63,10 +63,10 @@ pub fn list_blocked(db: &Database) -> Result<()> {
     println!("Blocked issues:");
     for issue in issues {
         let blockers = db.get_blockers(issue.id)?;
-        let blocker_strs: Vec<String> = blockers.iter().map(|b| format!("#{}", b)).collect();
+        let blocker_strs: Vec<String> = blockers.iter().map(|b| format_issue_id(*b)).collect();
         println!(
-            "  #{:<4} {} (blocked by: {})",
-            issue.id,
+            "  {:<5} {} (blocked by: {})",
+            format_issue_id(issue.id),
             truncate(&issue.title, 40),
             blocker_strs.join(", ")
         );
@@ -85,7 +85,7 @@ pub fn list_ready(db: &Database) -> Result<()> {
 
     println!("Ready issues (no blockers):");
     for issue in issues {
-        println!("  #{:<4} {:8} {}", issue.id, issue.priority, issue.title);
+        println!("  {:<5} {:8} {}", format_issue_id(issue.id), issue.priority, issue.title);
     }
 
     Ok(())

@@ -3,6 +3,7 @@ use anyhow::{bail, Result};
 use crate::commands::create::validate_priority;
 use crate::db::Database;
 use crate::shared_writer::SharedWriter;
+use crate::utils::format_issue_id;
 
 pub fn run(
     db: &Database,
@@ -27,11 +28,11 @@ pub fn run(
 
     if let Some(w) = writer {
         w.update_issue(db, id, title, description.map(Some), None, priority)?;
-        println!("Updated issue #{}", id);
+        println!("Updated issue {}", format_issue_id(id));
     } else if db.update_issue(id, title, description, priority)? {
-        println!("Updated issue #{}", id);
+        println!("Updated issue {}", format_issue_id(id));
     } else {
-        bail!("Issue #{} not found", id);
+        bail!("Issue {} not found", format_issue_id(id));
     }
 
     Ok(())

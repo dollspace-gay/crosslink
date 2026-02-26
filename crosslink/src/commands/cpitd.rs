@@ -10,6 +10,7 @@ use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 
 use crate::db::Database;
+use crate::utils::format_issue_id;
 
 // ---------------------------------------------------------------------------
 // cpitd JSON output types
@@ -183,7 +184,7 @@ fn create_clone_issue(db: &Database, report: &CpitdCloneReport, quiet: bool) -> 
     db.add_label(id, "refactor")?;
 
     if !quiet {
-        println!("  Created issue #{}: {}", id, title);
+        println!("  Created issue {}: {}", format_issue_id(id), title);
     }
 
     Ok(id)
@@ -267,7 +268,7 @@ pub fn scan(
                 db.add_comment(existing_id, &comment)?;
                 updated_count += 1;
                 if !quiet {
-                    println!("  Updated issue #{} (clone still present)", existing_id);
+                    println!("  Updated issue {} (clone still present)", format_issue_id(existing_id));
                 }
             }
             None => {
@@ -300,7 +301,7 @@ pub fn status(db: &Database) -> Result<()> {
     } else {
         println!("{} open clone issue(s):\n", issues.len());
         for issue in &issues {
-            println!("  #{:<4} {}", issue.id, issue.title);
+            println!("  {:<5} {}", format_issue_id(issue.id), issue.title);
         }
     }
 

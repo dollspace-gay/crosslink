@@ -2,6 +2,7 @@ use anyhow::{bail, Result};
 
 use crate::db::Database;
 use crate::shared_writer::SharedWriter;
+use crate::utils::format_issue_id;
 
 const VALID_PRIORITIES: [&str; 4] = ["low", "medium", "high", "critical"];
 
@@ -158,7 +159,7 @@ pub fn run(
     if opts.quiet {
         println!("{}", id);
     } else {
-        println!("Created issue #{}", id);
+        println!("Created issue {}", format_issue_id(id));
         if let Some(tmpl) = template {
             println!("  Applied template: {}", tmpl);
         }
@@ -173,7 +174,7 @@ pub fn run(
         if let Ok(Some(session)) = db.get_current_session() {
             db.set_session_issue(session.id, id)?;
             if !opts.quiet {
-                println!("Now working on: #{} {}", id, title);
+                println!("Now working on: {} {}", format_issue_id(id), title);
             }
         } else if !opts.quiet {
             eprintln!("Warning: --work specified but no active session");
@@ -203,7 +204,7 @@ pub fn run_subissue(
     // Verify parent exists
     let parent = db.get_issue(parent_id)?;
     if parent.is_none() {
-        bail!("Parent issue #{} not found", parent_id);
+        bail!("Parent issue {} not found", format_issue_id(parent_id));
     }
 
     let id = if let Some(w) = writer {
@@ -224,7 +225,7 @@ pub fn run_subissue(
     if opts.quiet {
         println!("{}", id);
     } else {
-        println!("Created subissue #{} under #{}", id, parent_id);
+        println!("Created subissue {} under {}", format_issue_id(id), format_issue_id(parent_id));
     }
 
     // Set as active session work item
@@ -236,7 +237,7 @@ pub fn run_subissue(
         if let Ok(Some(session)) = db.get_current_session() {
             db.set_session_issue(session.id, id)?;
             if !opts.quiet {
-                println!("Now working on: #{} {}", id, title);
+                println!("Now working on: {} {}", format_issue_id(id), title);
             }
         } else if !opts.quiet {
             eprintln!("Warning: --work specified but no active session");

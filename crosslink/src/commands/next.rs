@@ -4,6 +4,7 @@ use std::path::Path;
 use crate::db::Database;
 use crate::locks::LocksFile;
 use crate::models::Issue;
+use crate::utils::format_issue_id;
 
 /// Progress tuple: (completed subissues, total subissues)
 type Progress = Option<(i32, i32)>;
@@ -94,9 +95,9 @@ pub fn run(db: &Database, crosslink_dir: &std::path::Path) -> Result<()> {
         // All ready issues are subissues, show them instead
         let ready = db.list_ready_issues()?;
         if let Some(issue) = ready.first() {
-            println!("Next: #{} [{}] {}", issue.id, issue.priority, issue.title);
+            println!("Next: {} [{}] {}", format_issue_id(issue.id), issue.priority, issue.title);
             if let Some(parent_id) = issue.parent_id {
-                println!("       (subissue of #{})", parent_id);
+                println!("       (subissue of {})", format_issue_id(parent_id));
             }
         } else {
             println!("No issues ready to work on.");
@@ -106,7 +107,7 @@ pub fn run(db: &Database, crosslink_dir: &std::path::Path) -> Result<()> {
 
     // Recommend the top issue
     let (top, _score, progress) = &scored[0];
-    println!("Next: #{} [{}] {}", top.id, top.priority, top.title);
+    println!("Next: {} [{}] {}", format_issue_id(top.id), top.priority, top.title);
 
     if let Some((closed, total)) = progress {
         println!("       Progress: {}/{} subissues complete", closed, total);
@@ -133,8 +134,8 @@ pub fn run(db: &Database, crosslink_dir: &std::path::Path) -> Result<()> {
                 None => String::new(),
             };
             println!(
-                "  #{} [{}] {}{}",
-                issue.id, issue.priority, issue.title, progress_str
+                "  {} [{}] {}{}",
+                format_issue_id(issue.id), issue.priority, issue.title, progress_str
             );
         }
     }

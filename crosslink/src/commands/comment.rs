@@ -2,6 +2,7 @@ use anyhow::Result;
 
 use crate::db::Database;
 use crate::shared_writer::SharedWriter;
+use crate::utils::format_issue_id;
 
 pub fn run(
     db: &Database,
@@ -15,7 +16,7 @@ pub fn run(
     } else {
         db.add_comment(issue_id, content)?;
     }
-    println!("Added comment to issue #{}", issue_id);
+    println!("Added comment to issue {}", format_issue_id(issue_id));
     Ok(())
 }
 
