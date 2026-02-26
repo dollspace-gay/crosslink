@@ -575,8 +575,7 @@ impl SharedWriter {
             }
 
             // Collect relative paths for staging
-            let mut paths: Vec<String> =
-                write_set.files.iter().map(|(p, _)| p.clone()).collect();
+            let mut paths: Vec<String> = write_set.files.iter().map(|(p, _)| p.clone()).collect();
             if write_set.counters.is_some() {
                 paths.push("meta/counters.json".to_string());
             }
@@ -584,8 +583,7 @@ impl SharedWriter {
             // Stage
             for path in &paths {
                 if write_set.use_git_rm {
-                    let _ =
-                        self.git_in_cache(&["rm", "--cached", "--ignore-unmatch", path]);
+                    let _ = self.git_in_cache(&["rm", "--cached", "--ignore-unmatch", path]);
                 } else {
                     self.git_in_cache(&["add", path])?;
                 }
@@ -601,17 +599,14 @@ impl SharedWriter {
             let commit_result = self.git_in_cache(&["commit", "-m", &commit_msg]);
             if let Err(e) = &commit_result {
                 let err_str = e.to_string();
-                if err_str.contains("nothing to commit")
-                    || err_str.contains("no changes added")
-                {
+                if err_str.contains("nothing to commit") || err_str.contains("no changes added") {
                     return Ok(());
                 }
                 commit_result?;
             }
 
             // Push
-            let push_result =
-                self.git_in_cache(&["push", "origin", "crosslink/locks"]);
+            let push_result = self.git_in_cache(&["push", "origin", "crosslink/locks"]);
             match push_result {
                 Ok(_) => return Ok(()),
                 Err(e) => {
@@ -624,14 +619,10 @@ impl SharedWriter {
                     }
                     // Conflict — reset our commit, pull latest, then retry
                     // (the closure will re-read fresh state on the next iteration)
-                    if err_str.contains("rejected")
-                        || err_str.contains("non-fast-forward")
-                    {
+                    if err_str.contains("rejected") || err_str.contains("non-fast-forward") {
                         if attempt < MAX_RETRIES - 1 {
                             let _ = self.git_in_cache(&["reset", "HEAD~1"]);
-                            self.git_in_cache(&[
-                                "pull", "--rebase", "origin", "crosslink/locks",
-                            ])?;
+                            self.git_in_cache(&["pull", "--rebase", "origin", "crosslink/locks"])?;
                             continue;
                         }
                         bail!(
