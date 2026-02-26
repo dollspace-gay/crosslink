@@ -73,7 +73,9 @@ fn build_issue_file(
     issue: &Issue,
     uuid_map: &HashMap<i64, Uuid>,
 ) -> Result<IssueFile> {
-    let uuid = *uuid_map.get(&issue.id).expect("issue must be in uuid_map");
+    let uuid = *uuid_map
+        .get(&issue.id)
+        .ok_or_else(|| anyhow::anyhow!("issue {} missing from uuid_map", issue.id))?;
 
     let (_, created_by) = db.get_issue_export_metadata(issue.id)?;
 
