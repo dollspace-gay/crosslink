@@ -15,6 +15,8 @@ pub(crate) const SESSION_START_PY: &str =
 pub(crate) const PRE_WEB_CHECK_PY: &str =
     include_str!("../../resources/claude/hooks/pre-web-check.py");
 pub(crate) const WORK_CHECK_PY: &str = include_str!("../../resources/claude/hooks/work-check.py");
+pub(crate) const CROSSLINK_CONFIG_PY: &str =
+    include_str!("../../resources/claude/hooks/crosslink_config.py");
 
 // Embed MCP server for safe web fetching
 const SAFE_FETCH_SERVER_PY: &str = include_str!("../../resources/claude/mcp/safe-fetch-server.py");
@@ -248,6 +250,9 @@ pub fn run(path: &Path, force: bool) -> Result<()> {
         fs::write(hooks_dir.join("work-check.py"), WORK_CHECK_PY)
             .context("Failed to write work-check.py")?;
 
+        fs::write(hooks_dir.join("crosslink_config.py"), CROSSLINK_CONFIG_PY)
+            .context("Failed to write crosslink_config.py")?;
+
         // Create MCP server directory and write safe-fetch server
         let mcp_dir = claude_dir.join("mcp");
         fs::create_dir_all(&mcp_dir).context("Failed to create .claude/mcp directory")?;
@@ -323,6 +328,10 @@ mod tests {
         assert!(dir.path().join(".claude/hooks/session-start.py").exists());
         assert!(dir.path().join(".claude/hooks/pre-web-check.py").exists());
         assert!(dir.path().join(".claude/hooks/work-check.py").exists());
+        assert!(dir
+            .path()
+            .join(".claude/hooks/crosslink_config.py")
+            .exists());
         assert!(dir.path().join(".claude/mcp/safe-fetch-server.py").exists());
         assert!(dir.path().join(".mcp.json").exists());
     }
@@ -690,6 +699,7 @@ mod tests {
         assert!(!SESSION_START_PY.is_empty());
         assert!(!PRE_WEB_CHECK_PY.is_empty());
         assert!(!WORK_CHECK_PY.is_empty());
+        assert!(!CROSSLINK_CONFIG_PY.is_empty());
         assert!(!SAFE_FETCH_SERVER_PY.is_empty());
         assert!(!MCP_JSON.is_empty());
         assert!(!REVIEW_CMD_MD.is_empty());

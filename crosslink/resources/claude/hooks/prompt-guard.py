@@ -16,49 +16,13 @@ from datetime import datetime
 # Fix Windows encoding issues with Unicode characters
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-
-def _project_root_from_script():
-    """Derive project root from this script's location (.claude/hooks/<script>.py -> project root)."""
-    try:
-        return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    except (NameError, OSError):
-        return None
-
-
-def _get_project_root():
-    """Get the project root directory.
-
-    Prefers deriving from the hook script's own path (works even when cwd is a
-    subdirectory), falling back to cwd.
-    """
-    root = _project_root_from_script()
-    if root and os.path.isdir(root):
-        return root
-    return os.getcwd()
-
-
-def find_crosslink_dir():
-    """Find the .crosslink directory.
-
-    Prefers the project root derived from the hook script's own path,
-    falling back to walking up from cwd.
-    """
-    root = _project_root_from_script()
-    if root:
-        candidate = os.path.join(root, '.crosslink')
-        if os.path.isdir(candidate):
-            return candidate
-
-    current = os.getcwd()
-    for _ in range(10):
-        candidate = os.path.join(current, '.crosslink')
-        if os.path.isdir(candidate):
-            return candidate
-        parent = os.path.dirname(current)
-        if parent == current:
-            break
-        current = parent
-    return None
+# Add hooks directory to path for shared module import
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from crosslink_config import (
+    find_crosslink_dir,
+    get_project_root,
+    load_tracking_mode,
+)
 
 
 def load_rule_file(rules_dir, filename):
@@ -144,7 +108,7 @@ def detect_languages():
     }
 
     found = set()
-    cwd = _get_project_root()
+    cwd = get_project_root()
 
     # Check for project config files first (more reliable than scanning)
     config_indicators = {
@@ -228,7 +192,7 @@ SKIP_DIRS = {
 
 def get_project_tree(max_depth=3, max_entries=50):
     """Generate a compact project tree to prevent path hallucinations."""
-    cwd = _get_project_root()
+    cwd = get_project_root()
     entries = []
 
     def should_skip(name):
@@ -305,7 +269,7 @@ def run_command(cmd, timeout=5):
 
 def get_dependencies(max_deps=30):
     """Get installed dependencies with versions. Uses caching based on lock file mtime."""
-    cwd = _get_project_root()
+    cwd = get_project_root()
     deps = []
 
     # Check for Rust (Cargo.toml)
@@ -550,66 +514,6 @@ def mark_full_guard_sent(crosslink_dir):
             f.write(str(datetime.now().timestamp()))
     except OSError:
         pass
-
-
-def _merge_with_extend(base, override):
-    """Merge *override* into *base* with array-extend support.
-
-    Keys in *override* that start with ``+`` are treated as array-extend
-    directives: their values are appended to the corresponding base array
-    (with the ``+`` stripped from the key name).  For example::
-
-        base:     {"allowed_bash_prefixes": ["ls", "pwd"]}
-        override: {"+allowed_bash_prefixes": ["my-tool"]}
-        result:   {"allowed_bash_prefixes": ["ls", "pwd", "my-tool"]}
-
-    If the base has no matching key, the override value is used as-is.
-    If the ``+``-prefixed value is not a list, it replaces like a normal key.
-    Keys without a ``+`` prefix replace the base value (backward compatible).
-    """
-    for key, value in override.items():
-        if key.startswith("+"):
-            real_key = key[1:]
-            if isinstance(value, list) and isinstance(base.get(real_key), list):
-                base[real_key] = base[real_key] + value
-            else:
-                base[real_key] = value
-        else:
-            base[key] = value
-    return base
-
-
-def load_tracking_mode(crosslink_dir):
-    """Read tracking_mode from .crosslink/hook-config.json, with .local override. Defaults to 'strict'.
-
-    Supports the ``+key`` convention for extending arrays.  See
-    ``_merge_with_extend`` for details.
-    """
-    if not crosslink_dir:
-        return "strict"
-
-    config = {}
-    config_path = os.path.join(crosslink_dir, "hook-config.json")
-    if os.path.isfile(config_path):
-        try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
-
-    local_path = os.path.join(crosslink_dir, "hook-config.local.json")
-    if os.path.isfile(local_path):
-        try:
-            with open(local_path, "r", encoding="utf-8") as f:
-                local = json.load(f)
-            _merge_with_extend(config, local)
-        except (json.JSONDecodeError, OSError):
-            pass
-
-    mode = config.get("tracking_mode", "strict")
-    if mode in ("strict", "normal", "relaxed"):
-        return mode
-    return "strict"
 
 
 def load_tracking_rules(crosslink_dir, tracking_mode):
