@@ -20,8 +20,12 @@ pub(crate) const WORK_CHECK_PY: &str = include_str!("../../resources/claude/hook
 const SAFE_FETCH_SERVER_PY: &str = include_str!("../../resources/claude/mcp/safe-fetch-server.py");
 const MCP_JSON: &str = include_str!("../../resources/mcp.json");
 
-// Embed slash command for guided policy review
+// Embed slash commands
 const REVIEW_CMD_MD: &str = include_str!("../../resources/claude/commands/review.md");
+const FEATURE_CMD_MD: &str = include_str!("../../resources/claude/commands/feature.md");
+const FEATREE_CMD_MD: &str = include_str!("../../resources/claude/commands/featree.md");
+const KICKOFF_CMD_MD: &str = include_str!("../../resources/claude/commands/kickoff.md");
+const CHECK_CMD_MD: &str = include_str!("../../resources/claude/commands/check.md");
 
 // Embed sanitization patterns
 const SANITIZE_PATTERNS: &str =
@@ -255,6 +259,14 @@ pub fn run(path: &Path, force: bool) -> Result<()> {
         fs::create_dir_all(&commands_dir).context("Failed to create .claude/commands directory")?;
         fs::write(commands_dir.join("review.md"), REVIEW_CMD_MD)
             .context("Failed to write review.md")?;
+        fs::write(commands_dir.join("feature.md"), FEATURE_CMD_MD)
+            .context("Failed to write feature.md")?;
+        fs::write(commands_dir.join("featree.md"), FEATREE_CMD_MD)
+            .context("Failed to write featree.md")?;
+        fs::write(commands_dir.join("kickoff.md"), KICKOFF_CMD_MD)
+            .context("Failed to write kickoff.md")?;
+        fs::write(commands_dir.join("check.md"), CHECK_CMD_MD)
+            .context("Failed to write check.md")?;
 
         // Merge crosslink's MCP server entry into .mcp.json (preserving existing MCPs)
         let warnings =
@@ -680,6 +692,11 @@ mod tests {
         assert!(!WORK_CHECK_PY.is_empty());
         assert!(!SAFE_FETCH_SERVER_PY.is_empty());
         assert!(!MCP_JSON.is_empty());
+        assert!(!REVIEW_CMD_MD.is_empty());
+        assert!(!FEATURE_CMD_MD.is_empty());
+        assert!(!FEATREE_CMD_MD.is_empty());
+        assert!(!KICKOFF_CMD_MD.is_empty());
+        assert!(!CHECK_CMD_MD.is_empty());
         assert!(!SANITIZE_PATTERNS.is_empty());
         assert!(!HOOK_CONFIG_JSON.is_empty());
         assert!(!RULE_TRACKING_STRICT.is_empty());
