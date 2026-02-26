@@ -70,7 +70,12 @@ fn has_custom_marker(deployed_path: &Path) -> bool {
 ///
 /// When `check` is true, operates in CI mode: exits 0 if all drifted files are
 /// marked with `# crosslink:custom`, exits 1 with a summary otherwise.
-pub fn diff(crosslink_dir: &Path, claude_dir: &Path, section: Option<&str>, check: bool) -> Result<()> {
+pub fn diff(
+    crosslink_dir: &Path,
+    claude_dir: &Path,
+    section: Option<&str>,
+    check: bool,
+) -> Result<()> {
     let show_all = section.is_none();
     let mut drifted: Vec<String> = Vec::new();
 
@@ -96,7 +101,9 @@ pub fn diff(crosslink_dir: &Path, claude_dir: &Path, section: Option<&str>, chec
                             .unwrap_or("strict");
                         println!(
                             "  hook-config.json: {} (tracking_mode: \"{}\", default: \"{}\")",
-                            compare_display(&result), mode, default
+                            compare_display(&result),
+                            mode,
+                            default
                         );
                     } else {
                         println!("  hook-config.json: {}", compare_display(&result));
@@ -167,13 +174,23 @@ pub fn diff(crosslink_dir: &Path, claude_dir: &Path, section: Option<&str>, chec
         if drifted.is_empty() {
             println!("All policy files are up to date or explicitly customized.");
         } else {
-            println!("Policy drift detected ({} file{}):", drifted.len(), if drifted.len() == 1 { "" } else { "s" });
+            println!(
+                "Policy drift detected ({} file{}):",
+                drifted.len(),
+                if drifted.len() == 1 { "" } else { "s" }
+            );
             for path in &drifted {
                 println!("  {}", path);
             }
             println!();
-            println!("These files differ from crosslink defaults and are not marked with '{}'.", CUSTOM_MARKER);
-            println!("Run 'crosslink review diff' for details, or add '{}' to acknowledge.", CUSTOM_MARKER);
+            println!(
+                "These files differ from crosslink defaults and are not marked with '{}'.",
+                CUSTOM_MARKER
+            );
+            println!(
+                "Run 'crosslink review diff' for details, or add '{}' to acknowledge.",
+                CUSTOM_MARKER
+            );
             std::process::exit(1);
         }
     }
@@ -191,7 +208,10 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.txt");
         fs::write(&path, "hello world").unwrap();
-        assert!(matches!(compare_file(&path, "hello world"), CompareResult::Matches));
+        assert!(matches!(
+            compare_file(&path, "hello world"),
+            CompareResult::Matches
+        ));
     }
 
     #[test]
@@ -210,7 +230,10 @@ mod tests {
     fn test_compare_file_missing() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("nonexistent.txt");
-        assert!(matches!(compare_file(&path, "content"), CompareResult::Missing));
+        assert!(matches!(
+            compare_file(&path, "content"),
+            CompareResult::Missing
+        ));
     }
 
     #[test]
