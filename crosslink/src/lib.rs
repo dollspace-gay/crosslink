@@ -10,5 +10,6 @@ pub mod lock_check;
 pub mod locks;
 pub mod models;
 pub mod shared_writer;
+pub mod signing;
 pub mod sync;
 pub mod utils;

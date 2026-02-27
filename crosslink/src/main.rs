@@ -8,6 +8,7 @@ mod lock_check;
 mod locks;
 mod models;
 mod shared_writer;
+mod signing;
 mod sync;
 mod utils;
 
@@ -48,6 +49,12 @@ enum Commands {
         /// Skip automatic cpitd installation
         #[arg(long)]
         skip_cpitd: bool,
+        /// Skip driver SSH signing key setup
+        #[arg(long)]
+        skip_signing: bool,
+        /// Path to SSH key for commit signing (auto-detected if omitted)
+        #[arg(long)]
+        signing_key: Option<String>,
     },
 
     /// Create a new issue
@@ -543,6 +550,9 @@ enum AgentCommands {
         /// Agent description
         #[arg(short, long)]
         description: Option<String>,
+        /// Skip SSH key generation
+        #[arg(long)]
+        no_key: bool,
     },
     /// Show current agent identity
     Status,
@@ -701,9 +711,18 @@ fn main() -> Result<()> {
             force,
             python_prefix,
             skip_cpitd,
+            skip_signing,
+            signing_key,
         } => {
             let cwd = env::current_dir()?;
-            commands::init::run(&cwd, force, python_prefix.as_deref(), skip_cpitd)
+            commands::init::run(
+                &cwd,
+                force,
+                python_prefix.as_deref(),
+                skip_cpitd,
+                skip_signing,
+                signing_key.as_deref(),
+            )
         }
 
         Commands::Create {
@@ -1103,7 +1122,10 @@ fn main() -> Result<()> {
                 AgentCommands::Init {
                     agent_id,
                     description,
-                } => commands::agent::init(&crosslink_dir, &agent_id, description.as_deref()),
+                    no_key,
+                } => {
+                    commands::agent::init(&crosslink_dir, &agent_id, description.as_deref(), no_key)
+                }
                 AgentCommands::Status => commands::agent::status(&crosslink_dir),
             }
         }

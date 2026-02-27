@@ -169,6 +169,97 @@ fn run_install_command(program: &str, args: &[&str]) -> Result<bool> {
     }
 }
 
+/// Detect or configure the driver's SSH signing key.
+///
+/// If `signing_key` is provided, uses that path. Otherwise checks for an
+/// existing git signing key, then falls back to common SSH key locations.
+/// Stores the driver's public key at `.crosslink/driver-key.pub`.
+fn setup_driver_signing(project_root: &Path, signing_key: Option<&str>) -> Result<()> {
+    use crate::signing;
+
+    let crosslink_dir = project_root.join(".crosslink");
+    let driver_pub_path = crosslink_dir.join("driver-key.pub");
+
+    // If driver key already configured and not forcing, skip
+    if driver_pub_path.exists() {
+        return Ok(());
+    }
+
+    // Find the key to use
+    let pubkey_path = if let Some(key_path) = signing_key {
+        // Explicit --signing-key flag
+        let p = std::path::PathBuf::from(key_path);
+        if !p.exists() {
+            println!("Warning: Signing key not found at {}", key_path);
+            return Ok(());
+        }
+        Some(p)
+    } else {
+        // Try git's configured signing key first, then default SSH keys
+        signing::find_git_signing_key().or_else(signing::find_default_ssh_key)
+    };
+
+    let pubkey_path = match pubkey_path {
+        Some(p) => p,
+        None => {
+            println!("No SSH key found. Signing setup skipped.");
+            println!("  Generate one with: ssh-keygen -t ed25519");
+            println!("  Then re-run: crosslink init --force");
+            return Ok(());
+        }
+    };
+
+    // Ensure it's a public key (not private)
+    let pubkey_path = if !pubkey_path.to_string_lossy().ends_with(".pub") {
+        let pub_variant = std::path::PathBuf::from(format!("{}.pub", pubkey_path.display()));
+        if pub_variant.exists() {
+            pub_variant
+        } else {
+            pubkey_path
+        }
+    } else {
+        pubkey_path
+    };
+
+    match signing::read_public_key(&pubkey_path) {
+        Ok(public_key) => {
+            // Copy driver public key into .crosslink/
+            fs::write(&driver_pub_path, &public_key).context("Failed to write driver-key.pub")?;
+
+            // Get fingerprint for display
+            match signing::get_key_fingerprint(&pubkey_path) {
+                Ok(fp) => println!("Driver signing key: {} ({})", fp, pubkey_path.display()),
+                Err(_) => println!("Driver signing key: {}", pubkey_path.display()),
+            }
+
+            // Configure git to use SSH signing in this repo
+            let private_key_path = if pubkey_path.to_string_lossy().ends_with(".pub") {
+                let s = pubkey_path.to_string_lossy();
+                std::path::PathBuf::from(&s[..s.len() - 4])
+            } else {
+                pubkey_path.clone()
+            };
+
+            if private_key_path.exists() {
+                if let Err(e) =
+                    signing::configure_git_ssh_signing(project_root, &private_key_path, None)
+                {
+                    println!("Warning: Could not configure git signing: {}", e);
+                }
+            }
+        }
+        Err(_) => {
+            println!(
+                "Warning: {} does not appear to be an SSH public key",
+                pubkey_path.display()
+            );
+            println!("  Signing setup skipped.");
+        }
+    }
+
+    Ok(())
+}
+
 /// The placeholder used in the settings.json template for the Python invocation prefix.
 const PYTHON_PREFIX_PLACEHOLDER: &str = "__PYTHON_PREFIX__";
 
@@ -336,7 +427,14 @@ fn write_mcp_json_merged(mcp_path: &Path) -> Result<Vec<String>> {
     Ok(warnings)
 }
 
-pub fn run(path: &Path, force: bool, python_prefix: Option<&str>, skip_cpitd: bool) -> Result<()> {
+pub fn run(
+    path: &Path,
+    force: bool,
+    python_prefix: Option<&str>,
+    skip_cpitd: bool,
+    skip_signing: bool,
+    signing_key: Option<&str>,
+) -> Result<()> {
     let crosslink_dir = path.join(".crosslink");
     let claude_dir = path.join(".claude");
     let hooks_dir = claude_dir.join("hooks");
@@ -373,7 +471,7 @@ pub fn run(path: &Path, force: bool, python_prefix: Option<&str>, skip_cpitd: bo
     if !crosslink_gitignore.exists() || force {
         fs::write(
             &crosslink_gitignore,
-            "# Multi-agent collaboration (machine-local)\nagent.json\n.hub-cache/\n\n# Machine-local hook overrides\nhook-config.local.json\n",
+            "# Multi-agent collaboration (machine-local)\nagent.json\n.hub-cache/\nkeys/\n\n# Machine-local hook overrides\nhook-config.local.json\n",
         )
         .context("Failed to write .crosslink/.gitignore")?;
     }
@@ -474,6 +572,11 @@ pub fn run(path: &Path, force: bool, python_prefix: Option<&str>, skip_cpitd: bo
         }
     }
 
+    // Driver SSH key detection and setup
+    if !skip_signing {
+        setup_driver_signing(path, signing_key)?;
+    }
+
     println!("Crosslink initialized successfully!");
     println!("\nNext steps:");
     println!("  crosslink session start     # Start a session");
@@ -490,7 +593,7 @@ mod tests {
     #[test]
     fn test_run_fresh_init() {
         let dir = tempdir().unwrap();
-        let result = run(dir.path(), false, None, true);
+        let result = run(dir.path(), false, None, true, true, None);
         assert!(result.is_ok());
 
         // Verify directories created
@@ -506,7 +609,7 @@ mod tests {
     #[test]
     fn test_run_creates_hook_files() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         // Verify hook files
         assert!(dir.path().join(".claude/settings.json").exists());
@@ -526,7 +629,7 @@ mod tests {
     #[test]
     fn test_run_creates_rule_files() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         let rules_dir = dir.path().join(".crosslink/rules");
         assert!(rules_dir.join("global.md").exists());
@@ -545,10 +648,10 @@ mod tests {
         let dir = tempdir().unwrap();
 
         // First init
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         // Second init without force - should succeed but not recreate
-        let result = run(dir.path(), false, None, true);
+        let result = run(dir.path(), false, None, true, true, None);
         assert!(result.is_ok());
     }
 
@@ -557,14 +660,14 @@ mod tests {
         let dir = tempdir().unwrap();
 
         // First init
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         // Modify a hook file
         let hook_path = dir.path().join(".claude/hooks/prompt-guard.py");
         fs::write(&hook_path, "# modified").unwrap();
 
         // Force update
-        run(dir.path(), true, None, true).unwrap();
+        run(dir.path(), true, None, true, true, None).unwrap();
 
         // Verify file was restored
         let content = fs::read_to_string(&hook_path).unwrap();
@@ -586,7 +689,7 @@ mod tests {
     #[test]
     fn test_force_init_preserves_existing_mcp_servers() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         // Add a custom MCP server entry alongside the embedded ones
         let mcp_path = dir.path().join(".mcp.json");
@@ -599,7 +702,7 @@ mod tests {
         fs::write(&mcp_path, serde_json::to_string_pretty(&content).unwrap()).unwrap();
 
         // Force update
-        run(dir.path(), true, None, true).unwrap();
+        run(dir.path(), true, None, true, true, None).unwrap();
 
         // Verify all embedded keys and the custom key are present
         let result: serde_json::Value =
@@ -626,7 +729,7 @@ mod tests {
     #[test]
     fn test_force_init_returns_warnings_for_overwritten_keys() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         // The first init created .mcp.json with the embedded keys.
         // A second force init should warn about overwriting each one.
@@ -681,14 +784,14 @@ mod tests {
     #[test]
     fn test_force_init_fails_on_malformed_mcp_json() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         // Write invalid JSON to .mcp.json
         let mcp_path = dir.path().join(".mcp.json");
         fs::write(&mcp_path, "not json {{{").unwrap();
 
         // Force init should fail, not silently overwrite
-        let result = run(dir.path(), true, None, true);
+        let result = run(dir.path(), true, None, true, true, None);
         assert!(result.is_err());
         let err = format!("{:#}", result.unwrap_err());
         assert!(
@@ -705,14 +808,14 @@ mod tests {
     #[test]
     fn test_force_init_fails_on_non_object_mcp_json() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         // Write a JSON array to .mcp.json
         let mcp_path = dir.path().join(".mcp.json");
         fs::write(&mcp_path, "[1, 2, 3]").unwrap();
 
         // Force init should fail, not silently overwrite
-        let result = run(dir.path(), true, None, true);
+        let result = run(dir.path(), true, None, true, true, None);
         assert!(result.is_err());
         let err = format!("{:#}", result.unwrap_err());
         assert!(
@@ -729,14 +832,14 @@ mod tests {
     #[test]
     fn test_force_init_handles_empty_mcp_json_file() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         // Write empty file
         let mcp_path = dir.path().join(".mcp.json");
         fs::write(&mcp_path, "").unwrap();
 
         // Should fail — empty file is not valid JSON
-        let result = run(dir.path(), true, None, true);
+        let result = run(dir.path(), true, None, true, true, None);
         assert!(result.is_err());
         let err = format!("{:#}", result.unwrap_err());
         assert!(
@@ -749,14 +852,14 @@ mod tests {
     #[test]
     fn test_force_init_fails_on_non_object_mcp_servers_value() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         // Write valid JSON where mcpServers is a string instead of object
         let mcp_path = dir.path().join(".mcp.json");
         fs::write(&mcp_path, r#"{"mcpServers": "banana"}"#).unwrap();
 
         // Should fail, not silently replace
-        let result = run(dir.path(), true, None, true);
+        let result = run(dir.path(), true, None, true, true, None);
         assert!(result.is_err());
         let err = format!("{:#}", result.unwrap_err());
         assert!(
@@ -773,14 +876,14 @@ mod tests {
     #[test]
     fn test_init_merges_into_mcp_json_without_mcp_servers_key() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         // Write a valid object with no mcpServers key
         let mcp_path = dir.path().join(".mcp.json");
         fs::write(&mcp_path, r#"{"someOtherKey": true}"#).unwrap();
 
         // Force init should add mcpServers, preserving the other key
-        run(dir.path(), true, None, true).unwrap();
+        run(dir.path(), true, None, true, true, None).unwrap();
 
         let content = fs::read_to_string(&mcp_path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
@@ -795,7 +898,7 @@ mod tests {
         // Create only .crosslink directory
         fs::create_dir_all(dir.path().join(".crosslink")).unwrap();
 
-        let result = run(dir.path(), false, None, true);
+        let result = run(dir.path(), false, None, true, true, None);
         assert!(result.is_ok());
 
         // .claude should now exist
@@ -809,7 +912,7 @@ mod tests {
         // Create only .claude directory
         fs::create_dir_all(dir.path().join(".claude")).unwrap();
 
-        let result = run(dir.path(), false, None, true);
+        let result = run(dir.path(), false, None, true, true, None);
         assert!(result.is_ok());
 
         // .crosslink should now exist
@@ -819,7 +922,7 @@ mod tests {
     #[test]
     fn test_run_database_usable() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         // Open the created database and verify it works
         let db_path = dir.path().join(".crosslink/issues.db");
@@ -833,7 +936,7 @@ mod tests {
     #[test]
     fn test_run_rule_files_not_empty() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         let rules_dir = dir.path().join(".crosslink/rules");
 
@@ -848,14 +951,14 @@ mod tests {
     #[test]
     fn test_run_force_updates_rules() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         // Modify a rule file
         let rule_path = dir.path().join(".crosslink/rules/global.md");
         fs::write(&rule_path, "# modified rule").unwrap();
 
         // Force update
-        run(dir.path(), true, None, true).unwrap();
+        run(dir.path(), true, None, true, true, None).unwrap();
 
         // Verify file was restored
         let content = fs::read_to_string(&rule_path).unwrap();
@@ -868,7 +971,7 @@ mod tests {
 
         // Multiple force runs should all succeed
         for _ in 0..3 {
-            let result = run(dir.path(), true, None, true);
+            let result = run(dir.path(), true, None, true, true, None);
             assert!(result.is_ok());
         }
 
@@ -923,7 +1026,7 @@ mod tests {
     #[test]
     fn test_gitignore_includes_local_config() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".crosslink/.gitignore")).unwrap();
         assert!(content.contains("agent.json"));
@@ -1038,7 +1141,7 @@ mod tests {
     #[test]
     fn test_settings_json_default_uses_python3() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
         assert!(
@@ -1055,7 +1158,7 @@ mod tests {
     fn test_settings_json_uv_project() {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("uv.lock"), "").unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
         assert!(
@@ -1069,7 +1172,7 @@ mod tests {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("uv.lock"), "").unwrap();
         // CLI override should beat auto-detection
-        run(dir.path(), false, Some("custom-python"), true).unwrap();
+        run(dir.path(), false, Some("custom-python"), true, true, None).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
         assert!(
@@ -1086,7 +1189,7 @@ mod tests {
     fn test_settings_json_produces_valid_json() {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("uv.lock"), "").unwrap();
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&content);
@@ -1100,13 +1203,13 @@ mod tests {
     fn test_force_re_detects_toolchain() {
         let dir = tempdir().unwrap();
         // First init: no markers → python3
-        run(dir.path(), false, None, true).unwrap();
+        run(dir.path(), false, None, true, true, None).unwrap();
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
         assert!(content.contains("\"python3 \\\"$(git"));
 
         // Add uv.lock, force re-init → should now use uv
         fs::write(dir.path().join("uv.lock"), "").unwrap();
-        run(dir.path(), true, None, true).unwrap();
+        run(dir.path(), true, None, true, true, None).unwrap();
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
         assert!(
             content.contains("uv run python3"),

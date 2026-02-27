@@ -284,19 +284,23 @@ pub fn sync_cmd(crosslink_dir: &Path, db: &Database) -> Result<()> {
 
     println!("Cache: {}", sync.cache_path().display());
 
-    // Verify GPG signature
+    // Verify commit signature (SSH or GPG)
     let verification = sync.verify_locks_signature()?;
     match &verification {
         GpgVerification::Valid {
             commit,
             fingerprint,
+            principal,
         } => {
             println!(
                 "Locks synced. Signature valid (commit {}).",
                 &commit[..7.min(commit.len())]
             );
+            if let Some(who) = principal {
+                println!("  Signer: {}", who);
+            }
             if let Some(fp) = fingerprint {
-                println!("  Signed by: {}", fp);
+                println!("  Fingerprint: {}", fp);
                 // Check against keyring if available
                 if let Ok(Some(keyring)) = sync.read_keyring() {
                     if keyring.is_trusted(fp) {

@@ -5,6 +5,7 @@ use std::process::Command;
 
 use crate::identity::AgentConfig;
 use crate::locks::{Heartbeat, Keyring, LocksFile};
+use crate::signing;
 
 /// Directory name under .crosslink for the hub cache worktree.
 pub(crate) const HUB_CACHE_DIR: &str = ".hub-cache";
@@ -18,21 +19,11 @@ const OLD_CACHE_DIR: &str = ".locks-cache";
 /// Old branch name (for migration from crosslink/locks).
 const OLD_BRANCH: &str = "crosslink/locks";
 
-/// Result of GPG signature verification.
-#[derive(Debug)]
-pub enum GpgVerification {
-    /// Signature is valid. Fingerprint may be extracted.
-    Valid {
-        commit: String,
-        fingerprint: Option<String>,
-    },
-    /// Commit exists but is not signed.
-    Unsigned { commit: String },
-    /// Signature verification failed.
-    Invalid { commit: String, reason: String },
-    /// No commits exist on the branch yet.
-    NoCommits,
-}
+/// Re-export from `signing` module. Use `SignatureVerification` for new code.
+pub use crate::signing::SignatureVerification;
+
+/// Deprecated alias — use `SignatureVerification` instead.
+pub type GpgVerification = SignatureVerification;
 
 /// Manages synchronization with the `crosslink/hub` coordination branch.
 ///
@@ -294,14 +285,16 @@ impl SyncManager {
         Ok(Some(Keyring::load(&path)?))
     }
 
-    /// Verify the GPG signature on the latest commit that touched locks.json.
-    pub fn verify_locks_signature(&self) -> Result<GpgVerification> {
+    /// Verify the signature on the latest commit that touched locks.json.
+    ///
+    /// Handles both SSH and GPG signatures via `signing::parse_verify_output`.
+    pub fn verify_locks_signature(&self) -> Result<SignatureVerification> {
         // Get the commit that last touched locks.json
         let output = self.git_in_cache(&["log", "-1", "--format=%H", "--", "locks.json"])?;
         let commit = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
         if commit.is_empty() {
-            return Ok(GpgVerification::NoCommits);
+            return Ok(SignatureVerification::NoCommits);
         }
 
         // Try to verify the commit signature
@@ -314,16 +307,19 @@ impl SyncManager {
         let stderr = String::from_utf8_lossy(&verify.stderr);
 
         if verify.status.success() {
-            let fingerprint = parse_gpg_fingerprint(&stderr);
-            Ok(GpgVerification::Valid {
+            let parsed = signing::parse_verify_output(&stderr);
+            let principal = parsed.as_ref().and_then(|(p, _)| p.clone());
+            let fingerprint = parsed.map(|(_, f)| f);
+            Ok(SignatureVerification::Valid {
                 commit,
                 fingerprint,
+                principal,
             })
         } else if stderr.contains("NODATA") || stderr.contains("no signature") || stderr.is_empty()
         {
-            Ok(GpgVerification::Unsigned { commit })
+            Ok(SignatureVerification::Unsigned { commit })
         } else {
-            Ok(GpgVerification::Invalid {
+            Ok(SignatureVerification::Invalid {
                 commit,
                 reason: stderr.to_string(),
             })
@@ -645,45 +641,14 @@ fn resolve_main_repo_root(repo_root: &Path) -> Option<PathBuf> {
     }
 }
 
-/// Parse GPG fingerprint from `git verify-commit --raw` output.
-///
-/// Looks for lines like: `[GNUPG:] VALIDSIG <fingerprint> ...`
-fn parse_gpg_fingerprint(gpg_output: &str) -> Option<String> {
-    for line in gpg_output.lines() {
-        if line.contains("VALIDSIG") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 3 {
-                return Some(parts[2].to_string());
-            }
-        }
-    }
-    None
-}
+// parse_gpg_fingerprint has been moved to signing.rs
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::tempdir;
 
-    #[test]
-    fn test_parse_gpg_fingerprint_valid() {
-        let output = "[GNUPG:] VALIDSIG ABCDEF1234567890 2024-01-01 12345678\n[GNUPG:] GOODSIG";
-        let fp = parse_gpg_fingerprint(output);
-        assert_eq!(fp, Some("ABCDEF1234567890".to_string()));
-    }
-
-    #[test]
-    fn test_parse_gpg_fingerprint_no_validsig() {
-        let output = "[GNUPG:] GOODSIG ABC123\n[GNUPG:] TRUST_FULLY";
-        let fp = parse_gpg_fingerprint(output);
-        assert!(fp.is_none());
-    }
-
-    #[test]
-    fn test_parse_gpg_fingerprint_empty() {
-        let fp = parse_gpg_fingerprint("");
-        assert!(fp.is_none());
-    }
+    // GPG fingerprint parsing tests moved to signing.rs
 
     #[test]
     fn test_sync_manager_new() {
