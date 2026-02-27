@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- Update injected prompting rules to enforce typed comment discipline (#7)
 
 - **Multi-agent shared issue coordination** — issues can now be shared across agents via a git coordination branch (`crosslink/locks`)
 - **`issue_file.rs`** — `IssueFile` serde struct defining the JSON schema for shared issues, including `CommentEntry`, `TimeEntry`, `Counters`, `MilestonesFile`, and `MilestoneEntry`

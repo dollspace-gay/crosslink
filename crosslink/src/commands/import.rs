@@ -68,7 +68,7 @@ fn import_issue(db: &Database, issue: &ExportedIssue, parent_id: Option<i64>) ->
 
     // Add comments
     for comment in &issue.comments {
-        db.add_comment(id, &comment.content)?;
+        db.add_comment(id, &comment.content, "note")?;
     }
 
     // Close if needed

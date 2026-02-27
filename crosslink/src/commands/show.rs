@@ -84,9 +84,15 @@ pub fn run(db: &Database, id: i64) -> Result<()> {
     if !comments.is_empty() {
         println!("\nComments:");
         for comment in comments {
+            let kind_prefix = if comment.kind != "note" {
+                format!("[{}] ", comment.kind)
+            } else {
+                String::new()
+            };
             println!(
-                "  [{}] {}",
+                "  [{}] {}{}",
                 comment.created_at.format("%Y-%m-%d %H:%M"),
+                kind_prefix,
                 comment.content
             );
         }
@@ -214,8 +220,8 @@ mod tests {
     fn test_show_issue_with_comments() {
         let (db, _dir) = setup_test_db();
         let issue_id = db.create_issue("Test issue", None, "medium").unwrap();
-        db.add_comment(issue_id, "First comment").unwrap();
-        db.add_comment(issue_id, "Second comment").unwrap();
+        db.add_comment(issue_id, "First comment", "note").unwrap();
+        db.add_comment(issue_id, "Second comment", "note").unwrap();
 
         run(&db, issue_id).unwrap();
         let comments = db.get_comments(issue_id).unwrap();
@@ -312,7 +318,7 @@ mod tests {
         let issue_id = db
             .create_issue("测试问题 🐛", Some("描述 αβγ"), "medium")
             .unwrap();
-        db.add_comment(issue_id, "评论 🎉").unwrap();
+        db.add_comment(issue_id, "评论 🎉", "note").unwrap();
         db.add_label(issue_id, "バグ").unwrap();
 
         run(&db, issue_id).unwrap();

@@ -33,7 +33,7 @@ crosslink subissue 1 "Add login endpoint"
 
 # Track progress
 crosslink session work <id>
-crosslink comment <id> "Found existing helper in utils/"
+crosslink comment <id> "Found existing helper in utils/" --kind observation
 
 # Close (auto-updates CHANGELOG.md)
 crosslink close <id>
@@ -54,6 +54,29 @@ crosslink session end --notes "..."      # Save handoff context
 End sessions when: context is getting long, user indicates stopping, or you've completed significant work.
 
 Handoff notes should include: what was accomplished, what's in progress, what's next.
+
+### Typed Comments (REQUIRED)
+
+Every `crosslink comment` MUST include `--kind` to categorize the comment for audit trails. This is not optional.
+
+**Kinds**: `plan`, `decision`, `observation`, `blocker`, `resolution`, `result`, `handoff`
+
+**Minimum required comments per issue:**
+1. `--kind plan` — before writing code (what you intend to do)
+2. `--kind result` — before closing (what you delivered)
+
+**Also required when applicable:**
+- `--kind decision` — when choosing between approaches
+- `--kind blocker` / `--kind resolution` — when blocked and unblocked
+- `--kind observation` — when you discover something noteworthy
+
+```bash
+crosslink comment <id> "Will refactor auth module to use middleware pattern" --kind plan
+crosslink comment <id> "Chose middleware over decorator — matches existing patterns" --kind decision
+crosslink comment <id> "Auth module refactored, 12 tests pass" --kind result
+```
+
+**You cannot omit `--kind`.** Even for brief comments, categorize them. The audit trail depends on it.
 
 ### Priority Guide
 - `critical`: Blocking other work, security issue, production down

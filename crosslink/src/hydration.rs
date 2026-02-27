@@ -139,6 +139,7 @@ pub fn hydrate_to_sqlite(cache_dir: &Path, db: &Database) -> Result<HydrationSta
                     Some(&comment.author),
                     &comment.content,
                     &comment_created,
+                    &comment.kind,
                 )?;
                 stats.comments += 1;
             }
@@ -352,6 +353,7 @@ mod tests {
             author: "agent-1".to_string(),
             content: "First comment".to_string(),
             created_at: Utc::now(),
+            kind: "note".to_string(),
         }];
         write_issues_to_cache(cache.path(), &[issue]);
 

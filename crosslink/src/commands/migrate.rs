@@ -102,6 +102,7 @@ pub fn to_shared(crosslink_dir: &Path, db: &Database) -> Result<()> {
                     author: agent.agent_id.clone(),
                     content: c.content.clone(),
                     created_at: c.created_at,
+                    kind: "note".to_string(),
                 }
             })
             .collect();
@@ -344,7 +345,7 @@ mod tests {
             .create_issue("Bug fix", Some("Fix the bug"), "high")
             .unwrap();
         let id2 = db.create_issue("Feature", None, "medium").unwrap();
-        db.add_comment(id1, "First comment").unwrap();
+        db.add_comment(id1, "First comment", "note").unwrap();
         db.add_label(id1, "bug").unwrap();
         db.add_dependency(id1, id2).unwrap(); // id1 blocked by id2
 
@@ -394,6 +395,7 @@ mod tests {
                     author: "test-agent".to_string(),
                     content: c.content.clone(),
                     created_at: c.created_at,
+                    kind: "note".to_string(),
                 })
                 .collect(),
             blockers: blocker_uuids,
@@ -463,8 +465,8 @@ mod tests {
         db.create_issue("Issue 1", None, "medium").unwrap();
         db.create_issue("Issue 2", None, "high").unwrap();
         let id3 = db.create_issue("Issue 3", None, "low").unwrap();
-        db.add_comment(id3, "comment A").unwrap();
-        let cid = db.add_comment(id3, "comment B").unwrap();
+        db.add_comment(id3, "comment A", "note").unwrap();
+        let cid = db.add_comment(id3, "comment B", "note").unwrap();
 
         let issues = db.list_issues(Some("all"), None, None).unwrap();
         let max_display_id = issues.iter().map(|i| i.id).max().unwrap_or(0);

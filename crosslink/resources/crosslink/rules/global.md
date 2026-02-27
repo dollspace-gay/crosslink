@@ -58,7 +58,7 @@ crosslink subissue 1 "Add session middleware for protected routes"
 crosslink session work 1
 
 # Add context as you discover things
-crosslink comment 1 "Found existing auth helper in utils/auth.ts"
+crosslink comment 1 "Found existing auth helper in utils/auth.ts" --kind observation
 
 # Close when done — auto-updates CHANGELOG.md
 crosslink close 1
@@ -94,6 +94,37 @@ These rules ensure code works correctly. They yield only to security concerns.
 - **Error handling**: Proper error handling everywhere. No panics or crashes on bad input.
 - **No dead code**: Intelligently deal with dead code. If its a hallucinated function remove it. If its an unfinished function complete it. 
 - **Test after changes**: Run the project's test suite after making code changes.
+
+### Documentation Trail (MANDATORY — AUDIT REQUIREMENT)
+
+This software supports regulated biotech operations. Every issue MUST have a documented decision trail. This is a correctness requirement, not a style preference.
+
+**You MUST add typed comments to every issue you work on. There are ZERO exceptions to this rule.**
+
+- You cannot reason that a change is "too small" to document. Small changes still need audit trails.
+- You cannot defer comments to "later" or "when I'm done." Document AS you work, not after.
+- You cannot claim the code is "self-documenting." Code shows WHAT changed. Comments show WHY.
+- You cannot skip comments because "the issue title explains it." Titles are summaries, not trails.
+
+**Mandatory comment points** — you MUST add a `crosslink comment` at each of these:
+1. **Before writing code**: Document your plan and approach (`--kind plan`)
+2. **When you make a choice between alternatives**: Document what you chose and why (`--kind decision`)
+3. **When you discover something unexpected**: Document the finding (`--kind observation`)
+4. **When something blocks progress**: Document the blocker (`--kind blocker`)
+5. **When you resolve a blocker**: Document how (`--kind resolution`)
+6. **Before closing the issue**: Document what was delivered (`--kind result`)
+
+```bash
+# These are NOT optional. You MUST use --kind on EVERY comment.
+crosslink comment <id> "Approach: using existing auth middleware" --kind plan
+crosslink comment <id> "Chose JWT over sessions — stateless, simpler for API consumers" --kind decision
+crosslink comment <id> "Found legacy endpoint at /api/v1/auth that conflicts" --kind observation
+crosslink comment <id> "Blocked: CI pipeline timeout on integration tests" --kind blocker
+crosslink comment <id> "Resolved: increased CI timeout to 10m, tests pass" --kind resolution
+crosslink comment <id> "Delivered: JWT auth with refresh tokens, all 47 tests passing" --kind result
+```
+
+**If you close an issue that has zero typed comments, you have violated this rule.**
 
 ### Pre-Coding Grounding
 Before using unfamiliar libraries/APIs:

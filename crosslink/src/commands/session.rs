@@ -73,6 +73,26 @@ pub fn end(db: &Database, notes: Option<&str>, crosslink_dir: &std::path::Path) 
     if notes.is_some() {
         println!("Handoff notes saved.");
     }
+
+    // Write handoff notes as typed comment on active issue for hub sync
+    if let (Some(notes_text), Some(issue_id)) = (notes, session.active_issue_id) {
+        match crate::shared_writer::SharedWriter::new(crosslink_dir) {
+            Ok(Some(w)) => {
+                if let Err(e) = w.add_comment(db, issue_id, notes_text, "handoff") {
+                    eprintln!(
+                        "Warning: Handoff notes saved locally but could not be synced to hub: {}",
+                        e
+                    );
+                    let _ = db.add_comment(issue_id, notes_text, "handoff");
+                }
+            }
+            _ => {
+                // Single-agent mode or hub unavailable — add locally
+                let _ = db.add_comment(issue_id, notes_text, "handoff");
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -164,7 +184,7 @@ pub fn action(db: &Database, text: &str) -> Result<()> {
 
     // Auto-comment on the active issue if one is set
     if let Some(issue_id) = session.active_issue_id {
-        db.add_comment(issue_id, &format!("[action] {}", text))?;
+        db.add_comment(issue_id, &format!("[action] {}", text), "note")?;
     }
 
     Ok(())

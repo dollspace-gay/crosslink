@@ -193,6 +193,9 @@ enum Commands {
         id: i64,
         /// Comment text
         text: String,
+        /// Comment kind (note, plan, decision, observation, blocker, resolution, result, handoff, human)
+        #[arg(long, default_value = "note")]
+        kind: String,
     },
 
     /// Add a label to an issue
@@ -568,6 +571,18 @@ enum ReviewCommands {
         #[arg(long)]
         check: bool,
     },
+    /// Show chronological comment trail for an issue
+    Trail {
+        /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
+        id: i64,
+        /// Filter by comment kind(s), comma-separated (e.g. plan,decision)
+        #[arg(long)]
+        kind: Option<String>,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -848,11 +863,11 @@ fn main() -> Result<()> {
             commands::delete::run(&db, writer.as_ref(), id, force)
         }
 
-        Commands::Comment { id, text } => {
+        Commands::Comment { id, text, kind } => {
             let db = get_db()?;
             let crosslink_dir = find_crosslink_dir()?;
             let writer = get_writer(&crosslink_dir);
-            commands::comment::run(&db, writer.as_ref(), id, &text)
+            commands::comment::run(&db, writer.as_ref(), id, &text, &kind)
         }
 
         Commands::Label { id, label } => {
@@ -1098,6 +1113,10 @@ fn main() -> Result<()> {
             match command {
                 ReviewCommands::Diff { section, check } => {
                     commands::review::diff(&crosslink_dir, &claude_dir, section.as_deref(), check)
+                }
+                ReviewCommands::Trail { id, kind, json } => {
+                    let db = get_db()?;
+                    commands::review::trail(&db, id, kind.as_deref(), json)
                 }
             }
         }

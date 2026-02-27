@@ -20,6 +20,12 @@ pub struct Comment {
     pub issue_id: i64,
     pub content: String,
     pub created_at: DateTime<Utc>,
+    #[serde(default = "default_comment_kind")]
+    pub kind: String,
+}
+
+fn default_comment_kind() -> String {
+    "note".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -149,6 +155,7 @@ mod tests {
             issue_id: 42,
             content: "A comment".to_string(),
             created_at: Utc::now(),
+            kind: "note".to_string(),
         };
 
         let json = serde_json::to_string(&comment).unwrap();
@@ -166,6 +173,7 @@ mod tests {
             issue_id: 1,
             content: "".to_string(),
             created_at: Utc::now(),
+            kind: "note".to_string(),
         };
 
         let json = serde_json::to_string(&comment).unwrap();
@@ -299,6 +307,7 @@ mod tests {
                 issue_id,
                 content: content.clone(),
                 created_at: Utc::now(),
+                kind: "note".to_string(),
             };
 
             let json = serde_json::to_string(&comment).unwrap();

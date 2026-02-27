@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::models::{Comment, Issue, Session};
 
-pub const SCHEMA_VERSION: i32 = 10;
+pub const SCHEMA_VERSION: i32 = 11;
 
 pub struct Database {
     conn: Connection,
@@ -251,6 +251,14 @@ impl Database {
                 );
             }
 
+            // Migration v11: Add kind column to comments for typed audit trail
+            if version < 11 {
+                let _ = self.conn.execute(
+                    "ALTER TABLE comments ADD COLUMN kind TEXT DEFAULT 'note'",
+                    [],
+                );
+            }
+
             self.conn
                 .execute(&format!("PRAGMA user_version = {}", SCHEMA_VERSION), [])?;
         }
@@ -490,18 +498,18 @@ impl Database {
     }
 
     // Comments
-    pub fn add_comment(&self, issue_id: i64, content: &str) -> Result<i64> {
+    pub fn add_comment(&self, issue_id: i64, content: &str, kind: &str) -> Result<i64> {
         let now = Utc::now().to_rfc3339();
         self.conn.execute(
-            "INSERT INTO comments (issue_id, content, created_at) VALUES (?1, ?2, ?3)",
-            params![issue_id, content, now],
+            "INSERT INTO comments (issue_id, content, created_at, kind) VALUES (?1, ?2, ?3, ?4)",
+            params![issue_id, content, now, kind],
         )?;
         Ok(self.conn.last_insert_rowid())
     }
 
     pub fn get_comments(&self, issue_id: i64) -> Result<Vec<Comment>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, issue_id, content, created_at FROM comments WHERE issue_id = ?1 ORDER BY created_at",
+            "SELECT id, issue_id, content, created_at, COALESCE(kind, 'note') FROM comments WHERE issue_id = ?1 ORDER BY created_at",
         )?;
         let comments = stmt
             .query_map([issue_id], |row| {
@@ -510,6 +518,7 @@ impl Database {
                     issue_id: row.get(1)?,
                     content: row.get(2)?,
                     created_at: parse_datetime(row.get::<_, String>(3)?),
+                    kind: row.get(4)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -1169,6 +1178,7 @@ impl Database {
     }
 
     /// Insert a comment for a hydrated issue.
+    #[allow(clippy::too_many_arguments)]
     pub fn insert_hydrated_comment(
         &self,
         id: i64,
@@ -1177,11 +1187,12 @@ impl Database {
         author: Option<&str>,
         content: &str,
         created_at: &str,
+        kind: &str,
     ) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO comments (id, issue_id, uuid, author, content, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![id, issue_id, uuid, author, content, created_at],
+            "INSERT INTO comments (id, issue_id, uuid, author, content, created_at, kind)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![id, issue_id, uuid, author, content, created_at, kind],
         )?;
         Ok(())
     }
@@ -1582,10 +1593,10 @@ mod tests {
 
         let id = db.create_issue("Test issue", None, "medium").unwrap();
 
-        let comment_id = db.add_comment(id, "First comment").unwrap();
+        let comment_id = db.add_comment(id, "First comment", "note").unwrap();
         assert!(comment_id > 0);
 
-        db.add_comment(id, "Second comment").unwrap();
+        db.add_comment(id, "Second comment", "note").unwrap();
 
         let comments = db.get_comments(id).unwrap();
         assert_eq!(comments.len(), 2);
@@ -1724,7 +1735,9 @@ mod tests {
     fn test_update_comment_content() {
         let (db, _dir) = setup_test_db();
         let issue_id = db.create_issue("Test", None, "medium").unwrap();
-        let comment_id = db.add_comment(issue_id, "See L1 for details").unwrap();
+        let comment_id = db
+            .add_comment(issue_id, "See L1 for details", "note")
+            .unwrap();
 
         let updated = db
             .update_comment_content(comment_id, "See #5 for details")
@@ -1869,7 +1882,7 @@ mod tests {
         let (db, _dir) = setup_test_db();
 
         let id = db.create_issue("Some issue", None, "medium").unwrap();
-        db.add_comment(id, "Found the root cause in authentication module")
+        db.add_comment(id, "Found the root cause in authentication module", "note")
             .unwrap();
 
         let results = db.search_issues("authentication").unwrap();
@@ -2107,7 +2120,7 @@ mod tests {
         let id = db.create_issue("Test", None, "medium").unwrap();
         let malicious = "comment'); DELETE FROM comments; --";
 
-        db.add_comment(id, malicious).unwrap();
+        db.add_comment(id, malicious, "note").unwrap();
 
         let comments = db.get_comments(id).unwrap();
         assert_eq!(comments.len(), 1);
@@ -2177,8 +2190,8 @@ mod tests {
         let (db, _dir) = setup_test_db();
 
         let id = db.create_issue("Test", None, "medium").unwrap();
-        db.add_comment(id, "Comment 1").unwrap();
-        db.add_comment(id, "Comment 2").unwrap();
+        db.add_comment(id, "Comment 1", "note").unwrap();
+        db.add_comment(id, "Comment 2", "note").unwrap();
 
         db.delete_issue(id).unwrap();
 
@@ -2409,7 +2422,7 @@ mod proptest_tests {
         fn prop_comment_roundtrip(content in safe_string()) {
             let (db, _dir) = setup_test_db();
             let id = db.create_issue("Test", None, "medium").unwrap();
-            db.add_comment(id, &content).unwrap();
+            db.add_comment(id, &content, "note").unwrap();
             let comments = db.get_comments(id).unwrap();
             prop_assert_eq!(comments.len(), 1);
             prop_assert_eq!(&comments[0].content, &content);

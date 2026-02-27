@@ -3,6 +3,8 @@ use std::fs;
 use std::path::Path;
 
 use super::init;
+use crate::db::Database;
+use crate::utils::format_issue_id;
 
 /// Hook files to compare: (deployed filename, embedded default)
 const HOOK_FILES: &[(&str, &str)] = &[
@@ -198,6 +200,41 @@ pub fn diff(
     Ok(())
 }
 
+/// `crosslink review trail <id>` — show chronological comment trail for an issue.
+pub fn trail(db: &Database, id: i64, kind_filter: Option<&str>, json: bool) -> Result<()> {
+    db.require_issue(id)?;
+
+    let comments = db.get_comments(id)?;
+    let filtered: Vec<_> = if let Some(kinds) = kind_filter {
+        let kinds: Vec<&str> = kinds.split(',').map(|s| s.trim()).collect();
+        comments
+            .into_iter()
+            .filter(|c| kinds.contains(&c.kind.as_str()))
+            .collect()
+    } else {
+        comments
+    };
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&filtered)?);
+    } else {
+        println!("Comment trail for issue {}:", format_issue_id(id));
+        println!();
+        for comment in &filtered {
+            println!(
+                "  [{}] [{}] {}",
+                comment.created_at.format("%Y-%m-%d %H:%M"),
+                comment.kind,
+                comment.content
+            );
+        }
+        if filtered.is_empty() {
+            println!("  No comments found.");
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -346,5 +383,64 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("nonexistent.txt");
         assert!(!has_custom_marker(&path));
+    }
+
+    // ==================== Trail Tests ====================
+
+    fn setup_trail_db() -> (Database, tempfile::TempDir) {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let db = Database::open(&db_path).unwrap();
+        (db, dir)
+    }
+
+    #[test]
+    fn test_trail_no_comments() {
+        let (db, _dir) = setup_trail_db();
+        let id = db.create_issue("Test", None, "medium").unwrap();
+        let result = trail(&db, id, None, false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_trail_with_comments() {
+        let (db, _dir) = setup_trail_db();
+        let id = db.create_issue("Test", None, "medium").unwrap();
+        db.add_comment(id, "Plan: do the thing", "plan").unwrap();
+        db.add_comment(id, "Decision: chose X", "decision").unwrap();
+        db.add_comment(id, "Result: tests pass", "result").unwrap();
+
+        let result = trail(&db, id, None, false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_trail_kind_filter() {
+        let (db, _dir) = setup_trail_db();
+        let id = db.create_issue("Test", None, "medium").unwrap();
+        db.add_comment(id, "Plan: do the thing", "plan").unwrap();
+        db.add_comment(id, "A regular note", "note").unwrap();
+        db.add_comment(id, "Decision: chose X", "decision").unwrap();
+
+        // Filter to only plan and decision
+        let result = trail(&db, id, Some("plan,decision"), false);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_trail_json_output() {
+        let (db, _dir) = setup_trail_db();
+        let id = db.create_issue("Test", None, "medium").unwrap();
+        db.add_comment(id, "Plan: approach", "plan").unwrap();
+
+        let result = trail(&db, id, None, true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_trail_nonexistent_issue() {
+        let (db, _dir) = setup_trail_db();
+        let result = trail(&db, 99999, None, false);
+        assert!(result.is_err());
     }
 }

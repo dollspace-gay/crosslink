@@ -230,8 +230,8 @@ mod tests {
     fn test_export_issue_with_comments() {
         let (db, _dir) = setup_test_db();
         let id = db.create_issue("Test issue", None, "medium").unwrap();
-        db.add_comment(id, "First comment").unwrap();
-        db.add_comment(id, "Second comment").unwrap();
+        db.add_comment(id, "First comment", "note").unwrap();
+        db.add_comment(id, "Second comment", "note").unwrap();
         let issue = db.get_issue(id).unwrap().unwrap();
         let exported = export_issue(&db, &issue).unwrap();
         assert_eq!(exported.comments.len(), 2);
