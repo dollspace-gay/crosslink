@@ -1,22 +1,16 @@
 {
   "version": 1,
   "locks": {
-    "4": {
-      "agent_id": "m1",
-      "branch": null,
-      "claimed_at": "2026-02-27T05:41:54.203130Z",
-      "signed_by": "m1"
-    },
     "3": {
       "agent_id": "m1--f2",
       "branch": null,
       "claimed_at": "2026-02-27T05:11:00.552760Z",
       "signed_by": "m1--f2"
     },
-    "9": {
+    "4": {
       "agent_id": "m1",
       "branch": null,
-      "claimed_at": "2026-02-27T15:09:04.477095Z",
+      "claimed_at": "2026-02-27T05:41:54.203130Z",
       "signed_by": "m1"
     }
   },
