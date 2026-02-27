@@ -140,6 +140,8 @@ pub fn hydrate_to_sqlite(cache_dir: &Path, db: &Database) -> Result<HydrationSta
                     &comment.content,
                     &comment_created,
                     &comment.kind,
+                    comment.trigger_type.as_deref(),
+                    comment.intervention_context.as_deref(),
                 )?;
                 stats.comments += 1;
             }
@@ -354,6 +356,8 @@ mod tests {
             content: "First comment".to_string(),
             created_at: Utc::now(),
             kind: "note".to_string(),
+            trigger_type: None,
+            intervention_context: None,
         }];
         write_issues_to_cache(cache.path(), &[issue]);
 

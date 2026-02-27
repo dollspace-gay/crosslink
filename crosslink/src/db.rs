@@ -5,10 +5,18 @@ use std::path::Path;
 
 use crate::models::{Comment, Issue, Session};
 
-pub const SCHEMA_VERSION: i32 = 11;
+pub const SCHEMA_VERSION: i32 = 12;
 
-/// Row from `get_comments_with_author`: (id, author, content, created_at, kind).
-pub type CommentAuthorRow = (i64, Option<String>, String, DateTime<Utc>, String);
+/// Row from `get_comments_with_author`: (id, author, content, created_at, kind, trigger_type, intervention_context).
+pub type CommentAuthorRow = (
+    i64,
+    Option<String>,
+    String,
+    DateTime<Utc>,
+    String,
+    Option<String>,
+    Option<String>,
+);
 
 /// Row from `get_time_entries_for_issue`: (id, started_at, ended_at, duration_seconds).
 pub type TimeEntryRow = (i64, DateTime<Utc>, Option<DateTime<Utc>>, Option<i64>);
@@ -265,6 +273,17 @@ impl Database {
                 );
             }
 
+            // Migration v12: Add trigger_type and intervention_context for driver intervention tracking
+            if version < 12 {
+                let _ = self
+                    .conn
+                    .execute("ALTER TABLE comments ADD COLUMN trigger_type TEXT", []);
+                let _ = self.conn.execute(
+                    "ALTER TABLE comments ADD COLUMN intervention_context TEXT",
+                    [],
+                );
+            }
+
             self.conn
                 .execute(&format!("PRAGMA user_version = {}", SCHEMA_VERSION), [])?;
         }
@@ -513,9 +532,25 @@ impl Database {
         Ok(self.conn.last_insert_rowid())
     }
 
+    pub fn add_intervention_comment(
+        &self,
+        issue_id: i64,
+        content: &str,
+        trigger_type: &str,
+        intervention_context: Option<&str>,
+    ) -> Result<i64> {
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "INSERT INTO comments (issue_id, content, created_at, kind, trigger_type, intervention_context)
+             VALUES (?1, ?2, ?3, 'intervention', ?4, ?5)",
+            params![issue_id, content, now, trigger_type, intervention_context],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
     pub fn get_comments(&self, issue_id: i64) -> Result<Vec<Comment>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, issue_id, content, created_at, COALESCE(kind, 'note') FROM comments WHERE issue_id = ?1 ORDER BY created_at",
+            "SELECT id, issue_id, content, created_at, COALESCE(kind, 'note'), trigger_type, intervention_context FROM comments WHERE issue_id = ?1 ORDER BY created_at",
         )?;
         let comments = stmt
             .query_map([issue_id], |row| {
@@ -525,6 +560,8 @@ impl Database {
                     content: row.get(2)?,
                     created_at: parse_datetime(row.get::<_, String>(3)?),
                     kind: row.get(4)?,
+                    trigger_type: row.get(5)?,
+                    intervention_context: row.get(6)?,
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -634,7 +671,7 @@ impl Database {
     /// Get comments with author field for an issue (author added in migration v10).
     pub fn get_comments_with_author(&self, issue_id: i64) -> Result<Vec<CommentAuthorRow>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, author, content, created_at, COALESCE(kind, 'note') FROM comments WHERE issue_id = ?1 ORDER BY created_at",
+            "SELECT id, author, content, created_at, COALESCE(kind, 'note'), trigger_type, intervention_context FROM comments WHERE issue_id = ?1 ORDER BY created_at",
         )?;
         let comments = stmt
             .query_map([issue_id], |row| {
@@ -644,6 +681,8 @@ impl Database {
                     row.get::<_, String>(2)?,
                     parse_datetime(row.get::<_, String>(3)?),
                     row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
                 ))
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -1275,11 +1314,13 @@ impl Database {
         content: &str,
         created_at: &str,
         kind: &str,
+        trigger_type: Option<&str>,
+        intervention_context: Option<&str>,
     ) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO comments (id, issue_id, uuid, author, content, created_at, kind)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![id, issue_id, uuid, author, content, created_at, kind],
+            "INSERT INTO comments (id, issue_id, uuid, author, content, created_at, kind, trigger_type, intervention_context)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![id, issue_id, uuid, author, content, created_at, kind, trigger_type, intervention_context],
         )?;
         Ok(())
     }

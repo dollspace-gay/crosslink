@@ -201,6 +201,21 @@ enum Commands {
         kind: String,
     },
 
+    /// Log a driver intervention on an issue
+    Intervene {
+        /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
+        id: i64,
+        /// Description of the intervention
+        description: String,
+        /// Trigger type (tool_rejected, tool_blocked, redirect, context_provided, manual_action, question_answered)
+        #[arg(long)]
+        trigger: String,
+        /// Context: what the agent was attempting when intervention occurred
+        #[arg(long)]
+        context: Option<String>,
+    },
+
     /// Add a label to an issue
     Label {
         /// Issue ID
@@ -874,6 +889,26 @@ fn main() -> Result<()> {
             let crosslink_dir = find_crosslink_dir()?;
             let writer = get_writer(&crosslink_dir);
             commands::comment::run(&db, writer.as_ref(), id, &text, &kind)
+        }
+
+        Commands::Intervene {
+            id,
+            description,
+            trigger,
+            context,
+        } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            commands::intervene::run(
+                &db,
+                writer.as_ref(),
+                id,
+                &description,
+                &trigger,
+                context.as_deref(),
+                &crosslink_dir,
+            )
         }
 
         Commands::Label { id, label } => {

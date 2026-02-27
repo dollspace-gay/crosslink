@@ -66,6 +66,7 @@ Build a detailed prompt for the child agent. The prompt must be self-contained â
   4. Implement the feature fully (no stubs or placeholders)
   5. **Document decisions as you go**: When choosing between approaches, run `crosslink comment <issue-id> "Decision: <chose X over Y because Z>" --kind decision`
   6. **Document discoveries**: When finding something unexpected, run `crosslink comment <issue-id> "Found: <observation>" --kind observation`
+  6b. **Log interventions**: If a hook blocks you, a human rejects a tool use, or you receive a redirect, log it immediately: `crosslink intervene <issue-id> "Description" --trigger <type> --context "what you were attempting"`
   7. **Run the project's test suite** to verify changes don't break anything (use the detected test command)
   8. **Document results**: `crosslink comment <issue-id> "Result: <test summary, what was delivered>" --kind result`
   9. Use `/commit` to commit the work when implementation is complete
@@ -127,6 +128,7 @@ Add the self-review checklist as the final step before writing DONE (even for `-
 - No debug/temporary code left behind
 - Commit messages are clean and descriptive
 - Changes match the original feature description from `KICKOFF.md`
+- All driver interventions have been logged via `crosslink intervene`
 
 Then:
 - When completely finished, write the word `DONE` to a file called `.kickoff-status` in the worktree root

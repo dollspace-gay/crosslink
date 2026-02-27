@@ -22,6 +22,10 @@ pub struct Comment {
     pub created_at: DateTime<Utc>,
     #[serde(default = "default_comment_kind")]
     pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trigger_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intervention_context: Option<String>,
 }
 
 fn default_comment_kind() -> String {
@@ -156,6 +160,8 @@ mod tests {
             content: "A comment".to_string(),
             created_at: Utc::now(),
             kind: "note".to_string(),
+            trigger_type: None,
+            intervention_context: None,
         };
 
         let json = serde_json::to_string(&comment).unwrap();
@@ -174,6 +180,8 @@ mod tests {
             content: "".to_string(),
             created_at: Utc::now(),
             kind: "note".to_string(),
+            trigger_type: None,
+            intervention_context: None,
         };
 
         let json = serde_json::to_string(&comment).unwrap();
@@ -308,6 +316,8 @@ mod tests {
                 content: content.clone(),
                 created_at: Utc::now(),
                 kind: "note".to_string(),
+                trigger_type: None,
+                intervention_context: None,
             };
 
             let json = serde_json::to_string(&comment).unwrap();

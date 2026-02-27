@@ -89,11 +89,17 @@ pub fn run(db: &Database, id: i64) -> Result<()> {
             } else {
                 String::new()
             };
+            let intervention_suffix = match (&comment.trigger_type, &comment.intervention_context) {
+                (Some(trigger), Some(ctx)) => format!(" (trigger: {}, context: {})", trigger, ctx),
+                (Some(trigger), None) => format!(" (trigger: {})", trigger),
+                _ => String::new(),
+            };
             println!(
-                "  [{}] {}{}",
+                "  [{}] {}{}{}",
                 comment.created_at.format("%Y-%m-%d %H:%M"),
                 kind_prefix,
-                comment.content
+                comment.content,
+                intervention_suffix
             );
         }
     }

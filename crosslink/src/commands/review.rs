@@ -221,10 +221,16 @@ pub fn trail(db: &Database, id: i64, kind_filter: Option<&str>, json: bool) -> R
         println!("Comment trail for issue {}:", format_issue_id(id));
         println!();
         for comment in &filtered {
+            let intervention_info = match (&comment.trigger_type, &comment.intervention_context) {
+                (Some(trigger), Some(ctx)) => format!(" trigger={} ctx=\"{}\"", trigger, ctx),
+                (Some(trigger), None) => format!(" trigger={}", trigger),
+                _ => String::new(),
+            };
             println!(
-                "  [{}] [{}] {}",
+                "  [{}] [{}{}] {}",
                 comment.created_at.format("%Y-%m-%d %H:%M"),
                 comment.kind,
+                intervention_info,
                 comment.content
             );
         }

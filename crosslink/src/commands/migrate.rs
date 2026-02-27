@@ -103,6 +103,8 @@ pub fn to_shared(crosslink_dir: &Path, db: &Database) -> Result<()> {
                     content: c.content.clone(),
                     created_at: c.created_at,
                     kind: "note".to_string(),
+                    trigger_type: None,
+                    intervention_context: None,
                 }
             })
             .collect();
@@ -396,6 +398,8 @@ mod tests {
                     content: c.content.clone(),
                     created_at: c.created_at,
                     kind: "note".to_string(),
+                    trigger_type: None,
+                    intervention_context: None,
                 })
                 .collect(),
             blockers: blocker_uuids,

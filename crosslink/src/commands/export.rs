@@ -86,13 +86,19 @@ fn build_issue_file(
     let comments_raw = db.get_comments_with_author(issue.id)?;
     let comments: Vec<CommentEntry> = comments_raw
         .into_iter()
-        .map(|(id, author, content, created_at, kind)| CommentEntry {
-            id,
-            author: author.unwrap_or_else(|| "unknown".to_string()),
-            content,
-            created_at,
-            kind,
-        })
+        .map(
+            |(id, author, content, created_at, kind, trigger_type, intervention_context)| {
+                CommentEntry {
+                    id,
+                    author: author.unwrap_or_else(|| "unknown".to_string()),
+                    content,
+                    created_at,
+                    kind,
+                    trigger_type,
+                    intervention_context,
+                }
+            },
+        )
         .collect();
 
     let blocker_ids = db.get_blockers(issue.id)?;

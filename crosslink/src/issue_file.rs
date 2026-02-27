@@ -53,6 +53,10 @@ pub struct CommentEntry {
     pub created_at: DateTime<Utc>,
     #[serde(default = "default_comment_kind")]
     pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trigger_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intervention_context: Option<String>,
 }
 
 fn default_comment_kind() -> String {
@@ -69,10 +73,24 @@ const KNOWN_COMMENT_KINDS: &[&str] = &[
     "result",
     "handoff",
     "human",
+    "intervention",
 ];
 
 pub fn validate_comment_kind(kind: &str) -> bool {
     KNOWN_COMMENT_KINDS.contains(&kind)
+}
+
+pub const KNOWN_TRIGGER_TYPES: &[&str] = &[
+    "tool_rejected",
+    "tool_blocked",
+    "redirect",
+    "context_provided",
+    "manual_action",
+    "question_answered",
+];
+
+pub fn validate_trigger_type(trigger: &str) -> bool {
+    KNOWN_TRIGGER_TYPES.contains(&trigger)
 }
 
 /// An inline time-tracking entry within an issue file.
@@ -267,6 +285,8 @@ mod tests {
                 content: "Reproduced on staging".to_string(),
                 created_at: Utc::now(),
                 kind: "note".to_string(),
+                trigger_type: None,
+                intervention_context: None,
             }],
             blockers: vec![Uuid::new_v4()],
             related: vec![],

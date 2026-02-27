@@ -153,7 +153,11 @@ def main():
             "You MUST instead:\n"
             "  - Inform the user that this is a manual step for them\n"
             "  - Continue with your other work\n\n"
-            "Read-only git commands (status, diff, log, show, branch) are allowed."
+            "Read-only git commands (status, diff, log, show, branch) are allowed.\n\n"
+            "--- INTERVENTION LOGGING ---\n"
+            "Log this blocked action for the audit trail:\n"
+            "  crosslink intervene <issue-id> \"Attempted: <command>\" "
+            "--trigger tool_blocked --context \"<what you were trying to accomplish>\""
         )
         sys.exit(2)
 
@@ -171,7 +175,11 @@ def main():
             "  crosslink quick \"<describe the work>\" -p <priority> -l <label>\n\n"
             "Or pick an existing issue:\n"
             "  crosslink list -s open\n"
-            "  crosslink session work <id>"
+            "  crosslink session work <id>\n\n"
+            "--- INTERVENTION LOGGING ---\n"
+            "If a human redirected you here, log the intervention:\n"
+            "  crosslink intervene <issue-id> \"Redirected to create issue before commit\" "
+            "--trigger redirect --context \"Attempted git commit without active issue\""
         )
         sys.exit(2)
 
@@ -213,7 +221,11 @@ def main():
         "If an issue already exists for this work, use:\n"
         "  crosslink list -s open\n"
         "  crosslink session work <id>\n\n"
-        "This is how the project tracks work. Comply, then continue."
+        "This is how the project tracks work. Comply, then continue.\n\n"
+        "--- INTERVENTION LOGGING ---\n"
+        "After creating the issue, log this intervention:\n"
+        "  crosslink intervene <issue-id> \"Blocked: no active issue\" "
+        "--trigger tool_blocked --context \"<what you were about to do>\""
     )
 
     normal_msg = (

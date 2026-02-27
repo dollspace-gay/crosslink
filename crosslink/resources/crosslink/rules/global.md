@@ -126,6 +126,28 @@ crosslink comment <id> "Delivered: JWT auth with refresh tokens, all 47 tests pa
 
 **If you close an issue that has zero typed comments, you have violated this rule.**
 
+### Intervention Logging (MANDATORY — AUDIT REQUIREMENT)
+
+When a driver (human operator) intervenes in your work, you MUST log it immediately using `crosslink intervene`. Driver interventions are the highest-signal data for improving agent autonomy.
+
+**You MUST log an intervention when any of these occur:**
+- A tool call you proposed is rejected by the driver → `--trigger tool_rejected`
+- A hook or policy blocks your tool call → `--trigger tool_blocked`
+- The driver redirects your approach ("actually do X instead") → `--trigger redirect`
+- The driver provides context you didn't have (requirements, constraints, domain knowledge) → `--trigger context_provided`
+- The driver performs an action themselves (git push, deployment, etc.) → `--trigger manual_action`
+- The driver answers a question that changes your approach → `--trigger question_answered`
+
+```bash
+crosslink intervene <issue-id> "Description of what happened" --trigger <type> --context "What you were attempting"
+```
+
+**Rules:**
+- Log IMMEDIATELY after the intervention occurs, before continuing work.
+- Do not skip logging because the intervention seems "small" or "obvious."
+- Do not batch multiple interventions into a single log entry.
+- If a hook blocks you and provides intervention logging instructions, follow them.
+
 ### Pre-Coding Grounding
 Before using unfamiliar libraries/APIs:
 1. **Verify it exists**: WebSearch to confirm the API

@@ -404,6 +404,8 @@ impl SharedWriter {
                     content: content_owned.clone(),
                     created_at: Utc::now(),
                     kind: kind_owned.clone(),
+                    trigger_type: None,
+                    intervention_context: None,
                 });
                 issue.updated_at = Utc::now();
 
@@ -415,6 +417,54 @@ impl SharedWriter {
                 })
             },
             &format!("comment on issue #{}", display_id),
+        )?;
+
+        hydrate_to_sqlite(&self.cache_dir, db)?;
+        Ok(comment_id.get())
+    }
+
+    /// Add a driver intervention comment to an issue (kind = "intervention").
+    pub fn add_intervention_comment(
+        &self,
+        db: &Database,
+        display_id: i64,
+        content: &str,
+        trigger_type: &str,
+        intervention_context: Option<&str>,
+    ) -> Result<i64> {
+        let content_owned = content.to_string();
+        let trigger_owned = trigger_type.to_string();
+        let context_owned = intervention_context.map(|s| s.to_string());
+        let agent_id = self.agent.agent_id.clone();
+        let comment_id = Cell::new(0i64);
+
+        let _ = self.write_commit_push(
+            |writer| {
+                let mut issue = writer.load_issue_by_id(display_id, db)?;
+                let mut counters = writer.read_counters()?;
+                let id = counters.next_comment_id;
+                counters.next_comment_id += 1;
+                comment_id.set(id);
+
+                issue.comments.push(CommentEntry {
+                    id,
+                    author: agent_id.clone(),
+                    content: content_owned.clone(),
+                    created_at: Utc::now(),
+                    kind: "intervention".to_string(),
+                    trigger_type: Some(trigger_owned.clone()),
+                    intervention_context: context_owned.clone(),
+                });
+                issue.updated_at = Utc::now();
+
+                let json = serde_json::to_vec_pretty(&issue)?;
+                Ok(WriteSet {
+                    files: vec![(format!("issues/{}.json", issue.uuid), json)],
+                    counters: Some(counters),
+                    use_git_rm: false,
+                })
+            },
+            &format!("intervention on issue #{}", display_id),
         )?;
 
         hydrate_to_sqlite(&self.cache_dir, db)?;
