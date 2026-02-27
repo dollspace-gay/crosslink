@@ -51,6 +51,28 @@ pub struct CommentEntry {
     pub author: String,
     pub content: String,
     pub created_at: DateTime<Utc>,
+    #[serde(default = "default_comment_kind")]
+    pub kind: String,
+}
+
+fn default_comment_kind() -> String {
+    "note".to_string()
+}
+
+const KNOWN_COMMENT_KINDS: &[&str] = &[
+    "note",
+    "plan",
+    "decision",
+    "observation",
+    "blocker",
+    "resolution",
+    "result",
+    "handoff",
+    "human",
+];
+
+pub fn validate_comment_kind(kind: &str) -> bool {
+    KNOWN_COMMENT_KINDS.contains(&kind)
 }
 
 /// An inline time-tracking entry within an issue file.
@@ -244,6 +266,7 @@ mod tests {
                 author: "worker-1".to_string(),
                 content: "Reproduced on staging".to_string(),
                 created_at: Utc::now(),
+                kind: "note".to_string(),
             }],
             blockers: vec![Uuid::new_v4()],
             related: vec![],

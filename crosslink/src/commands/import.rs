@@ -43,7 +43,7 @@ fn import_issue_files(db: &Database, issues: &[IssueFile], input_path: &Path) ->
 
             // Add comments
             for comment in &issue.comments {
-                db.add_comment(new_id, &comment.content)?;
+                db.add_comment(new_id, &comment.content, "note")?;
             }
 
             // Close if needed
@@ -145,7 +145,7 @@ fn import_issue(db: &Database, issue: &ExportedIssue, parent_id: Option<i64>) ->
 
     // Add comments
     for comment in &issue.comments {
-        db.add_comment(id, &comment.content)?;
+        db.add_comment(id, &comment.content, "note")?;
     }
 
     // Close if needed

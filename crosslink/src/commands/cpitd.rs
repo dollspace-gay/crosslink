@@ -265,7 +265,7 @@ pub fn scan(
                     report.total_cloned_lines,
                     report.groups.len(),
                 );
-                db.add_comment(existing_id, &comment)?;
+                db.add_comment(existing_id, &comment, "note")?;
                 updated_count += 1;
                 if !quiet {
                     println!(

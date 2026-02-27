@@ -58,7 +58,7 @@ crosslink subissue 1 "Add session middleware for protected routes"
 crosslink session work 1
 
 # Add context as you discover things
-crosslink comment 1 "Found existing auth helper in utils/auth.ts"
+crosslink comment 1 "Found existing auth helper in utils/auth.ts" --kind observation
 
 # Close when done — auto-updates CHANGELOG.md
 crosslink close 1
@@ -86,11 +86,11 @@ Your auto-memory directory (`~/.claude/projects/.../memory/`) contains plans, ar
 ```bash
 # Example: translating a memory plan into tracked work
 crosslink create "Implement webhook retry system" -p high --label feature
-crosslink comment 1 "Per memory/architecture.md: retry with exponential backoff, max 5 attempts, dead-letter queue after exhaustion. See 'Webhook Reliability' section."
+crosslink comment 1 "Per memory/architecture.md: retry with exponential backoff, max 5 attempts, dead-letter queue after exhaustion. See 'Webhook Reliability' section." --kind plan
 crosslink subissue 1 "Add retry queue with exponential backoff (max 5 attempts)"
-crosslink comment 2 "Backoff schedule: 1s, 5s, 25s, 125s, 625s. Store attempt count in webhook_deliveries table."
+crosslink comment 2 "Backoff schedule: 1s, 5s, 25s, 125s, 625s. Store attempt count in webhook_deliveries table." --kind plan
 crosslink subissue 1 "Add dead-letter queue for exhausted retries"
-crosslink comment 3 "Failed webhooks go to dead_letter_webhooks table with full payload + error history for manual inspection."
+crosslink comment 3 "Failed webhooks go to dead_letter_webhooks table with full payload + error history for manual inspection." --kind plan
 crosslink subissue 1 "Add webhook delivery dashboard endpoint"
 ```
 
@@ -123,6 +123,68 @@ crosslink session end --notes "..."  # REQUIRED before stopping — ALWAYS
 - What was accomplished this session
 - What's in progress or blocked
 - What should be done next
+
+### Typed Comment Discipline (ABSOLUTE REQUIREMENT — NO EXCEPTIONS)
+
+**Every comment MUST use the `--kind` flag. A comment without `--kind` is an incomplete comment. You are NOT ALLOWED to omit it.**
+
+This is not guidance. This is not a suggestion. This is a hard requirement that exists because this tooling supports regulated biotech operations where audit completeness is legally mandated. You cannot opt out.
+
+#### Comment Kinds
+
+| Kind | When to use | You MUST use this when... |
+|------|-------------|---------------------------|
+| `plan` | Before writing any code | You are about to start implementation. EVERY issue gets at least one plan comment. |
+| `decision` | Choosing between approaches | You picked option A over option B. Document both options and WHY you chose A. |
+| `observation` | Discovering something | You found existing code, unexpected behavior, a pattern, or a constraint. |
+| `blocker` | Something prevents progress | A test fails, a dependency is missing, an API doesn't work as expected. |
+| `resolution` | Unblocking progress | You fixed the blocker. Document HOW. |
+| `result` | Work is complete | Before closing: what was delivered, what tests pass, what changed. |
+| `handoff` | Ending a session | Context for the next agent/session. What's done, what's next. |
+
+#### Mandatory Comment Checkpoints
+
+These are non-negotiable. You MUST add a comment at EACH of these points. Skipping ANY of them is a rule violation.
+
+1. **Issue created** → `--kind plan` comment documenting your approach BEFORE you write a single line of code
+2. **Each significant choice** → `--kind decision` comment. "Significant" means: if someone asked "why did you do it this way?", you should have already answered that in a decision comment
+3. **Before closing** → `--kind result` comment summarizing deliverables
+4. **Session ending** → `--kind handoff` comment (via `crosslink session end --notes "..."`)
+
+#### Anti-Evasion Rules
+
+You are explicitly forbidden from using any of the following rationalizations to skip typed comments:
+
+- **"This is a small/trivial change"** → Small changes STILL need plan + result comments. Size does not exempt you.
+- **"I'll add comments when I'm done"** → NO. Comments are added AS YOU WORK. Plan comments come BEFORE code. Decision comments come WHEN you decide. This is not negotiable.
+- **"The commit message/PR description covers it"** → Commit messages are not crosslink comments. They serve different purposes. You must do both.
+- **"The issue title is self-explanatory"** → Titles are one line. They cannot capture reasoning, alternatives considered, or findings.
+- **"I'm just fixing a typo/formatting"** → Even trivial fixes get a plan comment ("fixing typo in X") and result comment ("fixed"). The overhead is seconds. The audit value is permanent.
+- **"There's only one possible approach"** → Document that observation. If it's truly obvious, the comment takes 5 seconds.
+
+#### Examples
+
+```bash
+# Starting work on a bug fix
+crosslink quick "Fix authentication timeout on slow connections" -p high -l bug
+crosslink comment 1 "Plan: The timeout is hardcoded to 5s in auth_middleware.rs:47. Will make it configurable via AUTH_TIMEOUT_SECS env var with 30s default." --kind plan
+
+# You discover something while investigating
+crosslink comment 1 "Found that the timeout also affects the health check endpoint, which has its own 10s timeout that masks the auth timeout on slow connections" --kind observation
+
+# You make a design choice
+crosslink comment 1 "Decision: Using env var over config file. Rationale: other timeouts in this service use env vars (see DATABASE_TIMEOUT, REDIS_TIMEOUT). Consistency > flexibility here." --kind decision
+
+# Something blocks you
+crosslink comment 1 "Blocked: The test suite mocks the auth middleware in a way that bypasses the timeout entirely. Need to update test fixtures first." --kind blocker
+
+# You resolve it
+crosslink comment 1 "Resolved: Updated test fixtures to use real timeout behavior. Added integration test for slow-connection scenario." --kind resolution
+
+# Before closing
+crosslink comment 1 "Result: AUTH_TIMEOUT_SECS env var now controls auth timeout (default 30s). Updated 3 test fixtures, added 2 integration tests. All 156 tests pass." --kind result
+crosslink close 1
+```
 
 ### Priority Guide
 - `critical`: Blocking other work, security issue, production down

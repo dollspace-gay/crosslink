@@ -378,8 +378,15 @@ impl SharedWriter {
     /// Add a comment to an issue.
     ///
     /// Returns the comment ID.
-    pub fn add_comment(&self, db: &Database, display_id: i64, content: &str) -> Result<i64> {
+    pub fn add_comment(
+        &self,
+        db: &Database,
+        display_id: i64,
+        content: &str,
+        kind: &str,
+    ) -> Result<i64> {
         let content_owned = content.to_string();
+        let kind_owned = kind.to_string();
         let agent_id = self.agent.agent_id.clone();
         let comment_id = Cell::new(0i64);
 
@@ -396,6 +403,7 @@ impl SharedWriter {
                     author: agent_id.clone(),
                     content: content_owned.clone(),
                     created_at: Utc::now(),
+                    kind: kind_owned.clone(),
                 });
                 issue.updated_at = Utc::now();
 

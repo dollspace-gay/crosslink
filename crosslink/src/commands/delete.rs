@@ -102,8 +102,8 @@ mod tests {
     fn test_delete_cascades_comments() {
         let (db, _dir) = setup_test_db();
         let issue_id = db.create_issue("Test", None, "medium").unwrap();
-        db.add_comment(issue_id, "Comment 1").unwrap();
-        db.add_comment(issue_id, "Comment 2").unwrap();
+        db.add_comment(issue_id, "Comment 1", "note").unwrap();
+        db.add_comment(issue_id, "Comment 2", "note").unwrap();
 
         run_force(&db, issue_id).unwrap();
 
@@ -275,7 +275,7 @@ mod tests {
             let issue_id = db.create_issue("Test", None, "medium").unwrap();
 
             for i in 0..count {
-                db.add_comment(issue_id, &format!("Comment {}", i)).unwrap();
+                db.add_comment(issue_id, &format!("Comment {}", i), "note").unwrap();
             }
 
             run_force(&db, issue_id).unwrap();

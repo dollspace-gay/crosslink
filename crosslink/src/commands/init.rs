@@ -79,6 +79,7 @@ const FEATURE_CMD_MD: &str = include_str!("../../resources/claude/commands/featu
 const FEATREE_CMD_MD: &str = include_str!("../../resources/claude/commands/featree.md");
 const KICKOFF_CMD_MD: &str = include_str!("../../resources/claude/commands/kickoff.md");
 const CHECK_CMD_MD: &str = include_str!("../../resources/claude/commands/check.md");
+const COMMIT_CMD_MD: &str = include_str!("../../resources/claude/commands/commit.md");
 
 // Embed sanitization patterns
 const SANITIZE_PATTERNS: &str =
@@ -327,6 +328,8 @@ pub fn run(path: &Path, force: bool, python_prefix: Option<&str>) -> Result<()> 
             .context("Failed to write kickoff.md")?;
         fs::write(commands_dir.join("check.md"), CHECK_CMD_MD)
             .context("Failed to write check.md")?;
+        fs::write(commands_dir.join("commit.md"), COMMIT_CMD_MD)
+            .context("Failed to write commit.md")?;
 
         // Merge crosslink's MCP server entry into .mcp.json (preserving existing MCPs)
         let warnings =
@@ -762,6 +765,7 @@ mod tests {
         assert!(!FEATREE_CMD_MD.is_empty());
         assert!(!KICKOFF_CMD_MD.is_empty());
         assert!(!CHECK_CMD_MD.is_empty());
+        assert!(!COMMIT_CMD_MD.is_empty());
         assert!(!SANITIZE_PATTERNS.is_empty());
         assert!(!HOOK_CONFIG_JSON.is_empty());
         assert!(!RULE_TRACKING_STRICT.is_empty());
