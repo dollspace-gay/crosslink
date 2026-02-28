@@ -6,5 +6,8 @@
   "priority": "high",
   "created_by": "m1",
   "created_at": "2026-02-28T23:02:20.734850Z",
-  "updated_at": "2026-02-28T23:02:20.734850Z"
+  "updated_at": "2026-02-28T23:02:22.295110Z",
+  "labels": [
+    "fix"
+  ]
 }
