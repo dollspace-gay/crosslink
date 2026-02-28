@@ -405,6 +405,12 @@ enum Commands {
     /// Rename coordination branch from crosslink/locks to crosslink/hub
     MigrateRenameBranch,
 
+    /// View and modify repo-level configuration
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommands,
+    },
+
     /// Manage crosslink workflow configuration
     Workflow {
         #[command(subcommand)]
@@ -707,6 +713,39 @@ enum IntegrityCommands {
         #[arg(long)]
         repair: bool,
     },
+}
+
+#[derive(Subcommand)]
+enum ConfigCommands {
+    /// Show all configuration with default annotations
+    Show,
+    /// Get a specific config value
+    Get {
+        /// Config key name
+        key: String,
+    },
+    /// Set a config value
+    Set {
+        /// Config key name
+        key: String,
+        /// Value to set (for arrays: comma-separated, or use --add/--remove)
+        value: Option<String>,
+        /// Add a value to an array field
+        #[arg(long)]
+        add: Option<String>,
+        /// Remove a value from an array field
+        #[arg(long)]
+        remove: Option<String>,
+    },
+    /// List all available config keys with descriptions
+    List,
+    /// Reset config to defaults (all keys, or a single key)
+    Reset {
+        /// Specific key to reset (omit for full reset)
+        key: Option<String>,
+    },
+    /// Show differences from default config
+    Diff,
 }
 
 fn find_crosslink_dir() -> Result<PathBuf> {
@@ -1270,6 +1309,10 @@ fn main() -> Result<()> {
             }
         }
 
+        Commands::Config { command } => {
+            let crosslink_dir = find_crosslink_dir()?;
+            commands::config::run(command, &crosslink_dir)
+        }
         Commands::Workflow { command } => {
             let crosslink_dir = find_crosslink_dir()?;
             let claude_dir = crosslink_dir

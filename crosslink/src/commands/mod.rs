@@ -1,6 +1,7 @@
 pub mod agent;
 pub mod archive;
 pub mod comment;
+pub mod config;
 pub mod cpitd;
 pub mod create;
 pub mod delete;
