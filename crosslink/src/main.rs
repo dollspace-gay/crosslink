@@ -751,6 +751,17 @@ enum KnowledgeCommands {
     },
     /// Manually sync from remote
     Sync,
+    /// Search knowledge page content
+    Search {
+        /// Search query (case-insensitive substring match)
+        query: Option<String>,
+        /// Number of context lines around each match
+        #[arg(short = 'C', long, default_value = "1")]
+        context: usize,
+        /// Search by source URL domain instead of content
+        #[arg(long)]
+        source: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -1422,6 +1433,17 @@ fn main() -> Result<()> {
                     commands::knowledge::remove(&crosslink_dir, &slug)
                 }
                 KnowledgeCommands::Sync => commands::knowledge::sync(&crosslink_dir),
+                KnowledgeCommands::Search {
+                    query,
+                    context,
+                    source,
+                } => commands::knowledge::search(
+                    &crosslink_dir,
+                    query.as_deref(),
+                    context,
+                    source.as_deref(),
+                    cli.json,
+                ),
             }
         }
 

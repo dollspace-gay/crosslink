@@ -49,6 +49,15 @@ pub struct PageInfo {
     pub frontmatter: PageFrontmatter,
 }
 
+/// A single search match within a knowledge page.
+#[derive(Debug, Clone)]
+pub struct SearchMatch {
+    pub slug: String,
+    pub line_number: usize,
+    /// The matching line and surrounding context lines.
+    pub context_lines: Vec<(usize, String)>,
+}
+
 impl KnowledgeManager {
     /// Create a new KnowledgeManager for the given .crosslink directory.
     ///
@@ -307,6 +316,87 @@ impl KnowledgeManager {
         std::fs::remove_file(&path).context("Failed to delete page")
     }
 
+    /// Search knowledge page content for a query string (case-insensitive).
+    ///
+    /// Returns matches with surrounding context lines. Each contiguous group
+    /// of matching lines within a file produces one `SearchMatch`.
+    pub fn search_content(&self, query: &str, context: usize) -> Result<Vec<SearchMatch>> {
+        let mut results = Vec::new();
+
+        if !self.cache_dir.exists() {
+            return Ok(results);
+        }
+
+        let query_lower = query.to_lowercase();
+
+        let mut entries: Vec<_> = std::fs::read_dir(&self.cache_dir)?
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().map(|ext| ext == "md").unwrap_or(false))
+            .collect();
+        entries.sort_by_key(|e| e.file_name());
+
+        for entry in entries {
+            let path = entry.path();
+            let slug = path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let content = std::fs::read_to_string(&path)?;
+            let lines: Vec<&str> = content.lines().collect();
+
+            // Find all matching line indices
+            let matching_indices: Vec<usize> = lines
+                .iter()
+                .enumerate()
+                .filter(|(_, line)| line.to_lowercase().contains(&query_lower))
+                .map(|(i, _)| i)
+                .collect();
+
+            // Group matches that overlap with context into contiguous groups
+            let groups = group_matches(&matching_indices, context);
+
+            for group in groups {
+                let first_match = group[0];
+                let start = first_match.saturating_sub(context);
+                let last_match = group[group.len() - 1];
+                let end = (last_match + context + 1).min(lines.len());
+
+                let context_lines: Vec<(usize, String)> = (start..end)
+                    .map(|i| (i + 1, lines[i].to_string()))
+                    .collect();
+
+                results.push(SearchMatch {
+                    slug: slug.clone(),
+                    line_number: first_match + 1,
+                    context_lines,
+                });
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Search knowledge pages by source URL domain.
+    ///
+    /// Finds pages that have a source whose URL contains the given domain string.
+    pub fn search_sources(&self, domain: &str) -> Result<Vec<PageInfo>> {
+        let domain_lower = domain.to_lowercase();
+
+        let pages = self.list_pages()?;
+        let matches: Vec<PageInfo> = pages
+            .into_iter()
+            .filter(|page| {
+                page.frontmatter
+                    .sources
+                    .iter()
+                    .any(|src| src.url.to_lowercase().contains(&domain_lower))
+            })
+            .collect();
+
+        Ok(matches)
+    }
+
     /// Get the path to the cache directory.
     #[allow(dead_code)]
     pub fn cache_path(&self) -> &Path {
@@ -344,6 +434,27 @@ impl KnowledgeManager {
         }
         Ok(output)
     }
+}
+
+/// Group matching line indices into contiguous groups based on context overlap.
+///
+/// Two matches are in the same group if their context windows overlap or are
+/// adjacent (i.e., the distance between them is <= 2 * context).
+fn group_matches(indices: &[usize], context: usize) -> Vec<Vec<usize>> {
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+
+    for &idx in indices {
+        if let Some(last_group) = groups.last_mut() {
+            let last_idx = *last_group.last().unwrap();
+            if idx <= last_idx + 2 * context + 1 {
+                last_group.push(idx);
+                continue;
+            }
+        }
+        groups.push(vec![idx]);
+    }
+
+    groups
 }
 
 /// Resolve the main repository root when running inside a git worktree.
@@ -1106,5 +1217,120 @@ updated: 2026-01-01
         let manager = KnowledgeManager::new(&crosslink_dir).unwrap();
         let result = manager.write_page("test", "content");
         assert!(result.is_err());
+    }
+
+    // --- Search tests ---
+
+    /// Helper: create a KnowledgeManager with pre-populated pages.
+    fn setup_search_manager(pages: &[(&str, &str)]) -> (tempfile::TempDir, KnowledgeManager) {
+        let dir = tempdir().unwrap();
+        let crosslink_dir = dir.path().join(".crosslink");
+        let cache_dir = crosslink_dir.join(KNOWLEDGE_CACHE_DIR);
+        std::fs::create_dir_all(&cache_dir).unwrap();
+
+        let manager = KnowledgeManager::new(&crosslink_dir).unwrap();
+        for (slug, content) in pages {
+            manager.write_page(slug, content).unwrap();
+        }
+        (dir, manager)
+    }
+
+    #[test]
+    fn test_search_content_finds_matches_across_files() {
+        let page_a = "---\ntitle: Rust Testing\ntags: []\nsources: []\ncontributors: []\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n\n# Property Testing\n\nUse proptest for property-based testing.\n";
+        let page_b = "---\ntitle: CI Setup\ntags: []\nsources: []\ncontributors: []\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n\nIncludes property testing via cargo test.\n";
+
+        let (_dir, manager) =
+            setup_search_manager(&[("rust-testing", page_a), ("ci-setup", page_b)]);
+
+        let results = manager.search_content("property testing", 0).unwrap();
+        assert_eq!(results.len(), 2);
+
+        let slugs: Vec<&str> = results.iter().map(|r| r.slug.as_str()).collect();
+        assert!(slugs.contains(&"ci-setup"));
+        assert!(slugs.contains(&"rust-testing"));
+    }
+
+    #[test]
+    fn test_search_content_case_insensitive() {
+        let page = "---\ntitle: Test\ntags: []\nsources: []\ncontributors: []\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n\nPROPERTY Testing is great.\n";
+        let (_dir, manager) = setup_search_manager(&[("test-page", page)]);
+
+        let results = manager.search_content("property testing", 0).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].slug, "test-page");
+    }
+
+    #[test]
+    fn test_search_content_returns_context_lines() {
+        let page = "---\ntitle: Test\ntags: []\nsources: []\ncontributors: []\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n\nLine before match.\nThe match line here.\nLine after match.\n";
+        let (_dir, manager) = setup_search_manager(&[("ctx-page", page)]);
+
+        let results = manager.search_content("match line", 1).unwrap();
+        assert_eq!(results.len(), 1);
+        // Should have 3 lines: before, match, after
+        assert!(results[0].context_lines.len() >= 3);
+    }
+
+    #[test]
+    fn test_search_content_no_results() {
+        let page = "---\ntitle: Test\ntags: []\nsources: []\ncontributors: []\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n\nNothing relevant here.\n";
+        let (_dir, manager) = setup_search_manager(&[("empty-page", page)]);
+
+        let results = manager.search_content("nonexistent query", 0).unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_search_content_empty_cache() {
+        let dir = tempdir().unwrap();
+        let crosslink_dir = dir.path().join(".crosslink");
+        std::fs::create_dir_all(&crosslink_dir).unwrap();
+
+        let manager = KnowledgeManager::new(&crosslink_dir).unwrap();
+        let results = manager.search_content("anything", 0).unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_search_sources_by_domain() {
+        let page_a = "---\ntitle: Rust Docs\ntags: []\nsources:\n  - url: https://doc.rust-lang.org/book\n    title: The Rust Book\ncontributors: []\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n\nContent.\n";
+        let page_b = "---\ntitle: Other\ntags: []\nsources:\n  - url: https://example.com\n    title: Example\ncontributors: []\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n\nContent.\n";
+
+        let (_dir, manager) = setup_search_manager(&[("rust-docs", page_a), ("other", page_b)]);
+
+        let results = manager.search_sources("rust-lang.org").unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].slug, "rust-docs");
+    }
+
+    #[test]
+    fn test_search_sources_no_match() {
+        let page = "---\ntitle: Test\ntags: []\nsources:\n  - url: https://example.com\n    title: Example\ncontributors: []\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n\nContent.\n";
+        let (_dir, manager) = setup_search_manager(&[("test", page)]);
+
+        let results = manager.search_sources("nonexistent.org").unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_group_matches_separate_groups() {
+        // With context=0, matches at 0 and 5 should be separate groups
+        let groups = group_matches(&[0, 5], 0);
+        assert_eq!(groups.len(), 2);
+    }
+
+    #[test]
+    fn test_group_matches_overlapping_context() {
+        // With context=2, matches at 0 and 3 overlap (0+2+1 = 3 >= 3) so they merge
+        let groups = group_matches(&[0, 3], 2);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0], vec![0, 3]);
+    }
+
+    #[test]
+    fn test_group_matches_empty() {
+        let groups = group_matches(&[], 0);
+        assert!(groups.is_empty());
     }
 }
