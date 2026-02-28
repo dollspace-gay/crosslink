@@ -6,7 +6,7 @@
   "priority": "low",
   "created_by": "m1",
   "created_at": "2026-02-28T05:27:56.646988Z",
-  "updated_at": "2026-02-28T05:28:06.863993Z",
+  "updated_at": "2026-02-28T05:31:36.737582Z",
   "labels": [
     "enhancement"
   ],
@@ -19,6 +19,15 @@
       "kind": "plan",
       "signed_by": "SHA256:XiViiZnT3F7VGw0HIStbHBxjTSKDLEnFZRAkKjBKRlc",
       "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgZ3TqCWtjI0LMWl6FoUDqwzTxBw6AtE9Fn4x8b9CqOGkAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAyKmDapfBDMly3ShDmiVkYXjd1qVeh4s26BLavL3DaUE2EO0RfjvxUjG1Ikzyna6E+1lGDDxS1K4/RwbcAkafDQ=="
+    },
+    {
+      "id": 14,
+      "author": "m1",
+      "content": "Created GH issue #81: https://github.com/forecast-bio/crosslink/issues/81 — proposes adding agent_id column to sessions table, scoping all session queries to current agent, with backward-compatible migration.",
+      "created_at": "2026-02-28T05:31:36.737582Z",
+      "kind": "result",
+      "signed_by": "SHA256:XiViiZnT3F7VGw0HIStbHBxjTSKDLEnFZRAkKjBKRlc",
+      "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgZ3TqCWtjI0LMWl6FoUDqwzTxBw6AtE9Fn4x8b9CqOGkAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAXV96uk7XvjasYlTE0zxHMWbjtBsW+QtyvGBgQnl6nog73MishpXB2SztWzGlY0JvzkgIiCVNbwDD6Gi1NwW4DA=="
     }
   ]
 }
