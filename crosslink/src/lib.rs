@@ -6,6 +6,7 @@ pub mod db;
 pub mod hydration;
 pub mod identity;
 pub mod issue_file;
+pub mod knowledge;
 pub mod lock_check;
 pub mod locks;
 pub mod models;

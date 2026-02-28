@@ -471,7 +471,7 @@ pub fn run(
     if !crosslink_gitignore.exists() || force {
         fs::write(
             &crosslink_gitignore,
-            "# Multi-agent collaboration (machine-local)\nagent.json\n.hub-cache/\nkeys/\n\n# Machine-local hook overrides\nhook-config.local.json\n",
+            "# Multi-agent collaboration (machine-local)\nagent.json\n.hub-cache/\n.knowledge-cache/\nkeys/\n\n# Machine-local hook overrides\nhook-config.local.json\n",
         )
         .context("Failed to write .crosslink/.gitignore")?;
     }
