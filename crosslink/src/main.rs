@@ -1263,9 +1263,7 @@ fn main() -> Result<()> {
                 StyleCommands::Set { url, ref_name } => {
                     commands::style::set(&crosslink_dir, &url, ref_name.as_deref())
                 }
-                StyleCommands::Sync { dry_run } => {
-                    commands::style::sync(&crosslink_dir, dry_run)
-                }
+                StyleCommands::Sync { dry_run } => commands::style::sync(&crosslink_dir, dry_run),
                 StyleCommands::Diff => commands::style::diff(&crosslink_dir),
                 StyleCommands::Show => commands::style::show(&crosslink_dir),
                 StyleCommands::Unset => commands::style::unset(&crosslink_dir),

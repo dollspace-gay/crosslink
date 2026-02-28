@@ -481,9 +481,7 @@ pub fn diff(crosslink_dir: &Path) -> Result<()> {
 
     let cache = cache_dir(crosslink_dir);
     if !cache.join(".git").exists() {
-        bail!(
-            "Style cache not found. Run 'crosslink style sync' to fetch the house style first."
-        );
+        bail!("Style cache not found. Run 'crosslink style sync' to fetch the house style first.");
     }
 
     // Fetch latest for accurate comparison
@@ -806,7 +804,9 @@ mod tests {
             Some(true)
         );
         assert_eq!(
-            config.get("intervention_tracking").and_then(|v| v.as_bool()),
+            config
+                .get("intervention_tracking")
+                .and_then(|v| v.as_bool()),
             Some(true)
         );
         let hs = config.get("house_style").unwrap();
