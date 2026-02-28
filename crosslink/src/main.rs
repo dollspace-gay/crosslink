@@ -55,6 +55,12 @@ enum Commands {
         /// Path to SSH key for commit signing (auto-detected if omitted)
         #[arg(long)]
         signing_key: Option<String>,
+        /// Re-run TUI walkthrough even if config exists
+        #[arg(long)]
+        reconfigure: bool,
+        /// Skip TUI and use opinionated defaults
+        #[arg(long)]
+        defaults: bool,
     },
 
     /// Create a new issue
@@ -742,16 +748,20 @@ fn main() -> Result<()> {
             skip_cpitd,
             skip_signing,
             signing_key,
+            reconfigure,
+            defaults,
         } => {
             let cwd = env::current_dir()?;
-            commands::init::run(
-                &cwd,
+            let opts = commands::init::InitOpts {
                 force,
-                python_prefix.as_deref(),
+                python_prefix: python_prefix.as_deref(),
                 skip_cpitd,
                 skip_signing,
-                signing_key.as_deref(),
-            )
+                signing_key: signing_key.as_deref(),
+                reconfigure,
+                defaults,
+            };
+            commands::init::run(&cwd, &opts)
         }
 
         Commands::Create {
