@@ -572,8 +572,10 @@ fn run_tui_walkthrough(existing: Option<&serde_json::Value>) -> Result<TuiChoice
 }
 
 /// Apply TUI choices onto a config JSON value, preserving fields not covered by the TUI.
-fn apply_tui_choices(config: &mut serde_json::Value, choices: &TuiChoices) {
-    let obj = config.as_object_mut().expect("config must be an object");
+fn apply_tui_choices(config: &mut serde_json::Value, choices: &TuiChoices) -> Result<()> {
+    let obj = config
+        .as_object_mut()
+        .context("hook-config.json is not a JSON object")?;
     obj.insert(
         "tracking_mode".into(),
         serde_json::Value::String(choices.tracking_mode.clone()),
@@ -590,6 +592,7 @@ fn apply_tui_choices(config: &mut serde_json::Value, choices: &TuiChoices) {
         "kickoff_verification".into(),
         serde_json::Value::String(choices.kickoff_verification.clone()),
     );
+    Ok(())
 }
 
 /// Options for `crosslink init`.
@@ -660,7 +663,7 @@ pub fn run(path: &Path, opts: &InitOpts<'_>) -> Result<()> {
                 None
             };
             let choices = run_tui_walkthrough(existing_ref)?;
-            apply_tui_choices(&mut config, &choices);
+            apply_tui_choices(&mut config, &choices)?;
             println!();
 
             let output = serde_json::to_string_pretty(&config)
