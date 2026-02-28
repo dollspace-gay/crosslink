@@ -7,6 +7,12 @@
       "claimed_at": "2026-02-28T04:56:31.907090Z",
       "signed_by": "SHA256:2d+yqqd9JDCybQ/qqSTtmWuSVszis07YLEffC2rgM3c"
     },
+    "14": {
+      "agent_id": "m1",
+      "branch": null,
+      "claimed_at": "2026-02-28T05:18:57.340519Z",
+      "signed_by": "SHA256:XiViiZnT3F7VGw0HIStbHBxjTSKDLEnFZRAkKjBKRlc"
+    },
     "12": {
       "agent_id": "m1--f1",
       "branch": null,
