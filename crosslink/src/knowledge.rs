@@ -308,6 +308,7 @@ impl KnowledgeManager {
     }
 
     /// Get the path to the cache directory.
+    #[allow(dead_code)]
     pub fn cache_path(&self) -> &Path {
         &self.cache_dir
     }
