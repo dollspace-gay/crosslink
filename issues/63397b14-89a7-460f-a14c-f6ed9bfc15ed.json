@@ -6,7 +6,7 @@
   "priority": "medium",
   "created_by": "m1--track-driver-signing-key",
   "created_at": "2026-03-01T16:03:40.761539760Z",
-  "updated_at": "2026-03-01T16:05:14.851503210Z",
+  "updated_at": "2026-03-01T16:34:38.628385525Z",
   "labels": [
     "feature"
   ],
@@ -24,6 +24,15 @@
       "content": "Launched feature agent in tmux session feat-track-driver-signing-key, worktree at .worktrees/track-driver-signing-key, implementation issue #40",
       "created_at": "2026-03-01T16:05:14.851502726Z",
       "kind": "result"
+    },
+    {
+      "id": 49,
+      "author": "m1--track-driver-signing-key",
+      "content": "Manual test: verifying driver fingerprint appears in intervention output",
+      "created_at": "2026-03-01T16:34:38.628384995Z",
+      "kind": "intervention",
+      "trigger_type": "manual_action",
+      "intervention_context": "Testing GH #88 feature"
     }
   ]
 }
