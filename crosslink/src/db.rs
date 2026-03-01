@@ -1416,7 +1416,10 @@ impl Database {
 fn parse_datetime(s: String) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(&s)
         .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now())
+        .unwrap_or_else(|e| {
+            eprintln!("warning: failed to parse datetime '{}': {}, using current time", s, e);
+            chrono::Utc::now()
+        })
 }
 
 /// Maps a database row to an Issue struct.
