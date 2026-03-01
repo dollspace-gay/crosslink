@@ -1,6 +1,12 @@
 {
   "version": 1,
   "locks": {
+    "18": {
+      "agent_id": "m1",
+      "branch": null,
+      "claimed_at": "2026-02-28T05:45:31.697904Z",
+      "signed_by": "SHA256:XiViiZnT3F7VGw0HIStbHBxjTSKDLEnFZRAkKjBKRlc"
+    },
     "12": {
       "agent_id": "m1--f1",
       "branch": null,
@@ -30,18 +36,6 @@
       "branch": null,
       "claimed_at": "2026-02-28T04:56:31.907090Z",
       "signed_by": "SHA256:2d+yqqd9JDCybQ/qqSTtmWuSVszis07YLEffC2rgM3c"
-    },
-    "24": {
-      "agent_id": "m1--f3",
-      "branch": null,
-      "claimed_at": "2026-02-28T20:55:25.069434Z",
-      "signed_by": "SHA256:qfOgA1xKyVjm+mNbsnL61ZW6hNsYlBEsML+vdZP4ZiQ"
-    },
-    "18": {
-      "agent_id": "m1",
-      "branch": null,
-      "claimed_at": "2026-02-28T05:45:31.697904Z",
-      "signed_by": "SHA256:XiViiZnT3F7VGw0HIStbHBxjTSKDLEnFZRAkKjBKRlc"
     }
   },
   "settings": {
