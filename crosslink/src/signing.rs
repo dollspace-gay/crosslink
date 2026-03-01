@@ -78,6 +78,16 @@ pub fn generate_agent_key(keys_dir: &Path, agent_id: &str, machine_id: &str) -> 
         bail!("ssh-keygen failed: {}", stderr.trim());
     }
 
+    // Enforce restrictive permissions on keys directory and private key
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(keys_dir, std::fs::Permissions::from_mode(0o700))
+            .context("Failed to set permissions on keys directory")?;
+        std::fs::set_permissions(&private_path, std::fs::Permissions::from_mode(0o600))
+            .context("Failed to set permissions on private key")?;
+    }
+
     let public_key = std::fs::read_to_string(&public_path)
         .context("Failed to read generated public key")?
         .trim()
