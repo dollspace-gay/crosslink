@@ -591,6 +591,8 @@ impl SyncManager {
     /// Claim a lock on an issue for the given agent.
     ///
     /// Writes the lock to `locks.json`, commits, and pushes with retry.
+    /// After a push conflict, re-reads locks to verify another agent didn't
+    /// claim the same lock during the race window.
     /// Returns `Ok(true)` if newly claimed, `Ok(false)` if already held by self.
     /// Fails if locked by another agent (unless `force` is true for steal).
     pub fn claim_lock(
@@ -600,42 +602,62 @@ impl SyncManager {
         branch: Option<&str>,
         force: bool,
     ) -> Result<bool> {
-        let mut locks = self.read_locks()?;
+        // Retry loop: re-check lock ownership after push conflicts
+        for attempt in 0..3 {
+            let mut locks = self.read_locks()?;
 
-        // Check existing lock
-        if let Some(existing) = locks.get_lock(issue_id) {
-            if existing.agent_id == agent.agent_id {
-                return Ok(false); // Already held by self
+            // Check existing lock
+            if let Some(existing) = locks.get_lock(issue_id) {
+                if existing.agent_id == agent.agent_id {
+                    return Ok(false); // Already held by self
+                }
+                if !force {
+                    bail!(
+                        "Issue #{} is locked by '{}' (claimed {}). \
+                         Use 'crosslink locks steal {}' if the lock is stale.",
+                        issue_id,
+                        existing.agent_id,
+                        existing.claimed_at.format("%Y-%m-%d %H:%M"),
+                        issue_id
+                    );
+                }
+                // force=true: steal the lock
             }
-            if !force {
-                bail!(
-                    "Issue #{} is locked by '{}' (claimed {}). \
-                     Use 'crosslink locks steal {}' if the lock is stale.",
-                    issue_id,
-                    existing.agent_id,
-                    existing.claimed_at.format("%Y-%m-%d %H:%M"),
-                    issue_id
-                );
+
+            let lock = crate::locks::Lock {
+                agent_id: agent.agent_id.clone(),
+                branch: branch.map(|s| s.to_string()),
+                claimed_at: Utc::now(),
+                signed_by: agent
+                    .ssh_fingerprint
+                    .clone()
+                    .unwrap_or_else(|| agent.agent_id.clone()),
+            };
+
+            locks.locks.insert(issue_id.to_string(), lock);
+            locks.save(&self.cache_dir.join("locks.json"))?;
+
+            match self.commit_and_push_locks(&format!(
+                "{}: claim lock on #{}",
+                agent.agent_id, issue_id
+            )) {
+                Ok(()) => return Ok(true),
+                Err(e) => {
+                    let err_str = e.to_string();
+                    if err_str.contains("Push failed after") && attempt < 2 {
+                        // Push conflict — pull latest and re-check lock ownership
+                        let _ = self.git_in_cache(&["pull", "--rebase", "origin", HUB_BRANCH]);
+                        continue;
+                    }
+                    return Err(e);
+                }
             }
-            // force=true: steal the lock
         }
 
-        let lock = crate::locks::Lock {
-            agent_id: agent.agent_id.clone(),
-            branch: branch.map(|s| s.to_string()),
-            claimed_at: Utc::now(),
-            signed_by: agent
-                .ssh_fingerprint
-                .clone()
-                .unwrap_or_else(|| agent.agent_id.clone()),
-        };
-
-        locks.locks.insert(issue_id.to_string(), lock);
-        locks.save(&self.cache_dir.join("locks.json"))?;
-
-        self.commit_and_push_locks(&format!("{}: claim lock on #{}", agent.agent_id, issue_id))?;
-
-        Ok(true)
+        bail!(
+            "Failed to claim lock on #{} after 3 attempts due to concurrent updates",
+            issue_id
+        )
     }
 
     /// Release a lock on an issue.
