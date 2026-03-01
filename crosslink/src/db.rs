@@ -14,6 +14,12 @@ pub const VALID_PRIORITIES: &[&str] = &["low", "medium", "high", "critical"];
 #[allow(dead_code)]
 pub const VALID_STATUSES: &[&str] = &["open", "closed", "archived"];
 
+/// Maximum lengths for string inputs.
+pub const MAX_TITLE_LEN: usize = 512;
+pub const MAX_LABEL_LEN: usize = 128;
+pub const MAX_DESCRIPTION_LEN: usize = 64 * 1024; // 64KB
+pub const MAX_COMMENT_LEN: usize = 1024 * 1024; // 1MB
+
 /// Validate that a priority value is known, returning an error if not.
 pub fn validate_priority(priority: &str) -> Result<()> {
     if VALID_PRIORITIES.contains(&priority) {
@@ -344,6 +350,14 @@ impl Database {
         parent_id: Option<i64>,
     ) -> Result<i64> {
         validate_priority(priority)?;
+        if title.len() > MAX_TITLE_LEN {
+            anyhow::bail!("Title exceeds maximum length of {} characters", MAX_TITLE_LEN);
+        }
+        if let Some(d) = description {
+            if d.len() > MAX_DESCRIPTION_LEN {
+                anyhow::bail!("Description exceeds maximum length of {} bytes", MAX_DESCRIPTION_LEN);
+            }
+        }
         let now = Utc::now().to_rfc3339();
         let uuid = uuid::Uuid::new_v4().to_string();
         self.conn.execute(
@@ -462,6 +476,16 @@ impl Database {
         description: Option<&str>,
         priority: Option<&str>,
     ) -> Result<bool> {
+        if let Some(t) = title {
+            if t.len() > MAX_TITLE_LEN {
+                anyhow::bail!("Title exceeds maximum length of {} characters", MAX_TITLE_LEN);
+            }
+        }
+        if let Some(d) = description {
+            if d.len() > MAX_DESCRIPTION_LEN {
+                anyhow::bail!("Description exceeds maximum length of {} bytes", MAX_DESCRIPTION_LEN);
+            }
+        }
         let now = Utc::now().to_rfc3339();
         let mut updates = vec!["updated_at = ?1".to_string()];
         let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(now)];
@@ -522,6 +546,9 @@ impl Database {
 
     // Labels
     pub fn add_label(&self, issue_id: i64, label: &str) -> Result<bool> {
+        if label.len() > MAX_LABEL_LEN {
+            anyhow::bail!("Label exceeds maximum length of {} characters", MAX_LABEL_LEN);
+        }
         let result = self.conn.execute(
             "INSERT OR IGNORE INTO labels (issue_id, label) VALUES (?1, ?2)",
             params![issue_id, label],
@@ -549,6 +576,9 @@ impl Database {
 
     // Comments
     pub fn add_comment(&self, issue_id: i64, content: &str, kind: &str) -> Result<i64> {
+        if content.len() > MAX_COMMENT_LEN {
+            anyhow::bail!("Comment exceeds maximum length of {} bytes", MAX_COMMENT_LEN);
+        }
         let now = Utc::now().to_rfc3339();
         self.conn.execute(
             "INSERT INTO comments (issue_id, content, created_at, kind) VALUES (?1, ?2, ?3, ?4)",
@@ -2308,16 +2338,24 @@ mod tests {
     fn test_very_long_strings() {
         let (db, _dir) = setup_test_db();
 
-        let long_title = "a".repeat(10000);
-        let long_desc = "b".repeat(100000);
+        // Within limits: should succeed
+        let long_title = "a".repeat(MAX_TITLE_LEN);
+        let long_desc = "b".repeat(MAX_DESCRIPTION_LEN);
 
         let id = db
             .create_issue(&long_title, Some(&long_desc), "medium")
             .unwrap();
 
         let issue = db.get_issue(id).unwrap().unwrap();
-        assert_eq!(issue.title.len(), 10000);
-        assert_eq!(issue.description.unwrap().len(), 100000);
+        assert_eq!(issue.title.len(), MAX_TITLE_LEN);
+        assert_eq!(issue.description.unwrap().len(), MAX_DESCRIPTION_LEN);
+
+        // Exceeding limits: should fail
+        let too_long_title = "a".repeat(MAX_TITLE_LEN + 1);
+        assert!(db.create_issue(&too_long_title, None, "medium").is_err());
+
+        let too_long_desc = "b".repeat(MAX_DESCRIPTION_LEN + 1);
+        assert!(db.create_issue("ok", Some(&too_long_desc), "medium").is_err());
     }
 
     #[test]
