@@ -259,6 +259,16 @@ impl AllowedSigners {
         Ok(Self::parse(&content))
     }
 
+    /// Known SSH public key type prefixes.
+    const KNOWN_KEY_TYPES: &'static [&'static str] = &[
+        "ssh-ed25519",
+        "ssh-rsa",
+        "ssh-dss",
+        "ecdsa-sha2-",
+        "sk-ssh-ed25519",
+        "sk-ecdsa-sha2-",
+    ];
+
     /// Parse the allowed_signers content.
     fn parse(content: &str) -> Self {
         let entries = content
@@ -267,14 +277,45 @@ impl AllowedSigners {
             .filter_map(|line| {
                 // Format: <principal> <key-type> <base64> [comment]
                 let parts: Vec<&str> = line.splitn(2, ' ').collect();
-                if parts.len() >= 2 {
-                    Some(AllowedSignerEntry {
-                        principal: parts[0].to_string(),
-                        public_key: parts[1].to_string(),
-                    })
-                } else {
-                    None
+                if parts.len() < 2 {
+                    eprintln!(
+                        "warning: skipping malformed allowed_signers line (no space): {}",
+                        line
+                    );
+                    return None;
                 }
+
+                let principal = parts[0];
+                let public_key = parts[1];
+
+                // Validate principal: non-empty, no control characters
+                if principal.is_empty()
+                    || principal.chars().any(|c| c.is_control())
+                {
+                    eprintln!(
+                        "warning: skipping allowed_signers entry with invalid principal: {}",
+                        principal
+                    );
+                    return None;
+                }
+
+                // Validate public key starts with a known SSH key type
+                if !Self::KNOWN_KEY_TYPES
+                    .iter()
+                    .any(|prefix| public_key.starts_with(prefix))
+                {
+                    eprintln!(
+                        "warning: skipping allowed_signers entry with unrecognized key type for principal '{}': {}",
+                        principal,
+                        public_key.split_whitespace().next().unwrap_or("<empty>")
+                    );
+                    return None;
+                }
+
+                Some(AllowedSignerEntry {
+                    principal: principal.to_string(),
+                    public_key: public_key.to_string(),
+                })
             })
             .collect();
         Self { entries }
@@ -698,6 +739,27 @@ mod tests {
         let content = "# comment line\n\ndriver@example.com ssh-ed25519 AAAA key\n# another comment\nm1@crosslink ssh-ed25519 BBBB key2\n";
         let signers = AllowedSigners::parse(content);
         assert_eq!(signers.entries.len(), 2);
+    }
+
+    #[test]
+    fn test_allowed_signers_rejects_invalid_key_type() {
+        let content = "agent@crosslink not-an-ssh-key AAAA\n";
+        let signers = AllowedSigners::parse(content);
+        assert!(signers.entries.is_empty());
+    }
+
+    #[test]
+    fn test_allowed_signers_rejects_control_chars_in_principal() {
+        let content = "agent\x00bad@crosslink ssh-ed25519 AAAA\n";
+        let signers = AllowedSigners::parse(content);
+        assert!(signers.entries.is_empty());
+    }
+
+    #[test]
+    fn test_allowed_signers_accepts_valid_key_types() {
+        let content = "a@crosslink ssh-ed25519 AAAA\nb@crosslink ssh-rsa BBBB\nc@crosslink ecdsa-sha2-nistp256 CCCC\n";
+        let signers = AllowedSigners::parse(content);
+        assert_eq!(signers.entries.len(), 3);
     }
 
     #[test]
