@@ -58,6 +58,10 @@ impl AgentConfig {
     fn validate(&self) -> Result<()> {
         anyhow::ensure!(!self.agent_id.is_empty(), "agent_id cannot be empty");
         anyhow::ensure!(
+            self.agent_id.len() >= 3,
+            "agent_id must be at least 3 characters"
+        );
+        anyhow::ensure!(
             self.agent_id
                 .chars()
                 .all(|c| c.is_alphanumeric() || c == '-' || c == '_'),
@@ -156,14 +160,21 @@ mod tests {
     fn test_validate_too_long() {
         let config = AgentConfig {
             agent_id: "a".repeat(65),
-            ..test_config("x")
+            ..test_config("xxx")
         };
         assert!(config.validate().is_err());
     }
 
     #[test]
+    fn test_validate_too_short() {
+        assert!(test_config("a").validate().is_err());
+        assert!(test_config("ab").validate().is_err());
+        assert!(test_config("abc").validate().is_ok());
+    }
+
+    #[test]
     fn test_validate_valid_ids() {
-        for id in &["worker-1", "agent_2", "MyAgent", "a", "test-agent-42"] {
+        for id in &["worker-1", "agent_2", "MyAgent", "abc", "test-agent-42"] {
             assert!(test_config(id).validate().is_ok(), "Failed for id: {}", id);
         }
     }
@@ -221,7 +232,7 @@ mod tests {
 
     proptest! {
         #[test]
-        fn prop_valid_ids_roundtrip(id in "[a-zA-Z0-9_-]{1,64}") {
+        fn prop_valid_ids_roundtrip(id in "[a-zA-Z0-9_-]{3,64}") {
             let config = test_config(&id);
             prop_assert!(config.validate().is_ok());
             let json = serde_json::to_string(&config).unwrap();
