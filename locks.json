@@ -1,12 +1,6 @@
 {
   "version": 1,
   "locks": {
-    "37": {
-      "agent_id": "m1--fix-agent-init-signing-key-override",
-      "branch": null,
-      "claimed_at": "2026-03-01T02:19:49.404944872Z",
-      "signed_by": "SHA256:fckL6AnunIQTSMPFbG1x3KVvMcEZ6VXg3JV5SFIDabc"
-    },
     "33": {
       "agent_id": "m1",
       "branch": null,
