@@ -7,6 +7,25 @@ use crate::models::{Comment, Issue, Session};
 
 pub const SCHEMA_VERSION: i32 = 12;
 
+/// Valid values for issue priority.
+pub const VALID_PRIORITIES: &[&str] = &["low", "medium", "high", "critical"];
+
+/// Valid values for issue status.
+pub const VALID_STATUSES: &[&str] = &["open", "closed", "archived"];
+
+/// Validate that a priority value is known, returning an error if not.
+pub fn validate_priority(priority: &str) -> Result<()> {
+    if VALID_PRIORITIES.contains(&priority) {
+        Ok(())
+    } else {
+        anyhow::bail!(
+            "Invalid priority '{}'. Valid values: {}",
+            priority,
+            VALID_PRIORITIES.join(", ")
+        )
+    }
+}
+
 /// Row from `get_comments_with_author`: (id, author, content, created_at, kind, trigger_type, intervention_context).
 pub type CommentAuthorRow = (
     i64,
@@ -321,6 +340,7 @@ impl Database {
         priority: &str,
         parent_id: Option<i64>,
     ) -> Result<i64> {
+        validate_priority(priority)?;
         let now = Utc::now().to_rfc3339();
         self.conn.execute(
             "INSERT INTO issues (title, description, priority, parent_id, status, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, 'open', ?5, ?5)",
@@ -453,6 +473,7 @@ impl Database {
         }
 
         if let Some(p) = priority {
+            validate_priority(p)?;
             updates.push(format!("priority = ?{}", params_vec.len() + 1));
             params_vec.push(Box::new(p.to_string()));
         }
