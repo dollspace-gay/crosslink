@@ -2576,8 +2576,8 @@ mod proptest_tests {
 
     // Generate arbitrary (but safe) strings for titles
     fn safe_string() -> impl Strategy<Value = String> {
-        // Avoid null bytes and extremely long strings
-        "[a-zA-Z0-9 _\\-\\.!?]{0,1000}".prop_map(|s| s)
+        // Avoid null bytes; limit to MAX_TITLE_LEN so strings are valid as titles
+        "[a-zA-Z0-9 _\\-\\.!?]{0,512}".prop_map(|s| s)
     }
 
     proptest! {
