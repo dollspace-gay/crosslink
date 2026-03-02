@@ -2,11 +2,12 @@
   "uuid": "7c4315e4-e6fa-470e-9b22-e570bc1874d7",
   "display_id": 24,
   "title": "Resolve merge conflict on feature/add-house-style-syncing",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "m1",
   "created_at": "2026-02-28T20:54:57.354385Z",
-  "updated_at": "2026-03-02T08:53:27.197129Z",
+  "updated_at": "2026-03-02T08:53:29.025460Z",
+  "closed_at": "2026-03-02T08:53:29.025460Z",
   "labels": [
     "bug"
   ],
