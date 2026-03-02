@@ -15,11 +15,9 @@ categories = ["command-line-utilities", "development-tools"]
 include = [
     "src/**/*",
     "resources/**/*",
+    "!**/__pycache__/**",
     "build.rs",
     "LICENSE",
-]
-exclude = [     
-    "**/__pycache__/**",
 ]
 
 [lib]
