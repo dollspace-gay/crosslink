@@ -6,7 +6,7 @@
   "priority": "medium",
   "created_by": "m1",
   "created_at": "2026-02-28T05:44:35.015215Z",
-  "updated_at": "2026-02-28T05:47:27.727817Z",
+  "updated_at": "2026-03-02T08:53:42.335004Z",
   "labels": [
     "enhancement"
   ],
@@ -28,6 +28,15 @@
       "kind": "result",
       "signed_by": "SHA256:XiViiZnT3F7VGw0HIStbHBxjTSKDLEnFZRAkKjBKRlc",
       "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgZ3TqCWtjI0LMWl6FoUDqwzTxBw6AtE9Fn4x8b9CqOGkAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAWsTXp6fUtX1c2P7x0WZHeAhqj5qbtSWBPTFBWallNYAaot+vvC7QyfGUAKVXbB8JXZc5UnFMye+JsH8S1IsPDw=="
+    },
+    {
+      "id": 117,
+      "author": "maxine-at-forecast--noether",
+      "content": "Completed: PR #90 merged — KnowledgeManager agent work done",
+      "created_at": "2026-03-02T08:53:42.335004Z",
+      "kind": "note",
+      "signed_by": "SHA256:k0PWejDto36xlyTpXwVGHDbRl7ZIvkCkaAU0ioOEhRU",
+      "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgubz4yfS1wSDvxmlSGQNKwSPYUq0ktzwpVKHmFR9N0y4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAOirDcqgCKvcrp0EGiuFJcO+EHgugE0CGgwMLumr7XnOAAbRK3HFZezFEHfN/51DxSw5kw4mSHtRepuoOr/EmDw=="
     }
   ]
 }
