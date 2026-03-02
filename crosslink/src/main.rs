@@ -406,6 +406,13 @@ enum Commands {
     /// Rename coordination branch from crosslink/locks to crosslink/hub
     MigrateRenameBranch,
 
+    /// Migrate hub layout from v1 (flat files) to v2 (per-entity directories)
+    MigrateHub {
+        /// Show what would be migrated without making changes
+        #[arg(long)]
+        dry_run: bool,
+    },
+
     /// View and modify repo-level configuration
     Config {
         #[command(subcommand)]
@@ -1382,6 +1389,11 @@ fn main() -> Result<()> {
         Commands::MigrateRenameBranch => {
             let crosslink_dir = find_crosslink_dir()?;
             commands::migrate::rename_branch(&crosslink_dir)
+        }
+        Commands::MigrateHub { dry_run } => {
+            let crosslink_dir = find_crosslink_dir()?;
+            let db = get_db()?;
+            commands::migrate::hub_layout(&crosslink_dir, &db, dry_run)
         }
         Commands::Integrity { action } => {
             let crosslink_dir = find_crosslink_dir()?;

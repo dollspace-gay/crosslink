@@ -302,6 +302,246 @@ fn git_in_dir(dir: &Path, args: &[&str]) -> Result<std::process::Output> {
     Ok(output)
 }
 
+/// Statistics from a hub layout migration.
+#[derive(Debug, Default)]
+pub struct MigrationStats {
+    pub issues_migrated: usize,
+    pub comments_migrated: usize,
+    pub locks_migrated: usize,
+    pub heartbeats_migrated: usize,
+}
+
+/// Core migration logic that operates on a cache directory.
+/// Separated from `hub_layout()` to allow unit testing without git.
+fn migrate_v1_to_v2(cache_dir: &Path, dry_run: bool) -> Result<MigrationStats> {
+    let issues_dir = cache_dir.join("issues");
+    let meta_dir = cache_dir.join("meta");
+    let locks_dir = cache_dir.join("locks");
+    let agents_dir = cache_dir.join("agents");
+    let heartbeats_dir = cache_dir.join("heartbeats");
+
+    // Check layout version — if already v2, nothing to do.
+    let version = crate::issue_file::read_layout_version(&meta_dir)?;
+    if version >= crate::issue_file::CURRENT_LAYOUT_VERSION {
+        println!("Hub layout is already v{version}. No migration needed.");
+        return Ok(MigrationStats::default());
+    }
+
+    // Read all v1 flat issue files
+    let v1_issues = crate::issue_file::read_all_issue_files(&issues_dir)?;
+    if v1_issues.is_empty() && !heartbeats_dir.exists() {
+        println!("No v1 data found to migrate.");
+        if !dry_run {
+            crate::issue_file::write_layout_version(
+                &meta_dir,
+                crate::issue_file::CURRENT_LAYOUT_VERSION,
+            )?;
+        }
+        return Ok(MigrationStats::default());
+    }
+
+    let mut stats = MigrationStats::default();
+
+    // Collect paths of successfully migrated flat files for later removal.
+    let mut migrated_flat_files: Vec<std::path::PathBuf> = Vec::new();
+
+    // Migrate each issue: flat file -> directory with issue.json + comments/
+    for issue in &v1_issues {
+        let issue_dir = issues_dir.join(issue.uuid.to_string());
+        let comments_dir = issue_dir.join("comments");
+
+        if dry_run {
+            println!("[dry-run] Would create directory: {}", issue_dir.display());
+            println!("[dry-run] Would write: {}/issue.json", issue_dir.display());
+            for comment in &issue.comments {
+                let comment_uuid = Uuid::new_v4();
+                println!(
+                    "[dry-run] Would write comment: {}/{}.json (id={})",
+                    comments_dir.display(),
+                    comment_uuid,
+                    comment.id
+                );
+            }
+            stats.issues_migrated += 1;
+            stats.comments_migrated += issue.comments.len();
+            continue;
+        }
+
+        std::fs::create_dir_all(&comments_dir)
+            .with_context(|| format!("Failed to create dir: {}", comments_dir.display()))?;
+
+        // Write individual comment files
+        for comment in &issue.comments {
+            let comment_uuid = Uuid::new_v4();
+            let comment_file = crate::issue_file::CommentFile {
+                uuid: comment_uuid,
+                issue_uuid: issue.uuid,
+                author: comment.author.clone(),
+                content: comment.content.clone(),
+                created_at: comment.created_at,
+                kind: comment.kind.clone(),
+                trigger_type: comment.trigger_type.clone(),
+                intervention_context: comment.intervention_context.clone(),
+                driver_key_fingerprint: comment.driver_key_fingerprint.clone(),
+                signed_by: comment.signed_by.clone(),
+                signature: comment.signature.clone(),
+            };
+            let comment_path = comments_dir.join(format!("{}.json", comment_uuid));
+            crate::issue_file::write_comment_file(&comment_path, &comment_file)?;
+            stats.comments_migrated += 1;
+        }
+
+        // Write the issue file without comments (they are now separate)
+        let issue_v2 = IssueFile {
+            uuid: issue.uuid,
+            display_id: issue.display_id,
+            title: issue.title.clone(),
+            description: issue.description.clone(),
+            status: issue.status.clone(),
+            priority: issue.priority.clone(),
+            parent_uuid: issue.parent_uuid,
+            created_by: issue.created_by.clone(),
+            created_at: issue.created_at,
+            updated_at: issue.updated_at,
+            closed_at: issue.closed_at,
+            labels: issue.labels.clone(),
+            comments: vec![],
+            blockers: issue.blockers.clone(),
+            related: issue.related.clone(),
+            milestone_uuid: issue.milestone_uuid,
+            time_entries: issue.time_entries.clone(),
+        };
+        write_issue_file(&issue_dir.join("issue.json"), &issue_v2)?;
+
+        // Track the old flat file for removal
+        let flat_file = issues_dir.join(format!("{}.json", issue.uuid));
+        if flat_file.exists() {
+            migrated_flat_files.push(flat_file);
+        }
+
+        stats.issues_migrated += 1;
+    }
+
+    // Split locks.json into per-lock files
+    let locks_json_path = cache_dir.join("locks.json");
+    if locks_json_path.exists() {
+        let locks_file = crate::locks::LocksFile::load(&locks_json_path)?;
+        if !locks_file.locks.is_empty() {
+            if dry_run {
+                for (display_id, lock) in &locks_file.locks {
+                    println!(
+                        "[dry-run] Would write lock: {}/{}.json (agent={})",
+                        locks_dir.display(),
+                        display_id,
+                        lock.agent_id
+                    );
+                }
+                stats.locks_migrated += locks_file.locks.len();
+            } else {
+                std::fs::create_dir_all(&locks_dir)
+                    .with_context(|| format!("Failed to create dir: {}", locks_dir.display()))?;
+                for (display_id, lock) in &locks_file.locks {
+                    let issue_id: i64 = display_id.parse().with_context(|| {
+                        format!("Invalid issue ID in locks.json: {}", display_id)
+                    })?;
+                    let lock_v2 = crate::issue_file::LockFileV2 {
+                        issue_id,
+                        agent_id: lock.agent_id.clone(),
+                        branch: lock.branch.clone(),
+                        claimed_at: lock.claimed_at,
+                        signed_by: Some(lock.signed_by.clone()),
+                    };
+                    let lock_path = locks_dir.join(format!("{}.json", display_id));
+                    let content = serde_json::to_string_pretty(&lock_v2)?;
+                    crate::utils::atomic_write(&lock_path, content.as_bytes())?;
+                    stats.locks_migrated += 1;
+                }
+            }
+        }
+    }
+
+    // Move heartbeat files to agents/{id}/heartbeat.json
+    if heartbeats_dir.exists() {
+        for entry in std::fs::read_dir(&heartbeats_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("json") {
+                let stem = path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("unknown");
+                let agent_dir = agents_dir.join(stem);
+                let dest = agent_dir.join("heartbeat.json");
+
+                if dry_run {
+                    println!(
+                        "[dry-run] Would move heartbeat: {} -> {}",
+                        path.display(),
+                        dest.display()
+                    );
+                } else {
+                    std::fs::create_dir_all(&agent_dir).with_context(|| {
+                        format!("Failed to create dir: {}", agent_dir.display())
+                    })?;
+                    let content = std::fs::read_to_string(&path)
+                        .with_context(|| format!("Failed to read heartbeat: {}", path.display()))?;
+                    std::fs::write(&dest, &content).with_context(|| {
+                        format!("Failed to write heartbeat: {}", dest.display())
+                    })?;
+                }
+                stats.heartbeats_migrated += 1;
+            }
+        }
+    }
+
+    if dry_run {
+        println!(
+            "[dry-run] Would migrate: {} issue(s), {} comment(s), {} lock(s), {} heartbeat(s)",
+            stats.issues_migrated,
+            stats.comments_migrated,
+            stats.locks_migrated,
+            stats.heartbeats_migrated
+        );
+        println!("[dry-run] Would write meta/version.json with layout_version=2");
+        return Ok(stats);
+    }
+
+    // Remove old flat issue files (only the ones successfully migrated)
+    for flat_file in &migrated_flat_files {
+        std::fs::remove_file(flat_file)
+            .with_context(|| format!("Failed to remove old file: {}", flat_file.display()))?;
+    }
+
+    // Write layout version marker
+    crate::issue_file::write_layout_version(&meta_dir, crate::issue_file::CURRENT_LAYOUT_VERSION)?;
+
+    println!(
+        "Migrated hub layout to v{}: {} issue(s), {} comment(s), {} lock(s), {} heartbeat(s)",
+        crate::issue_file::CURRENT_LAYOUT_VERSION,
+        stats.issues_migrated,
+        stats.comments_migrated,
+        stats.locks_migrated,
+        stats.heartbeats_migrated
+    );
+
+    Ok(stats)
+}
+
+/// `crosslink migrate-hub` -- migrate hub layout from v1 (flat files) to v2 (per-entity dirs).
+///
+/// Initializes sync, fetches latest, runs the file transformation, and prints results.
+/// Does NOT commit or push -- the caller (or user) handles git operations.
+pub fn hub_layout(crosslink_dir: &Path, _db: &Database, dry_run: bool) -> Result<()> {
+    let sync = SyncManager::new(crosslink_dir)?;
+    sync.init_cache()?;
+    sync.fetch()?;
+
+    let cache_dir = sync.cache_path().to_path_buf();
+    migrate_v1_to_v2(&cache_dir, dry_run)?;
+
+    Ok(())
+}
+
 use anyhow::Context;
 
 #[cfg(test)]
@@ -594,5 +834,307 @@ mod tests {
             .and_then(|pid| id_to_uuid.get(&pid).copied());
         assert!(parent_uuid.is_some());
         assert_eq!(parent_uuid.unwrap(), id_to_uuid[&parent]);
+    }
+
+    // ==================== Hub Layout Migration Tests ====================
+
+    /// Helper: create a v1 flat-file layout in a temp directory.
+    fn create_v1_layout(cache_dir: &std::path::Path) -> (Uuid, Uuid) {
+        let issues_dir = cache_dir.join("issues");
+        std::fs::create_dir_all(&issues_dir).unwrap();
+
+        let now = Utc::now();
+        let uuid1 = Uuid::new_v4();
+        let uuid2 = Uuid::new_v4();
+
+        let issue1 = IssueFile {
+            uuid: uuid1,
+            display_id: Some(1),
+            title: "First issue".to_string(),
+            description: Some("Description of first".to_string()),
+            status: "open".to_string(),
+            priority: "high".to_string(),
+            parent_uuid: None,
+            created_by: "agent-1".to_string(),
+            created_at: now,
+            updated_at: now,
+            closed_at: None,
+            labels: vec!["bug".to_string()],
+            comments: vec![],
+            blockers: vec![],
+            related: vec![],
+            milestone_uuid: None,
+            time_entries: vec![],
+        };
+        write_issue_file(&issues_dir.join(format!("{}.json", uuid1)), &issue1).unwrap();
+
+        let issue2 = IssueFile {
+            uuid: uuid2,
+            display_id: Some(2),
+            title: "Second issue".to_string(),
+            description: None,
+            status: "closed".to_string(),
+            priority: "low".to_string(),
+            parent_uuid: None,
+            created_by: "agent-2".to_string(),
+            created_at: now,
+            updated_at: now,
+            closed_at: Some(now),
+            labels: vec![],
+            comments: vec![],
+            blockers: vec![],
+            related: vec![],
+            milestone_uuid: None,
+            time_entries: vec![],
+        };
+        write_issue_file(&issues_dir.join(format!("{}.json", uuid2)), &issue2).unwrap();
+
+        (uuid1, uuid2)
+    }
+
+    #[test]
+    fn test_hub_layout_migration_basic() {
+        let dir = tempdir().unwrap();
+        let cache_dir = dir.path();
+
+        let (uuid1, uuid2) = create_v1_layout(cache_dir);
+
+        // Run migration
+        let stats = migrate_v1_to_v2(cache_dir, false).unwrap();
+        assert_eq!(stats.issues_migrated, 2);
+        assert_eq!(stats.comments_migrated, 0);
+
+        // Verify v2 structure exists
+        let issue1_dir = cache_dir.join("issues").join(uuid1.to_string());
+        let issue2_dir = cache_dir.join("issues").join(uuid2.to_string());
+        assert!(issue1_dir.join("issue.json").exists());
+        assert!(issue1_dir.join("comments").is_dir());
+        assert!(issue2_dir.join("issue.json").exists());
+        assert!(issue2_dir.join("comments").is_dir());
+
+        // Verify the issue data was preserved
+        let loaded: IssueFile =
+            serde_json::from_str(&std::fs::read_to_string(issue1_dir.join("issue.json")).unwrap())
+                .unwrap();
+        assert_eq!(loaded.title, "First issue");
+        assert_eq!(loaded.uuid, uuid1);
+        assert!(loaded.comments.is_empty()); // comments split out
+
+        // Verify old flat files are removed
+        assert!(!cache_dir
+            .join("issues")
+            .join(format!("{}.json", uuid1))
+            .exists());
+        assert!(!cache_dir
+            .join("issues")
+            .join(format!("{}.json", uuid2))
+            .exists());
+
+        // Verify version marker
+        let version = crate::issue_file::read_layout_version(&cache_dir.join("meta")).unwrap();
+        assert_eq!(version, 2);
+    }
+
+    #[test]
+    fn test_hub_layout_migration_dry_run() {
+        let dir = tempdir().unwrap();
+        let cache_dir = dir.path();
+
+        let (uuid1, _uuid2) = create_v1_layout(cache_dir);
+
+        // Run dry-run migration
+        let stats = migrate_v1_to_v2(cache_dir, true).unwrap();
+        assert_eq!(stats.issues_migrated, 2);
+
+        // Verify nothing was actually written
+        let issue1_dir = cache_dir.join("issues").join(uuid1.to_string());
+        assert!(!issue1_dir.exists());
+
+        // Old flat files should still exist
+        assert!(cache_dir
+            .join("issues")
+            .join(format!("{}.json", uuid1))
+            .exists());
+
+        // No version marker should have been written
+        assert!(!cache_dir.join("meta").join("version.json").exists());
+    }
+
+    #[test]
+    fn test_hub_layout_migration_idempotent() {
+        let dir = tempdir().unwrap();
+        let cache_dir = dir.path();
+
+        create_v1_layout(cache_dir);
+
+        // First migration
+        let stats1 = migrate_v1_to_v2(cache_dir, false).unwrap();
+        assert_eq!(stats1.issues_migrated, 2);
+
+        // Second migration should detect v2 and return early
+        let stats2 = migrate_v1_to_v2(cache_dir, false).unwrap();
+        assert_eq!(stats2.issues_migrated, 0);
+        assert_eq!(stats2.comments_migrated, 0);
+    }
+
+    #[test]
+    fn test_hub_layout_migration_with_comments() {
+        let dir = tempdir().unwrap();
+        let cache_dir = dir.path();
+        let issues_dir = cache_dir.join("issues");
+        std::fs::create_dir_all(&issues_dir).unwrap();
+
+        let now = Utc::now();
+        let uuid = Uuid::new_v4();
+
+        let issue = IssueFile {
+            uuid,
+            display_id: Some(1),
+            title: "Issue with comments".to_string(),
+            description: None,
+            status: "open".to_string(),
+            priority: "medium".to_string(),
+            parent_uuid: None,
+            created_by: "agent-1".to_string(),
+            created_at: now,
+            updated_at: now,
+            closed_at: None,
+            labels: vec![],
+            comments: vec![
+                CommentEntry {
+                    id: 1,
+                    author: "agent-1".to_string(),
+                    content: "First comment".to_string(),
+                    created_at: now,
+                    kind: "note".to_string(),
+                    trigger_type: None,
+                    intervention_context: None,
+                    driver_key_fingerprint: None,
+                    signed_by: None,
+                    signature: None,
+                },
+                CommentEntry {
+                    id: 2,
+                    author: "agent-2".to_string(),
+                    content: "Second comment".to_string(),
+                    created_at: now,
+                    kind: "decision".to_string(),
+                    trigger_type: Some("redirect".to_string()),
+                    intervention_context: Some("context".to_string()),
+                    driver_key_fingerprint: Some("SHA256:abc".to_string()),
+                    signed_by: Some("SHA256:def".to_string()),
+                    signature: Some("base64sig".to_string()),
+                },
+            ],
+            blockers: vec![],
+            related: vec![],
+            milestone_uuid: None,
+            time_entries: vec![],
+        };
+        write_issue_file(&issues_dir.join(format!("{}.json", uuid)), &issue).unwrap();
+
+        // Run migration
+        let stats = migrate_v1_to_v2(cache_dir, false).unwrap();
+        assert_eq!(stats.issues_migrated, 1);
+        assert_eq!(stats.comments_migrated, 2);
+
+        // Verify comments directory has 2 files
+        let comments_dir = issues_dir.join(uuid.to_string()).join("comments");
+        assert!(comments_dir.is_dir());
+        let comment_files: Vec<_> = std::fs::read_dir(&comments_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("json"))
+            .collect();
+        assert_eq!(comment_files.len(), 2);
+
+        // Verify comment data is preserved (read all and check)
+        let loaded_comments = crate::issue_file::read_comment_files(&comments_dir).unwrap();
+        assert_eq!(loaded_comments.len(), 2);
+        let contents: Vec<String> = loaded_comments.iter().map(|c| c.content.clone()).collect();
+        assert!(contents.contains(&"First comment".to_string()));
+        assert!(contents.contains(&"Second comment".to_string()));
+
+        // Verify the second comment preserved its optional fields
+        let comment2 = loaded_comments
+            .iter()
+            .find(|c| c.content == "Second comment")
+            .unwrap();
+        assert_eq!(comment2.kind, "decision");
+        assert_eq!(comment2.trigger_type.as_deref(), Some("redirect"));
+        assert_eq!(comment2.intervention_context.as_deref(), Some("context"));
+        assert_eq!(
+            comment2.driver_key_fingerprint.as_deref(),
+            Some("SHA256:abc")
+        );
+        assert_eq!(comment2.signed_by.as_deref(), Some("SHA256:def"));
+        assert_eq!(comment2.signature.as_deref(), Some("base64sig"));
+
+        // Verify issue file has empty comments
+        let loaded_issue: IssueFile = serde_json::from_str(
+            &std::fs::read_to_string(issues_dir.join(uuid.to_string()).join("issue.json")).unwrap(),
+        )
+        .unwrap();
+        assert!(loaded_issue.comments.is_empty());
+    }
+
+    #[test]
+    fn test_hub_layout_migration_with_locks() {
+        let dir = tempdir().unwrap();
+        let cache_dir = dir.path();
+
+        // Create a v1 layout with at least one issue
+        create_v1_layout(cache_dir);
+
+        // Create a locks.json
+        let now = Utc::now();
+        let mut locks = HashMap::new();
+        locks.insert(
+            "1".to_string(),
+            crate::locks::Lock {
+                agent_id: "worker-1".to_string(),
+                branch: Some("feature/auth".to_string()),
+                claimed_at: now,
+                signed_by: "SHA256:abc".to_string(),
+            },
+        );
+        locks.insert(
+            "2".to_string(),
+            crate::locks::Lock {
+                agent_id: "worker-2".to_string(),
+                branch: None,
+                claimed_at: now,
+                signed_by: "SHA256:def".to_string(),
+            },
+        );
+        let locks_file = crate::locks::LocksFile {
+            version: 1,
+            locks,
+            settings: crate::locks::LockSettings::default(),
+        };
+        locks_file.save(&cache_dir.join("locks.json")).unwrap();
+
+        // Run migration
+        let stats = migrate_v1_to_v2(cache_dir, false).unwrap();
+        assert_eq!(stats.locks_migrated, 2);
+
+        // Verify per-lock files exist
+        let locks_dir = cache_dir.join("locks");
+        assert!(locks_dir.join("1.json").exists());
+        assert!(locks_dir.join("2.json").exists());
+
+        // Verify lock data
+        let lock1_content = std::fs::read_to_string(locks_dir.join("1.json")).unwrap();
+        let lock1: crate::issue_file::LockFileV2 = serde_json::from_str(&lock1_content).unwrap();
+        assert_eq!(lock1.issue_id, 1);
+        assert_eq!(lock1.agent_id, "worker-1");
+        assert_eq!(lock1.branch.as_deref(), Some("feature/auth"));
+        assert_eq!(lock1.signed_by.as_deref(), Some("SHA256:abc"));
+
+        let lock2_content = std::fs::read_to_string(locks_dir.join("2.json")).unwrap();
+        let lock2: crate::issue_file::LockFileV2 = serde_json::from_str(&lock2_content).unwrap();
+        assert_eq!(lock2.issue_id, 2);
+        assert_eq!(lock2.agent_id, "worker-2");
+        assert!(lock2.branch.is_none());
     }
 }

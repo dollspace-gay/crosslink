@@ -783,6 +783,14 @@ impl SyncManager {
 
 // parse_gpg_fingerprint has been moved to signing.rs
 
+/// Check the hub layout version from the cache directory.
+/// Returns the layout version (1 if no version file exists).
+#[allow(dead_code)]
+pub fn check_hub_version(cache_dir: &Path) -> Result<u32> {
+    let meta_dir = cache_dir.join("meta");
+    crate::issue_file::read_layout_version(&meta_dir)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
