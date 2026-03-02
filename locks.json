@@ -7,12 +7,6 @@
       "claimed_at": "2026-03-02T03:32:12.646208Z",
       "signed_by": "maxine-at-forecast--noether--untrack-init-files"
     },
-    "58": {
-      "agent_id": "maxine-at-forecast--noether--untrack-init-files",
-      "branch": null,
-      "claimed_at": "2026-03-02T03:16:35.008264Z",
-      "signed_by": "maxine-at-forecast--noether--untrack-init-files"
-    },
     "59": {
       "agent_id": "maxine-at-forecast--noether--tmux-perms",
       "branch": null,
@@ -25,11 +19,11 @@
       "claimed_at": "2026-03-02T03:40:13.295604Z",
       "signed_by": "maxine-at-forecast--noether--tmux-perms"
     },
-    "64": {
-      "agent_id": "maxine-at-forecast--noether",
+    "58": {
+      "agent_id": "maxine-at-forecast--noether--untrack-init-files",
       "branch": null,
-      "claimed_at": "2026-03-02T04:12:46.791496Z",
-      "signed_by": "SHA256:k0PWejDto36xlyTpXwVGHDbRl7ZIvkCkaAU0ioOEhRU"
+      "claimed_at": "2026-03-02T03:16:35.008264Z",
+      "signed_by": "maxine-at-forecast--noether--untrack-init-files"
     },
     "56": {
       "agent_id": "maxine-at-forecast--noether",
