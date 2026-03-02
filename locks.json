@@ -1,12 +1,6 @@
 {
   "version": 1,
   "locks": {
-    "86": {
-      "agent_id": "maxine-at-forecast--noether--tui-dashboard",
-      "branch": null,
-      "claimed_at": "2026-03-02T09:07:45.219573Z",
-      "signed_by": "SHA256:tPoWJXhTXDtZe8O3w+zx+GJWc+jzz9f70Oukj4bjr9Q"
-    },
     "80": {
       "agent_id": "maxine-at-forecast--noether--knowledge-norms",
       "branch": null,
