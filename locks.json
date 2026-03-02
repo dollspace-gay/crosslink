@@ -7,12 +7,6 @@
       "claimed_at": "2026-03-02T02:01:48.045471Z",
       "signed_by": "SHA256:k0PWejDto36xlyTpXwVGHDbRl7ZIvkCkaAU0ioOEhRU"
     },
-    "49": {
-      "agent_id": "maxine-at-forecast--noether--fix-sessions-migration",
-      "branch": null,
-      "claimed_at": "2026-03-02T02:22:39.226215Z",
-      "signed_by": "maxine-at-forecast--noether--fix-sessions-migration"
-    },
     "52": {
       "agent_id": "maxine-at-forecast--noether--init-blocked-lint",
       "branch": null,
