@@ -1,13 +1,6 @@
 {
   "version": 1,
-  "locks": {
-    "97": {
-      "agent_id": "maxine-at-forecast--noether--ci-cd-restructure",
-      "branch": null,
-      "claimed_at": "2026-03-02T10:50:35.986380Z",
-      "signed_by": "SHA256:z1rKWos5xjaOXUIKcIeuUVauxX9ZJJ4ddqVcp771KZk"
-    }
-  },
+  "locks": {},
   "settings": {
     "stale_lock_timeout_minutes": 60
   }
