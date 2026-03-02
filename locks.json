@@ -6,6 +6,12 @@
       "branch": null,
       "claimed_at": "2026-03-02T08:44:57.019323Z",
       "signed_by": "SHA256:J+t2Pf8suZQxT6bNzTgUHpCZJaWd2d4pO9JrZkScdGg"
+    },
+    "79": {
+      "agent_id": "maxine-at-forecast--noether--ratatui-tui",
+      "branch": null,
+      "claimed_at": "2026-03-02T08:45:36.071973Z",
+      "signed_by": "SHA256:J+t2Pf8suZQxT6bNzTgUHpCZJaWd2d4pO9JrZkScdGg"
     }
   },
   "settings": {
