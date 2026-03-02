@@ -6,9 +6,18 @@
   "priority": "low",
   "created_by": "maxine-at-forecast--noether--tui-dashboard",
   "created_at": "2026-03-02T17:41:59.261068Z",
-  "updated_at": "2026-03-02T17:43:16.926118Z",
+  "updated_at": "2026-03-02T17:43:20.451320Z",
   "closed_at": "2026-03-02T17:43:16.926118Z",
   "labels": [
     "ops"
+  ],
+  "comments": [
+    {
+      "id": 186,
+      "author": "maxine-at-forecast--noether--tui-dashboard",
+      "content": "[result] Migrated 3 TUI issues from crosslink/.crosslink/ subdir DB to main .crosslink/ DB: #103 (Phase 1), #104 (Phase 2 detail+tree), #105 (Phase 5 polish). All comments preserved.",
+      "created_at": "2026-03-02T17:43:20.451320Z",
+      "kind": "note"
+    }
   ]
 }
