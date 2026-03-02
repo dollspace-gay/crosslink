@@ -1,12 +1,6 @@
 {
   "version": 1,
   "locks": {
-    "74": {
-      "agent_id": "maxine-at-forecast--noether",
-      "branch": null,
-      "claimed_at": "2026-03-02T08:14:05.633220Z",
-      "signed_by": "SHA256:k0PWejDto36xlyTpXwVGHDbRl7ZIvkCkaAU0ioOEhRU"
-    },
     "1": {
       "agent_id": "noether--add-container-agent",
       "branch": null,
