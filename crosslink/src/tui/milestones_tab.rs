@@ -373,10 +373,7 @@ impl MilestonesTab {
             Span::styled(" Progress: ", Style::default().fg(Color::DarkGray)),
             Span::styled(bar, Style::default().fg(Color::Cyan)),
             Span::styled(
-                format!(
-                    "  {}/{} ({pct}%)",
-                    detail.closed_count, detail.total_count
-                ),
+                format!("  {}/{} ({pct}%)", detail.closed_count, detail.total_count),
                 Style::default().fg(Color::White),
             ),
         ]));
@@ -567,7 +564,11 @@ impl MilestonesTab {
                 }
             }
             let ok = super::copy_to_clipboard(&text);
-            let msg = if ok { "Copied to clipboard" } else { "Clipboard copy failed" };
+            let msg = if ok {
+                "Copied to clipboard"
+            } else {
+                "Clipboard copy failed"
+            };
             return TabAction::Flash(msg.to_string());
         }
         TabAction::Consumed
@@ -677,10 +678,18 @@ mod tests {
         let (tab, _dir) = setup_tab();
         // Milestones ordered by ID DESC, so index 0 = Multi-Agent GA (#3),
         // index 2 = v1.0 Release (#1)
-        let m_v1 = tab.milestones.iter().find(|m| m.name == "v1.0 Release").unwrap();
+        let m_v1 = tab
+            .milestones
+            .iter()
+            .find(|m| m.name == "v1.0 Release")
+            .unwrap();
         assert_eq!(m_v1.total_count, 3);
         assert_eq!(m_v1.closed_count, 1);
-        let m_k = tab.milestones.iter().find(|m| m.name == "Knowledge MVP").unwrap();
+        let m_k = tab
+            .milestones
+            .iter()
+            .find(|m| m.name == "Knowledge MVP")
+            .unwrap();
         assert_eq!(m_k.total_count, 1);
         assert_eq!(m_k.closed_count, 0);
     }

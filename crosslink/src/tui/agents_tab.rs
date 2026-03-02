@@ -115,9 +115,8 @@ impl AgentsTab {
         };
 
         if !sync.is_initialized() {
-            self.error_msg = Some(
-                "Hub cache not initialized. Run 'crosslink sync' first.".to_string(),
-            );
+            self.error_msg =
+                Some("Hub cache not initialized. Run 'crosslink sync' first.".to_string());
             return;
         }
 
@@ -164,8 +163,12 @@ impl AgentsTab {
             self.trust_selected = self.trust_entries.len() - 1;
         }
 
-        self.status_msg = format!("{} agents, {} locks, {} trusted signers",
-            self.agents.len(), self.lock_rows.len(), self.trust_entries.len());
+        self.status_msg = format!(
+            "{} agents, {} locks, {} trusted signers",
+            self.agents.len(),
+            self.lock_rows.len(),
+            self.trust_entries.len()
+        );
     }
 
     fn build_agent_rows(
@@ -231,13 +234,8 @@ impl AgentsTab {
         self.agents = rows;
     }
 
-    fn build_lock_rows(
-        &mut self,
-        locks: &LocksFile,
-        stale: &[(i64, String)],
-    ) {
-        let stale_set: std::collections::HashSet<i64> =
-            stale.iter().map(|(id, _)| *id).collect();
+    fn build_lock_rows(&mut self, locks: &LocksFile, stale: &[(i64, String)]) {
+        let stale_set: std::collections::HashSet<i64> = stale.iter().map(|(id, _)| *id).collect();
 
         let mut rows: Vec<LockRow> = locks
             .locks
@@ -274,7 +272,9 @@ impl AgentsTab {
         let heartbeat = heartbeats.into_iter().find(|h| h.agent_id == agent_id);
 
         // Find locks held by this agent
-        let locks = sync.read_locks_auto().unwrap_or_else(|_| LocksFile::empty());
+        let locks = sync
+            .read_locks_auto()
+            .unwrap_or_else(|_| LocksFile::empty());
         let agent_locks: Vec<(i64, Lock)> = locks
             .locks
             .into_iter()
@@ -503,16 +503,9 @@ impl AgentsTab {
                         .map(|id| format!("● #{id}"))
                         .unwrap_or_else(|| "—".to_string());
 
-                    let branch = truncate_str(
-                        agent.branch.as_deref().unwrap_or("—"),
-                        22,
-                    );
+                    let branch = truncate_str(agent.branch.as_deref().unwrap_or("—"), 22);
 
-                    let heartbeat = agent
-                        .heartbeat_ago
-                        .as_deref()
-                        .unwrap_or("—")
-                        .to_string();
+                    let heartbeat = agent.heartbeat_ago.as_deref().unwrap_or("—").to_string();
 
                     Row::new(vec![
                         truncate_str(&agent.agent_id, 35),
@@ -528,11 +521,11 @@ impl AgentsTab {
             let table = Table::new(
                 rows,
                 [
-                    Constraint::Min(20),       // Agent
-                    Constraint::Length(8),      // Active
-                    Constraint::Length(10),     // Lock
-                    Constraint::Length(24),     // Branch
-                    Constraint::Length(12),     // Heartbeat
+                    Constraint::Min(20),    // Agent
+                    Constraint::Length(8),  // Active
+                    Constraint::Length(10), // Lock
+                    Constraint::Length(24), // Branch
+                    Constraint::Length(12), // Heartbeat
                 ],
             )
             .header(header_row)
@@ -595,12 +588,11 @@ impl AgentsTab {
             )));
             frame.render_widget(msg, chunks[1]);
         } else {
-            let header_row =
-                Row::new(vec!["Issue", "Agent", "Branch", "Claimed", "Status"]).style(
-                    Style::default()
-                        .fg(Color::Cyan)
-                        .add_modifier(Modifier::BOLD),
-                );
+            let header_row = Row::new(vec!["Issue", "Agent", "Branch", "Claimed", "Status"]).style(
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            );
 
             let rows: Vec<Row> = self
                 .lock_rows
@@ -635,11 +627,11 @@ impl AgentsTab {
             let table = Table::new(
                 rows,
                 [
-                    Constraint::Length(8),      // Issue
-                    Constraint::Min(20),        // Agent
-                    Constraint::Length(24),      // Branch
-                    Constraint::Length(12),      // Claimed
-                    Constraint::Length(10),      // Status
+                    Constraint::Length(8),  // Issue
+                    Constraint::Min(20),    // Agent
+                    Constraint::Length(24), // Branch
+                    Constraint::Length(12), // Claimed
+                    Constraint::Length(10), // Status
                 ],
             )
             .header(header_row)
@@ -721,10 +713,7 @@ impl AgentsTab {
                         .next()
                         .unwrap_or("unknown");
 
-                    let approved = entry
-                        .metadata_comment
-                        .as_deref()
-                        .unwrap_or("—");
+                    let approved = entry.metadata_comment.as_deref().unwrap_or("—");
 
                     Row::new(vec![
                         truncate_str(&entry.principal, 40),
@@ -738,9 +727,9 @@ impl AgentsTab {
             let table = Table::new(
                 rows,
                 [
-                    Constraint::Min(20),       // Principal
-                    Constraint::Length(16),     // Key Type
-                    Constraint::Length(32),     // Approved
+                    Constraint::Min(20),    // Principal
+                    Constraint::Length(16), // Key Type
+                    Constraint::Length(32), // Approved
                 ],
             )
             .header(header_row)
@@ -798,10 +787,7 @@ impl AgentsTab {
 
         if let Some(ref machine) = detail.machine_id {
             lines.push(Line::from(vec![
-                Span::styled(
-                    "  Machine: ",
-                    Style::default().add_modifier(Modifier::BOLD),
-                ),
+                Span::styled("  Machine: ", Style::default().add_modifier(Modifier::BOLD)),
                 Span::raw(machine),
             ]));
         }
@@ -820,10 +806,7 @@ impl AgentsTab {
                         "  Active issue: ",
                         Style::default().add_modifier(Modifier::BOLD),
                     ),
-                    Span::styled(
-                        format!("#{issue_id}"),
-                        Style::default().fg(Color::Cyan),
-                    ),
+                    Span::styled(format!("#{issue_id}"), Style::default().fg(Color::Cyan)),
                 ]));
             }
         }
@@ -851,10 +834,7 @@ impl AgentsTab {
                     .unwrap_or_default();
                 lines.push(Line::from(vec![
                     Span::styled("    ● ", Style::default().fg(Color::Green)),
-                    Span::styled(
-                        format!("#{issue_id}"),
-                        Style::default().fg(Color::Cyan),
-                    ),
+                    Span::styled(format!("#{issue_id}"), Style::default().fg(Color::Cyan)),
                     Span::raw(branch_str),
                     Span::styled(
                         format!("  claimed {}", format_relative_time(&lock.claimed_at)),

@@ -240,8 +240,7 @@ impl KnowledgeTab {
             }
             KeyCode::Char('t') => {
                 if !self.available_tags.is_empty() {
-                    self.tag_filter_idx =
-                        (self.tag_filter_idx + 1) % self.available_tags.len();
+                    self.tag_filter_idx = (self.tag_filter_idx + 1) % self.available_tags.len();
                     self.selected = 0;
                     self.apply_filters();
                 }
@@ -300,7 +299,11 @@ impl KnowledgeTab {
     fn copy_page_to_clipboard(&self) -> TabAction {
         if let Some(ref content) = self.reader_content {
             let ok = super::copy_to_clipboard(content);
-            let msg = if ok { "Copied to clipboard" } else { "Clipboard copy failed" };
+            let msg = if ok {
+                "Copied to clipboard"
+            } else {
+                "Clipboard copy failed"
+            };
             return TabAction::Flash(msg.to_string());
         }
         TabAction::Consumed
@@ -385,14 +388,8 @@ impl KnowledgeTab {
                     let row = Row::new(vec![
                         ratatui::text::Text::raw(&page.slug),
                         ratatui::text::Text::raw(&page.frontmatter.title),
-                        ratatui::text::Text::styled(
-                            tags,
-                            Style::default().fg(Color::Magenta),
-                        ),
-                        ratatui::text::Text::styled(
-                            updated,
-                            Style::default().fg(Color::DarkGray),
-                        ),
+                        ratatui::text::Text::styled(tags, Style::default().fg(Color::Magenta)),
+                        ratatui::text::Text::styled(updated, Style::default().fg(Color::DarkGray)),
                     ]);
 
                     if i == self.selected {
@@ -406,10 +403,10 @@ impl KnowledgeTab {
             let table = Table::new(
                 rows,
                 [
-                    Constraint::Min(16),       // Slug
-                    Constraint::Min(20),       // Title
-                    Constraint::Length(20),     // Tags
-                    Constraint::Length(10),     // Updated
+                    Constraint::Min(16),    // Slug
+                    Constraint::Min(20),    // Title
+                    Constraint::Length(20), // Tags
+                    Constraint::Length(10), // Updated
                 ],
             )
             .header(header_row)
@@ -470,8 +467,7 @@ impl KnowledgeTab {
                 .add_modifier(Modifier::BOLD),
         )));
         lines.push(Line::from(
-            " \u{2500}".to_string()
-                + &"\u{2500}".repeat(area.width.saturating_sub(3) as usize),
+            " \u{2500}".to_string() + &"\u{2500}".repeat(area.width.saturating_sub(3) as usize),
         ));
 
         // Metadata
@@ -482,10 +478,7 @@ impl KnowledgeTab {
                 Style::default().add_modifier(Modifier::BOLD),
             )];
             if fm.tags.is_empty() {
-                tag_spans.push(Span::styled(
-                    "(none)",
-                    Style::default().fg(Color::DarkGray),
-                ));
+                tag_spans.push(Span::styled("(none)", Style::default().fg(Color::DarkGray)));
             } else {
                 for (i, tag) in fm.tags.iter().enumerate() {
                     if i > 0 {
@@ -507,10 +500,7 @@ impl KnowledgeTab {
             // Sources line — list each source with title and URL
             if fm.sources.is_empty() {
                 lines.push(Line::from(vec![
-                    Span::styled(
-                        " Sources: ",
-                        Style::default().add_modifier(Modifier::BOLD),
-                    ),
+                    Span::styled(" Sources: ", Style::default().add_modifier(Modifier::BOLD)),
                     Span::styled("(none)", Style::default().fg(Color::DarkGray)),
                 ]));
             } else {
@@ -521,14 +511,8 @@ impl KnowledgeTab {
                 for src in &fm.sources {
                     lines.push(Line::from(vec![
                         Span::raw("   "),
-                        Span::styled(
-                            "\u{2192} ",
-                            Style::default().fg(Color::Cyan),
-                        ),
-                        Span::styled(
-                            src.title.clone(),
-                            Style::default().fg(Color::Cyan),
-                        ),
+                        Span::styled("\u{2192} ", Style::default().fg(Color::Cyan)),
+                        Span::styled(src.title.clone(), Style::default().fg(Color::Cyan)),
                         Span::styled(
                             format!("  {}", src.url),
                             Style::default().fg(Color::DarkGray),
@@ -543,17 +527,12 @@ impl KnowledgeTab {
                 Style::default().add_modifier(Modifier::BOLD),
             )];
             if fm.contributors.is_empty() {
-                contrib_spans.push(Span::styled(
-                    "(none)",
-                    Style::default().fg(Color::DarkGray),
-                ));
+                contrib_spans.push(Span::styled("(none)", Style::default().fg(Color::DarkGray)));
             } else {
                 for (i, contrib) in fm.contributors.iter().enumerate() {
                     if i > 0 {
-                        contrib_spans.push(Span::styled(
-                            ", ",
-                            Style::default().fg(Color::DarkGray),
-                        ));
+                        contrib_spans
+                            .push(Span::styled(", ", Style::default().fg(Color::DarkGray)));
                     }
                     contrib_spans.push(Span::styled(
                         contrib.clone(),
@@ -573,8 +552,7 @@ impl KnowledgeTab {
             ]));
 
             lines.push(Line::from(
-                " \u{2500}".to_string()
-                    + &"\u{2500}".repeat(area.width.saturating_sub(3) as usize),
+                " \u{2500}".to_string() + &"\u{2500}".repeat(area.width.saturating_sub(3) as usize),
             ));
         }
 
@@ -587,8 +565,7 @@ impl KnowledgeTab {
         // Bottom separator
         lines.push(Line::from(""));
         lines.push(Line::from(
-            " \u{2500}".to_string()
-                + &"\u{2500}".repeat(area.width.saturating_sub(3) as usize),
+            " \u{2500}".to_string() + &"\u{2500}".repeat(area.width.saturating_sub(3) as usize),
         ));
 
         // Layout: content + context keys
@@ -717,9 +694,7 @@ fn render_markdown_lines(body: &str) -> Vec<Line<'static>> {
         if in_code_block {
             lines.push(Line::from(Span::styled(
                 format!("  {raw_line}"),
-                Style::default()
-                    .fg(Color::Green)
-                    .bg(Color::Indexed(235)),
+                Style::default().fg(Color::Green).bg(Color::Indexed(235)),
             )));
             continue;
         }
@@ -727,10 +702,7 @@ fn render_markdown_lines(body: &str) -> Vec<Line<'static>> {
         // ── Headings ─────────────────────────────────────────────
         if let Some(rest) = trimmed.strip_prefix("#### ") {
             lines.push(Line::from(vec![
-                Span::styled(
-                    "  \u{25b8} ",
-                    Style::default().fg(Color::DarkGray),
-                ),
+                Span::styled("  \u{25b8} ", Style::default().fg(Color::DarkGray)),
                 Span::styled(
                     rest.to_string(),
                     Style::default()
@@ -740,10 +712,7 @@ fn render_markdown_lines(body: &str) -> Vec<Line<'static>> {
             ]));
         } else if let Some(rest) = trimmed.strip_prefix("### ") {
             lines.push(Line::from(vec![
-                Span::styled(
-                    "  \u{25b6} ",
-                    Style::default().fg(Color::Cyan),
-                ),
+                Span::styled("  \u{25b6} ", Style::default().fg(Color::Cyan)),
                 Span::styled(
                     rest.to_string(),
                     Style::default()
@@ -840,7 +809,7 @@ fn parse_inline_formatting(text: &str) -> Vec<Span<'static>> {
         let earliest = [
             next_backtick.map(|i| (i, '`')),
             next_double_star.map(|i| (i, 'B')), // B for bold
-            next_single_star.map(|i| (i, 'I')),  // I for italic
+            next_single_star.map(|i| (i, 'I')), // I for italic
         ]
         .into_iter()
         .flatten()
@@ -865,9 +834,7 @@ fn parse_inline_formatting(text: &str) -> Vec<Span<'static>> {
                             let code = &after[..end];
                             spans.push(Span::styled(
                                 code.to_string(),
-                                Style::default()
-                                    .fg(Color::Green)
-                                    .bg(Color::Indexed(235)),
+                                Style::default().fg(Color::Green).bg(Color::Indexed(235)),
                             ));
                             remaining = &after[end + 1..];
                         } else {
@@ -1022,9 +989,24 @@ mod tests {
     fn make_tab_with_pages() -> KnowledgeTab {
         let mut tab = make_tab_empty();
         tab.all_pages = vec![
-            make_page("ratatui-basics", "Ratatui Getting Started", &["rust", "tui"], "2026-03-01"),
-            make_page("sqlite-wal", "SQLite WAL Mode", &["db", "perf"], "2026-02-27"),
-            make_page("ssh-signing", "SSH Signing Guide", &["security"], "2026-02-20"),
+            make_page(
+                "ratatui-basics",
+                "Ratatui Getting Started",
+                &["rust", "tui"],
+                "2026-03-01",
+            ),
+            make_page(
+                "sqlite-wal",
+                "SQLite WAL Mode",
+                &["db", "perf"],
+                "2026-02-27",
+            ),
+            make_page(
+                "ssh-signing",
+                "SSH Signing Guide",
+                &["security"],
+                "2026-02-20",
+            ),
         ];
         tab.collect_tags();
         tab.apply_filters();
@@ -1300,7 +1282,11 @@ mod tests {
         let lines = render_markdown_lines(body);
         assert_eq!(lines.len(), 3);
         // Check bullet char is present
-        let first_line_str: String = lines[0].spans.iter().map(|s| s.content.to_string()).collect();
+        let first_line_str: String = lines[0]
+            .spans
+            .iter()
+            .map(|s| s.content.to_string())
+            .collect();
         assert!(first_line_str.contains('\u{2022}'));
     }
 
@@ -1341,15 +1327,10 @@ mod tests {
     fn test_apply_filters_tag_and_search() {
         let mut tab = make_tab_with_pages();
         // Filter to "rust" tag
-        tab.tag_filter_idx = tab
-            .available_tags
-            .iter()
-            .position(|t| t == "rust")
-            .unwrap();
+        tab.tag_filter_idx = tab.available_tags.iter().position(|t| t == "rust").unwrap();
         tab.search_query = "ratatui".to_string();
         tab.apply_filters();
         assert_eq!(tab.filtered_pages.len(), 1);
         assert_eq!(tab.filtered_pages[0].slug, "ratatui-basics");
     }
-
 }

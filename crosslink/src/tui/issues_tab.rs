@@ -101,7 +101,6 @@ struct TreeNode {
     depth: usize,
 }
 
-
 /// The Issues tab implementation.
 pub struct IssuesTab {
     /// Path to the database file, used to reopen for operations.
@@ -398,7 +397,11 @@ impl IssuesTab {
                 }
             }
             let ok = super::copy_to_clipboard(&text);
-            let msg = if ok { "Copied to clipboard" } else { "Clipboard copy failed" };
+            let msg = if ok {
+                "Copied to clipboard"
+            } else {
+                "Clipboard copy failed"
+            };
             return TabAction::Flash(msg.to_string());
         }
         TabAction::Consumed
@@ -536,17 +539,14 @@ impl IssuesTab {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(2), // Header
-                Constraint::Min(0),   // Tree
+                Constraint::Min(0),    // Tree
                 Constraint::Length(1), // Context keys
             ])
             .split(area);
 
         // Header
         let header = Line::from(vec![
-            Span::styled(
-                " Issue Tree",
-                Style::default().add_modifier(Modifier::BOLD),
-            ),
+            Span::styled(" Issue Tree", Style::default().add_modifier(Modifier::BOLD)),
             Span::raw(format!("    Filter: [{}]", self.status_filter.label())),
         ]);
         frame.render_widget(Paragraph::new(header), chunks[0]);
@@ -563,7 +563,11 @@ impl IssuesTab {
                 .enumerate()
                 .map(|(i, node)| {
                     let indent = "  ".repeat(node.depth);
-                    let connector = if node.depth > 0 { "\u{251c}\u{2500} " } else { "" };
+                    let connector = if node.depth > 0 {
+                        "\u{251c}\u{2500} "
+                    } else {
+                        ""
+                    };
 
                     let status_marker = if node.issue.status == "closed" {
                         Span::styled("\u{2713} ", Style::default().fg(Color::DarkGray))
@@ -912,10 +916,7 @@ impl IssuesTab {
                         Style::default().fg(Color::DarkGray),
                     ),
                     Span::styled(&sub.title, title_style),
-                    Span::styled(
-                        format!("  {}", sub.priority),
-                        priority_color(&sub.priority),
-                    ),
+                    Span::styled(format!("  {}", sub.priority), priority_color(&sub.priority)),
                 ]));
             }
         }

@@ -17,6 +17,7 @@ pub struct PlaceholderTab {
 }
 
 impl PlaceholderTab {
+    #[cfg(test)]
     pub fn new(title: &str, phase: u8) -> Self {
         PlaceholderTab {
             title: title.to_string(),

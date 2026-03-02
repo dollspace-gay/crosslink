@@ -267,11 +267,15 @@ impl ConfigTab {
             })
             .collect();
 
-        self.recent_events = summaries.iter().take(15).map(|s| EventSummary {
-            timestamp: s.timestamp.clone(),
-            agent_id: s.agent_id.clone(),
-            description: s.description.clone(),
-        }).collect();
+        self.recent_events = summaries
+            .iter()
+            .take(15)
+            .map(|s| EventSummary {
+                timestamp: s.timestamp.clone(),
+                agent_id: s.agent_id.clone(),
+                description: s.description.clone(),
+            })
+            .collect();
         self.all_events = summaries;
     }
 
@@ -613,14 +617,12 @@ impl Tab for ConfigTab {
 // ── Helpers ──────────────────────────────────────────────────────────
 
 fn section_header(title: &str) -> Line<'static> {
-    Line::from(vec![
-        Span::styled(
-            format!(" {title}"),
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        ),
-    ])
+    Line::from(vec![Span::styled(
+        format!(" {title}"),
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
+    )])
 }
 
 fn kv_line(key: &str, value: &str, val_color: Color) -> Line<'static> {

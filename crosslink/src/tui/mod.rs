@@ -75,8 +75,10 @@ pub fn copy_to_clipboard(text: &str) -> bool {
             child.wait()
         });
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    let result: Result<std::process::ExitStatus, std::io::Error> =
-        Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "unsupported platform"));
+    let result: Result<std::process::ExitStatus, std::io::Error> = Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "unsupported platform",
+    ));
 
     result.map(|s| s.success()).unwrap_or(false)
 }
@@ -861,10 +863,7 @@ mod tests {
             app.handle_key(make_key(KeyCode::Char(c)));
         }
         app.handle_key(make_key(KeyCode::Enter));
-        assert_eq!(
-            app.flash_message.as_deref(),
-            Some("Unknown command: foo")
-        );
+        assert_eq!(app.flash_message.as_deref(), Some("Unknown command: foo"));
     }
 
     #[test]
