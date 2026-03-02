@@ -7,5 +7,8 @@
   "priority": "high",
   "created_by": "maxine-at-forecast--noether--tui-dashboard",
   "created_at": "2026-03-02T17:42:13.939895Z",
-  "updated_at": "2026-03-02T17:42:13.939895Z"
+  "updated_at": "2026-03-02T17:42:16.122266Z",
+  "labels": [
+    "feature"
+  ]
 }
