@@ -1889,6 +1889,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::const_is_empty)]
     fn test_embedded_constants_not_empty() {
         // Verify all embedded constants have content
         assert!(!SETTINGS_JSON.is_empty());

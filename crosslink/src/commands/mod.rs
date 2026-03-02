@@ -30,5 +30,6 @@ pub mod tested;
 pub mod timer;
 pub mod tree;
 pub mod trust;
+pub mod tui;
 pub mod update;
 pub mod workflow;

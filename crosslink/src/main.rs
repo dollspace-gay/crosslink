@@ -18,6 +18,7 @@ mod models;
 mod shared_writer;
 mod signing;
 mod sync;
+mod tui;
 mod utils;
 
 use anyhow::{bail, Context, Result};
@@ -459,6 +460,8 @@ enum Commands {
         force: bool,
     },
 
+    /// Interactive terminal dashboard (read-only)
+    Tui,
     /// Manage container-based agent execution
     Container {
         #[command(subcommand)]
@@ -1729,6 +1732,12 @@ fn main() -> Result<()> {
                     commands::workflow::trail(&db, id, kind.as_deref(), json)
                 }
             }
+        }
+
+        Commands::Tui => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            commands::tui::run(&db, &crosslink_dir)
         }
     }
 }
