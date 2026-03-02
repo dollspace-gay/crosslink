@@ -6,8 +6,17 @@
   "priority": "low",
   "created_by": "maxine-at-forecast--noether--ci-cd-restructure",
   "created_at": "2026-03-02T10:51:57.057556Z",
-  "updated_at": "2026-03-02T10:51:58.763680Z",
+  "updated_at": "2026-03-02T10:52:44.374283Z",
   "labels": [
     "ops"
+  ],
+  "comments": [
+    {
+      "id": 177,
+      "author": "maxine-at-forecast--noether--ci-cd-restructure",
+      "content": "Created GH issue #159 for configurable tracker remote.",
+      "created_at": "2026-03-02T10:52:44.374283Z",
+      "kind": "handoff"
+    }
   ]
 }
