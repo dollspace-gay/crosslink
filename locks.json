@@ -1,11 +1,11 @@
 {
   "version": 1,
   "locks": {
-    "43": {
-      "agent_id": "maxine-at-forecast--noether",
+    "53": {
+      "agent_id": "maxine-at-forecast--noether--improve-gitignore",
       "branch": null,
-      "claimed_at": "2026-03-02T02:01:48.045471Z",
-      "signed_by": "SHA256:k0PWejDto36xlyTpXwVGHDbRl7ZIvkCkaAU0ioOEhRU"
+      "claimed_at": "2026-03-02T02:52:38.130586Z",
+      "signed_by": "maxine-at-forecast--noether--improve-gitignore"
     },
     "52": {
       "agent_id": "maxine-at-forecast--noether--init-blocked-lint",
@@ -18,12 +18,6 @@
       "branch": null,
       "claimed_at": "2026-03-02T02:23:16.495170Z",
       "signed_by": "maxine-at-forecast--noether--fix-sessions-migration"
-    },
-    "53": {
-      "agent_id": "maxine-at-forecast--noether--improve-gitignore",
-      "branch": null,
-      "claimed_at": "2026-03-02T02:52:38.130586Z",
-      "signed_by": "maxine-at-forecast--noether--improve-gitignore"
     }
   },
   "settings": {
