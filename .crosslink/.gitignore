@@ -1,0 +1,9 @@
+# Multi-agent collaboration (machine-local)
+agent.json
+.cache/
+.hub-cache/
+.knowledge-cache/
+keys/
+
+# Machine-local hook overrides
+hook-config.local.json

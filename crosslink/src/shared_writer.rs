@@ -98,7 +98,6 @@ enum PushOutcome {
 /// Handles: generate UUID → claim display ID → write JSON → commit →
 /// push (with rebase-retry) → update local SQLite.
 pub struct SharedWriter {
-    #[allow(dead_code)] // used in Phase 3 for fetch integration
     sync: SyncManager,
     agent: AgentConfig,
     cache_dir: PathBuf,
@@ -378,8 +377,15 @@ impl SharedWriter {
     /// Add a comment to an issue.
     ///
     /// Returns the comment ID.
-    pub fn add_comment(&self, db: &Database, display_id: i64, content: &str) -> Result<i64> {
+    pub fn add_comment(
+        &self,
+        db: &Database,
+        display_id: i64,
+        content: &str,
+        kind: &str,
+    ) -> Result<i64> {
         let content_owned = content.to_string();
+        let kind_owned = kind.to_string();
         let agent_id = self.agent.agent_id.clone();
         let comment_id = Cell::new(0i64);
 
@@ -391,11 +397,18 @@ impl SharedWriter {
                 counters.next_comment_id += 1;
                 comment_id.set(id);
 
+                let (signed_by, signature) = writer.sign_comment(&content_owned, &agent_id, id);
                 issue.comments.push(CommentEntry {
                     id,
                     author: agent_id.clone(),
                     content: content_owned.clone(),
                     created_at: Utc::now(),
+                    kind: kind_owned.clone(),
+                    trigger_type: None,
+                    intervention_context: None,
+                    driver_key_fingerprint: None,
+                    signed_by,
+                    signature,
                 });
                 issue.updated_at = Utc::now();
 
@@ -407,6 +420,60 @@ impl SharedWriter {
                 })
             },
             &format!("comment on issue #{}", display_id),
+        )?;
+
+        hydrate_to_sqlite(&self.cache_dir, db)?;
+        Ok(comment_id.get())
+    }
+
+    /// Add a driver intervention comment to an issue (kind = "intervention").
+    pub fn add_intervention_comment(
+        &self,
+        db: &Database,
+        display_id: i64,
+        content: &str,
+        trigger_type: &str,
+        intervention_context: Option<&str>,
+        driver_key_fingerprint: Option<&str>,
+    ) -> Result<i64> {
+        let content_owned = content.to_string();
+        let trigger_owned = trigger_type.to_string();
+        let context_owned = intervention_context.map(|s| s.to_string());
+        let driver_fp_owned = driver_key_fingerprint.map(|s| s.to_string());
+        let agent_id = self.agent.agent_id.clone();
+        let comment_id = Cell::new(0i64);
+
+        let _ = self.write_commit_push(
+            |writer| {
+                let mut issue = writer.load_issue_by_id(display_id, db)?;
+                let mut counters = writer.read_counters()?;
+                let id = counters.next_comment_id;
+                counters.next_comment_id += 1;
+                comment_id.set(id);
+
+                let (signed_by, signature) = writer.sign_comment(&content_owned, &agent_id, id);
+                issue.comments.push(CommentEntry {
+                    id,
+                    author: agent_id.clone(),
+                    content: content_owned.clone(),
+                    created_at: Utc::now(),
+                    kind: "intervention".to_string(),
+                    trigger_type: Some(trigger_owned.clone()),
+                    intervention_context: context_owned.clone(),
+                    driver_key_fingerprint: driver_fp_owned.clone(),
+                    signed_by,
+                    signature,
+                });
+                issue.updated_at = Utc::now();
+
+                let json = serde_json::to_vec_pretty(&issue)?;
+                Ok(WriteSet {
+                    files: vec![(format!("issues/{}.json", issue.uuid), json)],
+                    counters: Some(counters),
+                    use_git_rm: false,
+                })
+            },
+            &format!("intervention on issue #{}", display_id),
         )?;
 
         hydrate_to_sqlite(&self.cache_dir, db)?;
@@ -866,6 +933,46 @@ impl SharedWriter {
     }
 
     // ───────────────────── Private helpers ─────────────────────
+
+    /// Sign a comment's canonical content if the agent has an SSH key.
+    ///
+    /// Returns `(signed_by, signature)` — both `None` if no key is available.
+    fn sign_comment(
+        &self,
+        content: &str,
+        author: &str,
+        comment_id: i64,
+    ) -> (Option<String>, Option<String>) {
+        let (key_path, fingerprint) = match (&self.agent.ssh_key_path, &self.agent.ssh_fingerprint)
+        {
+            (Some(rel), Some(fp)) => {
+                // ssh_key_path is relative to .crosslink/; resolve via sync's cache
+                let crosslink_dir = self
+                    .sync
+                    .cache_path()
+                    .parent()
+                    .unwrap_or(self.sync.cache_path());
+                let abs = crosslink_dir.join(rel);
+                (abs, fp.clone())
+            }
+            _ => return (None, None),
+        };
+
+        if !key_path.exists() {
+            return (None, None);
+        }
+
+        let canonical = crate::signing::canonicalize_for_signing(&[
+            ("author", author),
+            ("comment_id", &comment_id.to_string()),
+            ("content", content),
+        ]);
+
+        match crate::signing::sign_content(&key_path, &canonical, "crosslink-comment") {
+            Ok(sig) => (Some(fingerprint), Some(sig)),
+            Err(_) => (None, None),
+        }
+    }
 
     /// Find all issue files in the cache with `display_id: null` created by this agent.
     fn find_offline_issues(&self) -> Result<Vec<IssueFile>> {

@@ -31,12 +31,49 @@ def get_project_root():
     return os.getcwd()
 
 
+def _resolve_main_repo_root(start_dir):
+    """Resolve the main repository root when running inside a git worktree.
+
+    Compares `git rev-parse --git-common-dir` with `--git-dir`. If they
+    differ, we're in a worktree and the main repo root is the parent of
+    git-common-dir. Returns None if not in a git repo.
+    """
+    try:
+        common = subprocess.run(
+            ["git", "-C", start_dir, "rev-parse", "--git-common-dir"],
+            capture_output=True, text=True, timeout=3
+        )
+        git_dir = subprocess.run(
+            ["git", "-C", start_dir, "rev-parse", "--git-dir"],
+            capture_output=True, text=True, timeout=3
+        )
+        if common.returncode != 0 or git_dir.returncode != 0:
+            return None
+
+        common_path = os.path.realpath(
+            common.stdout.strip() if os.path.isabs(common.stdout.strip())
+            else os.path.join(start_dir, common.stdout.strip())
+        )
+        git_dir_path = os.path.realpath(
+            git_dir.stdout.strip() if os.path.isabs(git_dir.stdout.strip())
+            else os.path.join(start_dir, git_dir.stdout.strip())
+        )
+
+        if common_path != git_dir_path:
+            # In a worktree — parent of git-common-dir is the main repo root
+            return os.path.dirname(common_path)
+        return start_dir
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return None
+
+
 def find_crosslink_dir():
     """Find the .crosslink directory.
 
     Prefers the project root derived from the hook script's own path
     (reliable even when cwd is a subdirectory), falling back to walking
-    up from cwd for standalone/test usage.
+    up from cwd, then checking if we're in a git worktree and looking
+    in the main repo root.
     """
     # Primary: resolve from script location
     root = project_root_from_script()
@@ -47,6 +84,7 @@ def find_crosslink_dir():
 
     # Fallback: walk up from cwd
     current = os.getcwd()
+    start = current
     for _ in range(10):
         candidate = os.path.join(current, '.crosslink')
         if os.path.isdir(candidate):
@@ -55,6 +93,14 @@ def find_crosslink_dir():
         if parent == current:
             break
         current = parent
+
+    # Last resort: check if we're in a git worktree and look in the main repo
+    main_root = _resolve_main_repo_root(start)
+    if main_root:
+        candidate = os.path.join(main_root, '.crosslink')
+        if os.path.isdir(candidate):
+            return candidate
+
     return None
 
 

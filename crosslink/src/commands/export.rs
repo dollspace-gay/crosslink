@@ -86,12 +86,31 @@ fn build_issue_file(
     let comments_raw = db.get_comments_with_author(issue.id)?;
     let comments: Vec<CommentEntry> = comments_raw
         .into_iter()
-        .map(|(id, author, content, created_at)| CommentEntry {
-            id,
-            author: author.unwrap_or_else(|| "unknown".to_string()),
-            content,
-            created_at,
-        })
+        .map(
+            |(
+                id,
+                author,
+                content,
+                created_at,
+                kind,
+                trigger_type,
+                intervention_context,
+                driver_key_fingerprint,
+            )| {
+                CommentEntry {
+                    id,
+                    author: author.unwrap_or_else(|| "unknown".to_string()),
+                    content,
+                    created_at,
+                    kind,
+                    trigger_type,
+                    intervention_context,
+                    driver_key_fingerprint,
+                    signed_by: None,
+                    signature: None,
+                }
+            },
+        )
         .collect();
 
     let blocker_ids = db.get_blockers(issue.id)?;
@@ -313,8 +332,8 @@ mod tests {
     fn test_export_issue_with_comments() {
         let (db, dir) = setup_test_db();
         let id = db.create_issue("Test issue", None, "medium").unwrap();
-        db.add_comment(id, "First comment").unwrap();
-        db.add_comment(id, "Second comment").unwrap();
+        db.add_comment(id, "First comment", "note").unwrap();
+        db.add_comment(id, "Second comment", "note").unwrap();
         let output_path = dir.path().join("export.json");
         run_json(&db, Some(output_path.to_str().unwrap())).unwrap();
         let content = fs::read_to_string(&output_path).unwrap();
@@ -404,7 +423,7 @@ mod tests {
         let (db, dir) = setup_test_db();
         let id = db.create_issue("Test", Some("Desc"), "medium").unwrap();
         db.add_label(id, "bug").unwrap();
-        db.add_comment(id, "Comment").unwrap();
+        db.add_comment(id, "Comment", "note").unwrap();
         let output_path = dir.path().join("export.json");
         run_json(&db, Some(output_path.to_str().unwrap())).unwrap();
         let content = fs::read_to_string(&output_path).unwrap();

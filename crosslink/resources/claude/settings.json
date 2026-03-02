@@ -1,5 +1,9 @@
 {
   "enableAllProjectMcpServers": true,
+  "allowedTools": [
+    "Bash(tmux *)",
+    "Bash(git worktree *)"
+  ],
   "hooks": {
     "PreToolUse": [
       {

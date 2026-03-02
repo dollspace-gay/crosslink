@@ -51,6 +51,54 @@ pub struct CommentEntry {
     pub author: String,
     pub content: String,
     pub created_at: DateTime<Utc>,
+    #[serde(default = "default_comment_kind")]
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trigger_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intervention_context: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub driver_key_fingerprint: Option<String>,
+    /// SSH fingerprint of the signer (e.g. "SHA256:..."), if signed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signed_by: Option<String>,
+    /// Base64-encoded SSH signature over the canonical comment content.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
+}
+
+fn default_comment_kind() -> String {
+    "note".to_string()
+}
+
+const KNOWN_COMMENT_KINDS: &[&str] = &[
+    "note",
+    "plan",
+    "decision",
+    "observation",
+    "blocker",
+    "resolution",
+    "result",
+    "handoff",
+    "human",
+    "intervention",
+];
+
+pub fn validate_comment_kind(kind: &str) -> bool {
+    KNOWN_COMMENT_KINDS.contains(&kind)
+}
+
+pub const KNOWN_TRIGGER_TYPES: &[&str] = &[
+    "tool_rejected",
+    "tool_blocked",
+    "redirect",
+    "context_provided",
+    "manual_action",
+    "question_answered",
+];
+
+pub fn validate_trigger_type(trigger: &str) -> bool {
+    KNOWN_TRIGGER_TYPES.contains(&trigger)
 }
 
 /// An inline time-tracking entry within an issue file.
@@ -116,10 +164,10 @@ pub fn read_issue_file(path: &std::path::Path) -> anyhow::Result<IssueFile> {
 }
 
 /// Write an issue file to disk (pretty-printed JSON).
+/// Uses atomic write (temp file + rename) to prevent corruption from interrupted writes.
 pub fn write_issue_file(path: &std::path::Path, issue: &IssueFile) -> anyhow::Result<()> {
     let content = serde_json::to_string_pretty(issue)?;
-    std::fs::write(path, content)
-        .with_context(|| format!("Failed to write issue file: {}", path.display()))
+    crate::utils::atomic_write(path, content.as_bytes())
 }
 
 /// Read all issue files from a directory.
@@ -244,6 +292,12 @@ mod tests {
                 author: "worker-1".to_string(),
                 content: "Reproduced on staging".to_string(),
                 created_at: Utc::now(),
+                kind: "note".to_string(),
+                trigger_type: None,
+                intervention_context: None,
+                driver_key_fingerprint: None,
+                signed_by: None,
+                signature: None,
             }],
             blockers: vec![Uuid::new_v4()],
             related: vec![],

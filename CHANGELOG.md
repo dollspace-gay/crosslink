@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- Add consolidated `crosslink config` command for repo-level configuration — show, get, set, list, reset, diff subcommands with typed validation (#13)
+
 ## [0.1.2-alpha.1] - 2026-02-27
 
 ### Fixed
@@ -84,6 +87,7 @@ context-compression resilience.
 - Database schema v7→v8 migration (adds `last_action` column to sessions, auto-applied on first use)
 
 ### Added
+- Add git clone fallback for cpitd install (#6)
 - Add `crosslink integrity` subcommand with `--check` and `--repair` modes (#31)
 - Add `--check` flag to `review diff` for CI policy drift detection (#28)
 - Add kickoff workflow skills (`/feature`, `/featree`, `/kickoff`, `/check`) to `crosslink init` (#26)

@@ -205,7 +205,7 @@ mod tests {
     fn test_search_finds_in_comments() {
         let (db, _dir) = setup_test_db();
         let id = db.create_issue("Generic issue", None, "medium").unwrap();
-        db.add_comment(id, "Found the root cause in authentication module")
+        db.add_comment(id, "Found the root cause in authentication module", "note")
             .unwrap();
 
         run(&db, "authentication").unwrap();

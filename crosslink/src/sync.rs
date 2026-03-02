@@ -5,6 +5,8 @@ use std::process::Command;
 
 use crate::identity::AgentConfig;
 use crate::locks::{Heartbeat, Keyring, LocksFile};
+use crate::signing;
+use crate::utils::resolve_main_repo_root;
 
 /// Directory name under .crosslink for the hub cache worktree.
 pub(crate) const HUB_CACHE_DIR: &str = ".hub-cache";
@@ -18,21 +20,11 @@ const OLD_CACHE_DIR: &str = ".locks-cache";
 /// Old branch name (for migration from crosslink/locks).
 const OLD_BRANCH: &str = "crosslink/locks";
 
-/// Result of GPG signature verification.
-#[derive(Debug)]
-pub enum GpgVerification {
-    /// Signature is valid. Fingerprint may be extracted.
-    Valid {
-        commit: String,
-        fingerprint: Option<String>,
-    },
-    /// Commit exists but is not signed.
-    Unsigned { commit: String },
-    /// Signature verification failed.
-    Invalid { commit: String, reason: String },
-    /// No commits exist on the branch yet.
-    NoCommits,
-}
+/// Re-export from `signing` module. Use `SignatureVerification` for new code.
+pub use crate::signing::SignatureVerification;
+
+/// Deprecated alias — use `SignatureVerification` instead.
+pub type GpgVerification = SignatureVerification;
 
 /// Manages synchronization with the `crosslink/hub` coordination branch.
 ///
@@ -40,7 +32,6 @@ pub enum GpgVerification {
 /// the user's working tree.
 pub struct SyncManager {
     /// Path to the .crosslink directory.
-    #[allow(dead_code)]
     crosslink_dir: PathBuf,
     /// Path to .crosslink/.hub-cache (worktree of crosslink/hub branch).
     cache_dir: PathBuf,
@@ -150,6 +141,48 @@ impl SyncManager {
 
         eprintln!("Migration complete: coordination branch is now crosslink/hub");
         Ok(true)
+    }
+
+    /// Configure SSH signing in the hub cache worktree.
+    ///
+    /// If the agent has an SSH key, sets `gpg.format=ssh`, `user.signingkey`,
+    /// and `commit.gpgsign=true` in the cache worktree's local git config.
+    /// This makes all subsequent commits on the hub branch automatically signed.
+    pub fn configure_signing(&self, crosslink_dir: &Path) -> Result<()> {
+        if !self.cache_dir.exists() {
+            return Ok(());
+        }
+
+        let agent = match AgentConfig::load(crosslink_dir)? {
+            Some(a) => a,
+            None => return Ok(()),
+        };
+
+        let (rel_key, _fingerprint) = match (&agent.ssh_key_path, &agent.ssh_fingerprint) {
+            (Some(k), Some(f)) => (k.clone(), f.clone()),
+            _ => return Ok(()),
+        };
+
+        // Resolve private key path (relative to .crosslink/)
+        let private_key = self.crosslink_dir.join(&rel_key);
+        if !private_key.exists() {
+            return Ok(());
+        }
+
+        // Set up allowed_signers path
+        let allowed_signers = self.cache_dir.join("trust").join("allowed_signers");
+
+        signing::configure_git_ssh_signing(
+            &self.cache_dir,
+            &private_key,
+            if allowed_signers.exists() {
+                Some(&allowed_signers)
+            } else {
+                None
+            },
+        )?;
+
+        Ok(())
     }
 
     /// Initialize the hub cache directory.
@@ -285,7 +318,7 @@ impl SyncManager {
         LocksFile::load(&path)
     }
 
-    /// Read the trust keyring from the cache.
+    /// Read the trust keyring from the cache (deprecated — use `read_allowed_signers`).
     pub fn read_keyring(&self) -> Result<Option<Keyring>> {
         let path = self.cache_dir.join("trust").join("keyring.json");
         if !path.exists() {
@@ -294,14 +327,140 @@ impl SyncManager {
         Ok(Some(Keyring::load(&path)?))
     }
 
-    /// Verify the GPG signature on the latest commit that touched locks.json.
-    pub fn verify_locks_signature(&self) -> Result<GpgVerification> {
+    /// Read the SSH allowed_signers trust store from the cache.
+    pub fn read_allowed_signers(&self) -> Result<signing::AllowedSigners> {
+        let path = self.cache_dir.join("trust").join("allowed_signers");
+        signing::AllowedSigners::load(&path)
+    }
+
+    /// Verify the last N commits on the hub branch.
+    ///
+    /// Returns a list of `(commit_hash, verification_result)`.
+    pub fn verify_recent_commits(
+        &self,
+        count: usize,
+    ) -> Result<Vec<(String, SignatureVerification)>> {
+        let output = self.git_in_cache(&["log", &format!("-{}", count), "--format=%H"])?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let commits: Vec<&str> = stdout.lines().filter(|l| !l.is_empty()).collect();
+
+        let mut results = Vec::new();
+        for commit in commits {
+            let verify = Command::new("git")
+                .current_dir(&self.cache_dir)
+                .args(["verify-commit", "--raw", commit])
+                .output()
+                .context("Failed to run git verify-commit")?;
+
+            let stderr = String::from_utf8_lossy(&verify.stderr);
+            let verification = if verify.status.success() {
+                let parsed = signing::parse_verify_output(&stderr);
+                let principal = parsed.as_ref().and_then(|(p, _)| p.clone());
+                let fingerprint = parsed.map(|(_, f)| f);
+                SignatureVerification::Valid {
+                    commit: commit.to_string(),
+                    fingerprint,
+                    principal,
+                }
+            } else if stderr.contains("NODATA")
+                || stderr.contains("no signature")
+                || stderr.is_empty()
+            {
+                SignatureVerification::Unsigned {
+                    commit: commit.to_string(),
+                }
+            } else {
+                SignatureVerification::Invalid {
+                    commit: commit.to_string(),
+                    reason: stderr.to_string(),
+                }
+            };
+            results.push((commit.to_string(), verification));
+        }
+
+        Ok(results)
+    }
+
+    /// Verify per-entry signatures on comments in cached issue files.
+    ///
+    /// Reads all issues from the cache, checks any comments that have
+    /// `signed_by` + `signature` fields against the allowed_signers store
+    /// using `signing::verify_content()`.
+    ///
+    /// Returns `(verified, failed, unsigned)` counts.
+    pub fn verify_entry_signatures(&self) -> Result<(usize, usize, usize)> {
+        let issues_dir = self.cache_dir.join("issues");
+        let issues = crate::issue_file::read_all_issue_files(&issues_dir)?;
+        let allowed_signers_path = self.cache_dir.join("trust").join("allowed_signers");
+
+        let mut verified = 0usize;
+        let mut failed = 0usize;
+        let mut unsigned = 0usize;
+
+        for issue in &issues {
+            for comment in &issue.comments {
+                match (&comment.signed_by, &comment.signature) {
+                    (Some(fingerprint), Some(sig)) => {
+                        // Reconstruct canonical content for verification
+                        let canonical = signing::canonicalize_for_signing(&[
+                            ("author", &comment.author),
+                            ("comment_id", &comment.id.to_string()),
+                            ("content", &comment.content),
+                        ]);
+                        // Use fingerprint as principal for verification
+                        let principal = format!("{}@crosslink", &comment.author);
+                        match signing::verify_content(
+                            &allowed_signers_path,
+                            &principal,
+                            "crosslink-comment",
+                            &canonical,
+                            sig,
+                        ) {
+                            Ok(true) => verified += 1,
+                            Ok(false) => {
+                                eprintln!(
+                                    "warning: signature verification failed for comment {} by '{}' (signer: {})",
+                                    comment.id, comment.author, fingerprint
+                                );
+                                failed += 1;
+                            }
+                            Err(e) => {
+                                // Verification unavailable (no allowed_signers, no ssh-keygen)
+                                // Treat as unverifiable but not failed
+                                if allowed_signers_path.exists() {
+                                    eprintln!(
+                                        "warning: signature verification error for comment {} by '{}': {}",
+                                        comment.id, comment.author, e
+                                    );
+                                    failed += 1;
+                                } else {
+                                    // Can't verify without allowed_signers — count as signed but unverifiable
+                                    let _ = fingerprint; // acknowledge the signature exists
+                                    unsigned += 1;
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        unsigned += 1;
+                    }
+                }
+            }
+        }
+
+        Ok((verified, failed, unsigned))
+    }
+
+    /// Verify the signature on the latest commit that touched locks.json.
+    ///
+    /// Handles both SSH and GPG signatures via `signing::parse_verify_output`.
+    pub fn verify_locks_signature(&self) -> Result<SignatureVerification> {
         // Get the commit that last touched locks.json
         let output = self.git_in_cache(&["log", "-1", "--format=%H", "--", "locks.json"])?;
         let commit = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
         if commit.is_empty() {
-            return Ok(GpgVerification::NoCommits);
+            return Ok(SignatureVerification::NoCommits);
         }
 
         // Try to verify the commit signature
@@ -314,16 +473,19 @@ impl SyncManager {
         let stderr = String::from_utf8_lossy(&verify.stderr);
 
         if verify.status.success() {
-            let fingerprint = parse_gpg_fingerprint(&stderr);
-            Ok(GpgVerification::Valid {
+            let parsed = signing::parse_verify_output(&stderr);
+            let principal = parsed.as_ref().and_then(|(p, _)| p.clone());
+            let fingerprint = parsed.map(|(_, f)| f);
+            Ok(SignatureVerification::Valid {
                 commit,
                 fingerprint,
+                principal,
             })
         } else if stderr.contains("NODATA") || stderr.contains("no signature") || stderr.is_empty()
         {
-            Ok(GpgVerification::Unsigned { commit })
+            Ok(SignatureVerification::Unsigned { commit })
         } else {
-            Ok(GpgVerification::Invalid {
+            Ok(SignatureVerification::Invalid {
                 commit,
                 reason: stderr.to_string(),
             })
@@ -415,9 +577,13 @@ impl SyncManager {
 
         let mut stale = Vec::new();
         for (issue_id_str, lock) in &locks.locks {
-            let has_fresh_heartbeat = heartbeats
-                .iter()
-                .any(|hb| hb.agent_id == lock.agent_id && (now - hb.last_heartbeat) < timeout);
+            let has_fresh_heartbeat = heartbeats.iter().any(|hb| {
+                hb.agent_id == lock.agent_id
+                    && now
+                        .signed_duration_since(hb.last_heartbeat)
+                        .max(chrono::Duration::zero())
+                        < timeout
+            });
             if !has_fresh_heartbeat {
                 if let Ok(id) = issue_id_str.parse::<i64>() {
                     stale.push((id, lock.agent_id.clone()));
@@ -430,6 +596,8 @@ impl SyncManager {
     /// Claim a lock on an issue for the given agent.
     ///
     /// Writes the lock to `locks.json`, commits, and pushes with retry.
+    /// After a push conflict, re-reads locks to verify another agent didn't
+    /// claim the same lock during the race window.
     /// Returns `Ok(true)` if newly claimed, `Ok(false)` if already held by self.
     /// Fails if locked by another agent (unless `force` is true for steal).
     pub fn claim_lock(
@@ -439,39 +607,61 @@ impl SyncManager {
         branch: Option<&str>,
         force: bool,
     ) -> Result<bool> {
-        let mut locks = self.read_locks()?;
+        // Retry loop: re-check lock ownership after push conflicts
+        for attempt in 0..3 {
+            let mut locks = self.read_locks()?;
 
-        // Check existing lock
-        if let Some(existing) = locks.get_lock(issue_id) {
-            if existing.agent_id == agent.agent_id {
-                return Ok(false); // Already held by self
+            // Check existing lock
+            if let Some(existing) = locks.get_lock(issue_id) {
+                if existing.agent_id == agent.agent_id {
+                    return Ok(false); // Already held by self
+                }
+                if !force {
+                    bail!(
+                        "Issue #{} is locked by '{}' (claimed {}). \
+                         Use 'crosslink locks steal {}' if the lock is stale.",
+                        issue_id,
+                        existing.agent_id,
+                        existing.claimed_at.format("%Y-%m-%d %H:%M"),
+                        issue_id
+                    );
+                }
+                // force=true: steal the lock
             }
-            if !force {
-                bail!(
-                    "Issue #{} is locked by '{}' (claimed {}). \
-                     Use 'crosslink locks steal {}' if the lock is stale.",
-                    issue_id,
-                    existing.agent_id,
-                    existing.claimed_at.format("%Y-%m-%d %H:%M"),
-                    issue_id
-                );
+
+            let lock = crate::locks::Lock {
+                agent_id: agent.agent_id.clone(),
+                branch: branch.map(|s| s.to_string()),
+                claimed_at: Utc::now(),
+                signed_by: agent
+                    .ssh_fingerprint
+                    .clone()
+                    .unwrap_or_else(|| agent.agent_id.clone()),
+            };
+
+            locks.locks.insert(issue_id.to_string(), lock);
+            locks.save(&self.cache_dir.join("locks.json"))?;
+
+            match self
+                .commit_and_push_locks(&format!("{}: claim lock on #{}", agent.agent_id, issue_id))
+            {
+                Ok(()) => return Ok(true),
+                Err(e) => {
+                    let err_str = e.to_string();
+                    if err_str.contains("Push failed after") && attempt < 2 {
+                        // Push conflict — pull latest and re-check lock ownership
+                        let _ = self.git_in_cache(&["pull", "--rebase", "origin", HUB_BRANCH]);
+                        continue;
+                    }
+                    return Err(e);
+                }
             }
-            // force=true: steal the lock
         }
 
-        let lock = crate::locks::Lock {
-            agent_id: agent.agent_id.clone(),
-            branch: branch.map(|s| s.to_string()),
-            claimed_at: Utc::now(),
-            signed_by: agent.agent_id.clone(), // placeholder, GPG signing is optional
-        };
-
-        locks.locks.insert(issue_id.to_string(), lock);
-        locks.save(&self.cache_dir.join("locks.json"))?;
-
-        self.commit_and_push_locks(&format!("{}: claim lock on #{}", agent.agent_id, issue_id))?;
-
-        Ok(true)
+        bail!(
+            "Failed to claim lock on #{} after 3 attempts due to concurrent updates",
+            issue_id
+        )
     }
 
     /// Release a lock on an issue.
@@ -588,102 +778,14 @@ impl SyncManager {
     }
 }
 
-/// Resolve the main repository root when running inside a git worktree.
-///
-/// Compares `git rev-parse --git-common-dir` with `--git-dir`. If they
-/// differ, we're in a worktree and the main repo root is the parent of
-/// `git-common-dir`. Returns `None` if not in a git repo or if git
-/// commands fail (e.g. in unit tests with plain temp directories).
-fn resolve_main_repo_root(repo_root: &Path) -> Option<PathBuf> {
-    let repo_str = repo_root.to_string_lossy();
-
-    let common_output = Command::new("git")
-        .args(["-C", &repo_str, "rev-parse", "--git-common-dir"])
-        .output()
-        .ok()?;
-
-    let git_dir_output = Command::new("git")
-        .args(["-C", &repo_str, "rev-parse", "--git-dir"])
-        .output()
-        .ok()?;
-
-    if !common_output.status.success() || !git_dir_output.status.success() {
-        return None;
-    }
-
-    let common_raw = String::from_utf8_lossy(&common_output.stdout)
-        .trim()
-        .to_string();
-    let git_dir_raw = String::from_utf8_lossy(&git_dir_output.stdout)
-        .trim()
-        .to_string();
-
-    // Resolve to absolute paths for reliable comparison
-    let common_path = if Path::new(&common_raw).is_absolute() {
-        PathBuf::from(&common_raw)
-    } else {
-        repo_root.join(&common_raw)
-    };
-
-    let git_dir_path = if Path::new(&git_dir_raw).is_absolute() {
-        PathBuf::from(&git_dir_raw)
-    } else {
-        repo_root.join(&git_dir_raw)
-    };
-
-    // Canonicalize to handle symlinks and ".." components
-    let common_canonical = common_path.canonicalize().unwrap_or(common_path);
-    let git_dir_canonical = git_dir_path.canonicalize().unwrap_or(git_dir_path);
-
-    if common_canonical != git_dir_canonical {
-        // We're in a worktree — git-common-dir points to the main .git directory.
-        // Its parent is the main repo root.
-        common_canonical.parent().map(|p| p.to_path_buf())
-    } else {
-        // Not in a worktree — use the given repo root as-is.
-        Some(repo_root.to_path_buf())
-    }
-}
-
-/// Parse GPG fingerprint from `git verify-commit --raw` output.
-///
-/// Looks for lines like: `[GNUPG:] VALIDSIG <fingerprint> ...`
-fn parse_gpg_fingerprint(gpg_output: &str) -> Option<String> {
-    for line in gpg_output.lines() {
-        if line.contains("VALIDSIG") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 3 {
-                return Some(parts[2].to_string());
-            }
-        }
-    }
-    None
-}
+// parse_gpg_fingerprint has been moved to signing.rs
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::tempdir;
 
-    #[test]
-    fn test_parse_gpg_fingerprint_valid() {
-        let output = "[GNUPG:] VALIDSIG ABCDEF1234567890 2024-01-01 12345678\n[GNUPG:] GOODSIG";
-        let fp = parse_gpg_fingerprint(output);
-        assert_eq!(fp, Some("ABCDEF1234567890".to_string()));
-    }
-
-    #[test]
-    fn test_parse_gpg_fingerprint_no_validsig() {
-        let output = "[GNUPG:] GOODSIG ABC123\n[GNUPG:] TRUST_FULLY";
-        let fp = parse_gpg_fingerprint(output);
-        assert!(fp.is_none());
-    }
-
-    #[test]
-    fn test_parse_gpg_fingerprint_empty() {
-        let fp = parse_gpg_fingerprint("");
-        assert!(fp.is_none());
-    }
+    // GPG fingerprint parsing tests moved to signing.rs
 
     #[test]
     fn test_sync_manager_new() {
@@ -869,67 +971,7 @@ mod tests {
             .unwrap();
     }
 
-    #[test]
-    fn test_resolve_main_repo_root_not_a_repo() {
-        let dir = tempdir().unwrap();
-        // Plain directory, no git repo — should return None
-        let result = resolve_main_repo_root(dir.path());
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_resolve_main_repo_root_normal_repo() {
-        let dir = tempdir().unwrap();
-        init_git_repo(dir.path());
-
-        let result = resolve_main_repo_root(dir.path());
-        assert!(result.is_some());
-        // Canonicalize both sides for reliable comparison on macOS (/private/var/...)
-        assert_eq!(
-            result.unwrap().canonicalize().unwrap(),
-            dir.path().canonicalize().unwrap()
-        );
-    }
-
-    #[test]
-    fn test_resolve_main_repo_root_in_worktree() {
-        let dir = tempdir().unwrap();
-        let main_root = dir.path().join("main");
-        std::fs::create_dir_all(&main_root).unwrap();
-        init_git_repo(&main_root);
-
-        // Create a branch and worktree
-        Command::new("git")
-            .args([
-                "-C",
-                &main_root.to_string_lossy(),
-                "branch",
-                "feature/wt-test",
-            ])
-            .output()
-            .unwrap();
-
-        let wt_path = main_root.join(".worktrees").join("wt-test");
-        std::fs::create_dir_all(wt_path.parent().unwrap()).unwrap();
-        Command::new("git")
-            .args([
-                "-C",
-                &main_root.to_string_lossy(),
-                "worktree",
-                "add",
-                &wt_path.to_string_lossy(),
-                "feature/wt-test",
-            ])
-            .output()
-            .unwrap();
-
-        let result = resolve_main_repo_root(&wt_path);
-        assert!(result.is_some());
-        assert_eq!(
-            result.unwrap().canonicalize().unwrap(),
-            main_root.canonicalize().unwrap()
-        );
-    }
+    // resolve_main_repo_root tests are in utils::tests
 
     #[test]
     fn test_sync_manager_in_worktree_uses_main_hub_cache() {

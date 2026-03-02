@@ -58,7 +58,7 @@ crosslink subissue 1 "Add session middleware for protected routes"
 crosslink session work 1
 
 # Add context as you discover things
-crosslink comment 1 "Found existing auth helper in utils/auth.ts"
+crosslink comment 1 "Found existing auth helper in utils/auth.ts" --kind observation
 
 # Close when done — auto-updates CHANGELOG.md
 crosslink close 1
@@ -82,6 +82,26 @@ These rules have the highest precedence. When they conflict with any other rule,
 - **Secrets**: Never hardcode credentials, API keys, or tokens. Never commit `.env` files.
 - **Input validation**: Validate at system boundaries. Sanitize before rendering.
 - **Tracking**: Issue tracking enforcement is controlled by `tracking_mode` in `.crosslink/hook-config.json` (strict/normal/relaxed).
+
+### Blocked Actions
+
+The following commands are **permanently blocked** by project policy hooks and will be rejected. Do not attempt them — inform the user that these are manual steps for them to perform:
+
+- `git push` — pushing to remotes
+- `git merge` / `git rebase` / `git cherry-pick` — branch integration
+- `git reset` / `git checkout .` / `git restore .` / `git clean` — destructive resets
+- `git stash` — stash operations
+- `git tag` / `git am` / `git apply` — tagging and patch application
+- `git branch -d` / `git branch -D` / `git branch -m` — branch deletion and renaming
+
+**Gated commands** (require an active crosslink issue):
+- `git commit` — create an issue first with `crosslink quick` or `crosslink session work <id>`
+
+**Always allowed** (read-only):
+- `git status`, `git diff`, `git log`, `git show`, `git branch` (listing only)
+
+If you need a blocked action performed, tell the user and continue with other work.
+
 ---
 
 ## Priority 2: Correctness
@@ -94,6 +114,59 @@ These rules ensure code works correctly. They yield only to security concerns.
 - **Error handling**: Proper error handling everywhere. No panics or crashes on bad input.
 - **No dead code**: Intelligently deal with dead code. If its a hallucinated function remove it. If its an unfinished function complete it. 
 - **Test after changes**: Run the project's test suite after making code changes.
+
+### Documentation Trail (MANDATORY — AUDIT REQUIREMENT)
+
+This software supports regulated biotech operations. Every issue MUST have a documented decision trail. This is a correctness requirement, not a style preference.
+
+**You MUST add typed comments to every issue you work on. There are ZERO exceptions to this rule.**
+
+- You cannot reason that a change is "too small" to document. Small changes still need audit trails.
+- You cannot defer comments to "later" or "when I'm done." Document AS you work, not after.
+- You cannot claim the code is "self-documenting." Code shows WHAT changed. Comments show WHY.
+- You cannot skip comments because "the issue title explains it." Titles are summaries, not trails.
+
+**Mandatory comment points** — you MUST add a `crosslink comment` at each of these:
+1. **Before writing code**: Document your plan and approach (`--kind plan`)
+2. **When you make a choice between alternatives**: Document what you chose and why (`--kind decision`)
+3. **When you discover something unexpected**: Document the finding (`--kind observation`)
+4. **When something blocks progress**: Document the blocker (`--kind blocker`)
+5. **When you resolve a blocker**: Document how (`--kind resolution`)
+6. **Before closing the issue**: Document what was delivered (`--kind result`)
+
+```bash
+# These are NOT optional. You MUST use --kind on EVERY comment.
+crosslink comment <id> "Approach: using existing auth middleware" --kind plan
+crosslink comment <id> "Chose JWT over sessions — stateless, simpler for API consumers" --kind decision
+crosslink comment <id> "Found legacy endpoint at /api/v1/auth that conflicts" --kind observation
+crosslink comment <id> "Blocked: CI pipeline timeout on integration tests" --kind blocker
+crosslink comment <id> "Resolved: increased CI timeout to 10m, tests pass" --kind resolution
+crosslink comment <id> "Delivered: JWT auth with refresh tokens, all 47 tests passing" --kind result
+```
+
+**If you close an issue that has zero typed comments, you have violated this rule.**
+
+### Intervention Logging (MANDATORY — AUDIT REQUIREMENT)
+
+When a driver (human operator) intervenes in your work, you MUST log it immediately using `crosslink intervene`. Driver interventions are the highest-signal data for improving agent autonomy.
+
+**You MUST log an intervention when any of these occur:**
+- A tool call you proposed is rejected by the driver → `--trigger tool_rejected`
+- A hook or policy blocks your tool call → `--trigger tool_blocked`
+- The driver redirects your approach ("actually do X instead") → `--trigger redirect`
+- The driver provides context you didn't have (requirements, constraints, domain knowledge) → `--trigger context_provided`
+- The driver performs an action themselves (git push, deployment, etc.) → `--trigger manual_action`
+- The driver answers a question that changes your approach → `--trigger question_answered`
+
+```bash
+crosslink intervene <issue-id> "Description of what happened" --trigger <type> --context "What you were attempting"
+```
+
+**Rules:**
+- Log IMMEDIATELY after the intervention occurs, before continuing work.
+- Do not skip logging because the intervention seems "small" or "obvious."
+- Do not batch multiple interventions into a single log entry.
+- If a hook blocks you and provides intervention logging instructions, follow them.
 
 ### Pre-Coding Grounding
 Before using unfamiliar libraries/APIs:

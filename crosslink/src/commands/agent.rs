@@ -2,20 +2,86 @@ use anyhow::{bail, Result};
 use std::path::Path;
 
 use crate::identity::AgentConfig;
+use crate::signing;
 use crate::utils::format_issue_id;
 
-/// `crosslink agent init <agent-id> [-d "description"]`
-pub fn init(crosslink_dir: &Path, agent_id: &str, description: Option<&str>) -> Result<()> {
-    if AgentConfig::load(crosslink_dir)?.is_some() {
-        bail!("Agent already configured. Delete .crosslink/agent.json to reconfigure.");
+/// `crosslink agent init <agent-id> [-d "description"] [--no-key] [--force]`
+pub fn init(
+    crosslink_dir: &Path,
+    agent_id: &str,
+    description: Option<&str>,
+    no_key: bool,
+    force: bool,
+) -> Result<()> {
+    match AgentConfig::load(crosslink_dir) {
+        Ok(Some(_)) if force => {
+            println!("Warning: Overwriting existing agent configuration (--force).");
+        }
+        Ok(Some(_)) => {
+            bail!("Agent already configured. Use --force to overwrite, or delete .crosslink/agent.json to reconfigure.");
+        }
+        Ok(None) => {} // No existing config, proceed normally
+        Err(e) => {
+            println!(
+                "Warning: Existing agent.json is malformed ({}). Overwriting with new config.",
+                e
+            );
+        }
     }
-    let config = AgentConfig::init(crosslink_dir, agent_id, description)?;
+    let mut config = AgentConfig::init(crosslink_dir, agent_id, description)?;
+
+    // Generate SSH key unless opted out
+    if !no_key {
+        let keys_dir = crosslink_dir.join("keys");
+        match signing::generate_agent_key(&keys_dir, agent_id, &config.machine_id) {
+            Ok(keypair) => {
+                // Store relative path from .crosslink/
+                let rel_path = format!("keys/{}_ed25519", agent_id);
+                config.ssh_key_path = Some(rel_path);
+                config.ssh_fingerprint = Some(keypair.fingerprint.clone());
+                config.ssh_public_key = Some(keypair.public_key.clone());
+
+                // Re-write agent.json with key info
+                let path = crosslink_dir.join("agent.json");
+                let json = serde_json::to_string_pretty(&config)?;
+                std::fs::write(&path, json)?;
+
+                println!("  SSH key: {}", keypair.fingerprint);
+
+                // Publish public key to hub for driver approval
+                if let Err(e) =
+                    super::trust::publish_agent_key(crosslink_dir, agent_id, &keypair.public_key)
+                {
+                    println!("  Note: Could not publish key to hub: {}", e);
+                    println!("  The driver can manually copy your public key.");
+                }
+
+                // Configure signing on the hub cache worktree
+                if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
+                    let _ = sync.configure_signing(crosslink_dir);
+                }
+            }
+            Err(e) => {
+                println!("  Warning: Could not generate SSH key: {}", e);
+                println!("  Signing will be unavailable. Use --no-key to suppress this warning.");
+            }
+        }
+    }
+
     println!("Agent initialized:");
     println!("  ID:      {}", config.agent_id);
     println!("  Machine: {}", config.machine_id);
     if let Some(desc) = &config.description {
         println!("  Description: {}", desc);
     }
+    if let Some(fp) = &config.ssh_fingerprint {
+        println!("  Key:     {}", fp);
+    }
+    println!();
+    println!(
+        "Ask your driver to approve this agent with `crosslink trust approve {}`",
+        agent_id
+    );
     Ok(())
 }
 
@@ -27,6 +93,11 @@ pub fn status(crosslink_dir: &Path) -> Result<()> {
             println!("Machine: {}", config.machine_id);
             if let Some(desc) = &config.description {
                 println!("Description: {}", desc);
+            }
+            if let Some(fp) = &config.ssh_fingerprint {
+                println!("SSH key: {}", fp);
+            } else {
+                println!("SSH key: none (signing disabled)");
             }
 
             // Show locked issues (best-effort)
@@ -68,7 +139,7 @@ mod tests {
         let crosslink_dir = dir.path().join(".crosslink");
         std::fs::create_dir_all(&crosslink_dir).unwrap();
 
-        init(&crosslink_dir, "worker-1", Some("Test agent")).unwrap();
+        init(&crosslink_dir, "worker-1", Some("Test agent"), true, false).unwrap();
 
         let config = AgentConfig::load(&crosslink_dir).unwrap().unwrap();
         assert_eq!(config.agent_id, "worker-1");
@@ -81,13 +152,61 @@ mod tests {
         let crosslink_dir = dir.path().join(".crosslink");
         std::fs::create_dir_all(&crosslink_dir).unwrap();
 
-        init(&crosslink_dir, "worker-1", None).unwrap();
-        let result = init(&crosslink_dir, "worker-2", None);
+        init(&crosslink_dir, "worker-1", None, true, false).unwrap();
+        let result = init(&crosslink_dir, "worker-2", None, true, false);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
             .to_string()
             .contains("already configured"));
+    }
+
+    #[test]
+    fn test_init_force_overwrites_valid_config() {
+        let dir = tempdir().unwrap();
+        let crosslink_dir = dir.path().join(".crosslink");
+        std::fs::create_dir_all(&crosslink_dir).unwrap();
+
+        init(&crosslink_dir, "worker-1", None, true, false).unwrap();
+        init(&crosslink_dir, "worker-2", Some("New agent"), true, true).unwrap();
+
+        let config = AgentConfig::load(&crosslink_dir).unwrap().unwrap();
+        assert_eq!(config.agent_id, "worker-2");
+        assert_eq!(config.description, Some("New agent".to_string()));
+    }
+
+    #[test]
+    fn test_init_overwrites_malformed_json() {
+        let dir = tempdir().unwrap();
+        let crosslink_dir = dir.path().join(".crosslink");
+        std::fs::create_dir_all(&crosslink_dir).unwrap();
+
+        // Write invalid JSON
+        std::fs::write(crosslink_dir.join("agent.json"), "not valid json").unwrap();
+
+        init(&crosslink_dir, "worker-1", None, true, false).unwrap();
+
+        let config = AgentConfig::load(&crosslink_dir).unwrap().unwrap();
+        assert_eq!(config.agent_id, "worker-1");
+    }
+
+    #[test]
+    fn test_init_overwrites_invalid_agent_id() {
+        let dir = tempdir().unwrap();
+        let crosslink_dir = dir.path().join(".crosslink");
+        std::fs::create_dir_all(&crosslink_dir).unwrap();
+
+        // Write valid JSON but with agent_id that fails validation (too short)
+        std::fs::write(
+            crosslink_dir.join("agent.json"),
+            r#"{"agent_id": "m1", "machine_id": "host"}"#,
+        )
+        .unwrap();
+
+        init(&crosslink_dir, "worker-1", None, true, false).unwrap();
+
+        let config = AgentConfig::load(&crosslink_dir).unwrap().unwrap();
+        assert_eq!(config.agent_id, "worker-1");
     }
 
     #[test]
@@ -106,7 +225,7 @@ mod tests {
         let crosslink_dir = dir.path().join(".crosslink");
         std::fs::create_dir_all(&crosslink_dir).unwrap();
 
-        init(&crosslink_dir, "my-agent", Some("My agent")).unwrap();
+        init(&crosslink_dir, "my-agent", Some("My agent"), true, false).unwrap();
         status(&crosslink_dir).unwrap();
     }
 }

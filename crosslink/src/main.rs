@@ -4,10 +4,12 @@ mod db;
 mod hydration;
 mod identity;
 mod issue_file;
+mod knowledge;
 mod lock_check;
 mod locks;
 mod models;
 mod shared_writer;
+mod signing;
 mod sync;
 mod utils;
 
@@ -45,6 +47,21 @@ enum Commands {
         /// Override auto-detected Python prefix for hook commands (e.g. "uv run python3")
         #[arg(long)]
         python_prefix: Option<String>,
+        /// Skip automatic cpitd installation
+        #[arg(long)]
+        skip_cpitd: bool,
+        /// Skip driver SSH signing key setup
+        #[arg(long)]
+        skip_signing: bool,
+        /// Path to SSH key for commit signing (auto-detected if omitted)
+        #[arg(long)]
+        signing_key: Option<String>,
+        /// Re-run TUI walkthrough even if config exists
+        #[arg(long)]
+        reconfigure: bool,
+        /// Skip TUI and use opinionated defaults
+        #[arg(long)]
+        defaults: bool,
     },
 
     /// Create a new issue
@@ -196,6 +213,24 @@ enum Commands {
         id: i64,
         /// Comment text
         text: String,
+        /// Comment kind (note, plan, decision, observation, blocker, resolution, result, handoff, human)
+        #[arg(long, default_value = "note")]
+        kind: String,
+    },
+
+    /// Log a driver intervention on an issue
+    Intervene {
+        /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
+        id: i64,
+        /// Description of the intervention
+        description: String,
+        /// Trigger type (tool_rejected, tool_blocked, redirect, context_provided, manual_action, question_answered)
+        #[arg(long)]
+        trigger: String,
+        /// Context: what the agent was attempting when intervention occurred
+        #[arg(long)]
+        context: Option<String>,
     },
 
     /// Add a label to an issue
@@ -347,6 +382,12 @@ enum Commands {
         action: AgentCommands,
     },
 
+    /// Manage signing trust (approve/revoke agent keys)
+    Trust {
+        #[command(subcommand)]
+        action: TrustCommands,
+    },
+
     /// View and manage issue locks
     Locks {
         #[command(subcommand)]
@@ -365,10 +406,28 @@ enum Commands {
     /// Rename coordination branch from crosslink/locks to crosslink/hub
     MigrateRenameBranch,
 
-    /// Review crosslink policy configuration
-    Review {
+    /// View and modify repo-level configuration
+    Config {
         #[command(subcommand)]
-        command: ReviewCommands,
+        command: ConfigCommands,
+    },
+
+    /// Manage crosslink workflow configuration
+    Workflow {
+        #[command(subcommand)]
+        command: WorkflowCommands,
+    },
+
+    /// Manage house style syncing
+    Style {
+        #[command(subcommand)]
+        command: StyleCommands,
+    },
+
+    /// Manage shared knowledge pages
+    Knowledge {
+        #[command(subcommand)]
+        command: KnowledgeCommands,
     },
 
     /// Data integrity checks and repair
@@ -522,9 +581,38 @@ enum AgentCommands {
         /// Agent description
         #[arg(short, long)]
         description: Option<String>,
+        /// Skip SSH key generation
+        #[arg(long)]
+        no_key: bool,
+        /// Overwrite existing agent configuration
+        #[arg(long)]
+        force: bool,
     },
     /// Show current agent identity
     Status,
+}
+
+#[derive(Subcommand)]
+enum TrustCommands {
+    /// Approve an agent's signing key
+    Approve {
+        /// Agent ID to approve
+        agent_id: String,
+    },
+    /// Revoke an agent's signing key
+    Revoke {
+        /// Agent ID to revoke
+        agent_id: String,
+    },
+    /// List all trusted signers
+    List,
+    /// Show agent keys awaiting approval
+    Pending,
+    /// Check trust status of a specific agent
+    Check {
+        /// Agent ID to check
+        agent_id: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -561,7 +649,7 @@ enum LocksCommands {
 }
 
 #[derive(Subcommand)]
-enum ReviewCommands {
+enum WorkflowCommands {
     /// Compare deployed policy files against embedded defaults
     Diff {
         /// Filter by section: tracking, rules, languages, hooks
@@ -570,6 +658,112 @@ enum ReviewCommands {
         /// CI mode: exit 1 if any files have drifted without '# crosslink:custom' marker
         #[arg(long)]
         check: bool,
+    },
+    /// Show chronological comment trail for an issue
+    Trail {
+        /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
+        id: i64,
+        /// Filter by comment kind(s), comma-separated (e.g. plan,decision)
+        #[arg(long)]
+        kind: Option<String>,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum StyleCommands {
+    /// Set the house style source (a git repo URL + optional ref)
+    Set {
+        /// Git repository URL for the house style
+        url: String,
+        /// Branch or tag to track (default: main)
+        #[arg(long, name = "ref")]
+        ref_name: Option<String>,
+    },
+    /// Sync: pull latest from the house style source
+    Sync {
+        /// Show what would change without writing
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Diff: show what's drifted from house style
+    Diff,
+    /// Show current house style configuration
+    Show,
+    /// Remove house style association
+    Unset,
+}
+
+#[derive(Subcommand)]
+enum KnowledgeCommands {
+    /// Create a new knowledge page
+    Add {
+        /// Page slug (filename without .md)
+        slug: String,
+        /// Page title
+        #[arg(short, long)]
+        title: Option<String>,
+        /// Tags for the page (repeatable)
+        #[arg(long)]
+        tag: Vec<String>,
+        /// Source URL (repeatable)
+        #[arg(long)]
+        source: Vec<String>,
+        /// Page content (body text after frontmatter)
+        #[arg(long)]
+        content: Option<String>,
+    },
+    /// Display a knowledge page
+    Show {
+        /// Page slug
+        slug: String,
+    },
+    /// List all knowledge pages
+    List {
+        /// Filter by tag
+        #[arg(long)]
+        tag: Option<String>,
+        /// Filter by contributor
+        #[arg(long)]
+        contributor: Option<String>,
+    },
+    /// Update an existing knowledge page
+    Edit {
+        /// Page slug
+        slug: String,
+        /// Append content to the page
+        #[arg(long)]
+        append: Option<String>,
+        /// Replace page content entirely
+        #[arg(long)]
+        content: Option<String>,
+        /// Add tags (repeatable)
+        #[arg(long)]
+        tag: Vec<String>,
+        /// Add source URL (repeatable)
+        #[arg(long)]
+        source: Vec<String>,
+    },
+    /// Remove a knowledge page
+    Remove {
+        /// Page slug
+        slug: String,
+    },
+    /// Manually sync from remote
+    Sync,
+    /// Search knowledge page content
+    Search {
+        /// Search query (case-insensitive substring match)
+        query: Option<String>,
+        /// Number of context lines around each match
+        #[arg(short = 'C', long, default_value = "1")]
+        context: usize,
+        /// Search by source URL domain instead of content
+        #[arg(long)]
+        source: Option<String>,
     },
 }
 
@@ -601,9 +795,44 @@ enum IntegrityCommands {
     },
 }
 
+#[derive(Subcommand)]
+enum ConfigCommands {
+    /// Show all configuration with default annotations
+    Show,
+    /// Get a specific config value
+    Get {
+        /// Config key name
+        key: String,
+    },
+    /// Set a config value
+    Set {
+        /// Config key name
+        key: String,
+        /// Value to set (for arrays: comma-separated, or use --add/--remove)
+        value: Option<String>,
+        /// Add a value to an array field
+        #[arg(long)]
+        add: Option<String>,
+        /// Remove a value from an array field
+        #[arg(long)]
+        remove: Option<String>,
+    },
+    /// List all available config keys with descriptions
+    List,
+    /// Reset config to defaults (all keys, or a single key)
+    Reset {
+        /// Specific key to reset (omit for full reset)
+        key: Option<String>,
+    },
+    /// Show differences from default config
+    Diff,
+}
+
 fn find_crosslink_dir() -> Result<PathBuf> {
     let mut current = env::current_dir()?;
 
+    // First, walk up from cwd looking for .crosslink (works in main repo)
+    let start = current.clone();
     loop {
         let candidate = current.join(".crosslink");
         if candidate.is_dir() {
@@ -611,9 +840,19 @@ fn find_crosslink_dir() -> Result<PathBuf> {
         }
 
         if !current.pop() {
-            bail!("Not a crosslink repository (or any parent). Run 'crosslink init' first.");
+            break;
         }
     }
+
+    // Not found — check if we're in a git worktree and look in the main repo root
+    if let Some(main_root) = utils::resolve_main_repo_root(&start) {
+        let candidate = main_root.join(".crosslink");
+        if candidate.is_dir() {
+            return Ok(candidate);
+        }
+    }
+
+    bail!("Not a crosslink repository (or any parent). Run 'crosslink init' first.");
 }
 
 fn get_db() -> Result<Database> {
@@ -667,9 +906,23 @@ fn main() -> Result<()> {
         Commands::Init {
             force,
             python_prefix,
+            skip_cpitd,
+            skip_signing,
+            signing_key,
+            reconfigure,
+            defaults,
         } => {
             let cwd = env::current_dir()?;
-            commands::init::run(&cwd, force, python_prefix.as_deref())
+            let opts = commands::init::InitOpts {
+                force,
+                python_prefix: python_prefix.as_deref(),
+                skip_cpitd,
+                skip_signing,
+                signing_key: signing_key.as_deref(),
+                reconfigure,
+                defaults,
+            };
+            commands::init::run(&cwd, &opts)
         }
 
         Commands::Create {
@@ -854,11 +1107,31 @@ fn main() -> Result<()> {
             commands::delete::run(&db, writer.as_ref(), id, force)
         }
 
-        Commands::Comment { id, text } => {
+        Commands::Comment { id, text, kind } => {
             let db = get_db()?;
             let crosslink_dir = find_crosslink_dir()?;
             let writer = get_writer(&crosslink_dir);
-            commands::comment::run(&db, writer.as_ref(), id, &text)
+            commands::comment::run(&db, writer.as_ref(), id, &text, &kind)
+        }
+
+        Commands::Intervene {
+            id,
+            description,
+            trigger,
+            context,
+        } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            commands::intervene::run(
+                &db,
+                writer.as_ref(),
+                id,
+                &description,
+                &trigger,
+                context.as_deref(),
+                &crosslink_dir,
+            )
         }
 
         Commands::Label { id, label } => {
@@ -1006,10 +1279,14 @@ fn main() -> Result<()> {
                 SessionCommands::End { notes } => {
                     commands::session::end(&db, notes.as_deref(), &crosslink_dir)
                 }
-                SessionCommands::Status => commands::session::status(&db),
+                SessionCommands::Status => commands::session::status(&db, &crosslink_dir),
                 SessionCommands::Work { id } => commands::session::work(&db, id, &crosslink_dir),
-                SessionCommands::LastHandoff => commands::session::last_handoff(&db),
-                SessionCommands::Action { text } => commands::session::action(&db, &text),
+                SessionCommands::LastHandoff => {
+                    commands::session::last_handoff(&db, &crosslink_dir)
+                }
+                SessionCommands::Action { text } => {
+                    commands::session::action(&db, &text, &crosslink_dir)
+                }
             }
         }
 
@@ -1049,8 +1326,33 @@ fn main() -> Result<()> {
                 AgentCommands::Init {
                     agent_id,
                     description,
-                } => commands::agent::init(&crosslink_dir, &agent_id, description.as_deref()),
+                    no_key,
+                    force,
+                } => commands::agent::init(
+                    &crosslink_dir,
+                    &agent_id,
+                    description.as_deref(),
+                    no_key,
+                    force,
+                ),
                 AgentCommands::Status => commands::agent::status(&crosslink_dir),
+            }
+        }
+
+        Commands::Trust { action } => {
+            let crosslink_dir = find_crosslink_dir()?;
+            match action {
+                TrustCommands::Approve { agent_id } => {
+                    commands::trust::approve(&crosslink_dir, &agent_id)
+                }
+                TrustCommands::Revoke { agent_id } => {
+                    commands::trust::revoke(&crosslink_dir, &agent_id)
+                }
+                TrustCommands::List => commands::trust::list(&crosslink_dir),
+                TrustCommands::Pending => commands::trust::pending(&crosslink_dir),
+                TrustCommands::Check { agent_id } => {
+                    commands::trust::check(&crosslink_dir, &agent_id)
+                }
             }
         }
 
@@ -1095,15 +1397,93 @@ fn main() -> Result<()> {
             commands::integrity_cmd::run(action.as_ref(), &crosslink_dir, &db)
         }
 
-        Commands::Review { command } => {
+        Commands::Style { command } => {
+            let crosslink_dir = find_crosslink_dir()?;
+            match command {
+                StyleCommands::Set { url, ref_name } => {
+                    commands::style::set(&crosslink_dir, &url, ref_name.as_deref())
+                }
+                StyleCommands::Sync { dry_run } => commands::style::sync(&crosslink_dir, dry_run),
+                StyleCommands::Diff => commands::style::diff(&crosslink_dir),
+                StyleCommands::Show => commands::style::show(&crosslink_dir),
+                StyleCommands::Unset => commands::style::unset(&crosslink_dir),
+            }
+        }
+
+        Commands::Knowledge { command } => {
+            let crosslink_dir = find_crosslink_dir()?;
+            match command {
+                KnowledgeCommands::Add {
+                    slug,
+                    title,
+                    tag,
+                    source,
+                    content,
+                } => commands::knowledge::add(
+                    &crosslink_dir,
+                    &slug,
+                    title.as_deref(),
+                    &tag,
+                    &source,
+                    content.as_deref(),
+                ),
+                KnowledgeCommands::Show { slug } => {
+                    commands::knowledge::show(&crosslink_dir, &slug, cli.json)
+                }
+                KnowledgeCommands::List { tag, contributor } => commands::knowledge::list(
+                    &crosslink_dir,
+                    tag.as_deref(),
+                    contributor.as_deref(),
+                ),
+                KnowledgeCommands::Edit {
+                    slug,
+                    append,
+                    content,
+                    tag,
+                    source,
+                } => commands::knowledge::edit(
+                    &crosslink_dir,
+                    &slug,
+                    append.as_deref(),
+                    content.as_deref(),
+                    &tag,
+                    &source,
+                ),
+                KnowledgeCommands::Remove { slug } => {
+                    commands::knowledge::remove(&crosslink_dir, &slug)
+                }
+                KnowledgeCommands::Sync => commands::knowledge::sync(&crosslink_dir),
+                KnowledgeCommands::Search {
+                    query,
+                    context,
+                    source,
+                } => commands::knowledge::search(
+                    &crosslink_dir,
+                    query.as_deref(),
+                    context,
+                    source.as_deref(),
+                    cli.json,
+                ),
+            }
+        }
+
+        Commands::Config { command } => {
+            let crosslink_dir = find_crosslink_dir()?;
+            commands::config::run(command, &crosslink_dir)
+        }
+        Commands::Workflow { command } => {
             let crosslink_dir = find_crosslink_dir()?;
             let claude_dir = crosslink_dir
                 .parent()
                 .ok_or_else(|| anyhow::anyhow!("Cannot determine project root"))?
                 .join(".claude");
             match command {
-                ReviewCommands::Diff { section, check } => {
-                    commands::review::diff(&crosslink_dir, &claude_dir, section.as_deref(), check)
+                WorkflowCommands::Diff { section, check } => {
+                    commands::workflow::diff(&crosslink_dir, &claude_dir, section.as_deref(), check)
+                }
+                WorkflowCommands::Trail { id, kind, json } => {
+                    let db = get_db()?;
+                    commands::workflow::trail(&db, id, kind.as_deref(), json)
                 }
             }
         }

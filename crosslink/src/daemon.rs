@@ -121,10 +121,25 @@ pub fn run_daemon(crosslink_dir: &Path) -> Result<()> {
     let mut heartbeat_counter: u64 = 0;
     const HEARTBEAT_EVERY_N: u64 = 5;
 
+    // Error tracking for consecutive failures
+    let mut consecutive_db_failures: u32 = 0;
+    let mut consecutive_sync_failures: u32 = 0;
+    const FAILURE_WARN_THRESHOLD: u32 = 5;
+
+    // Graceful shutdown: set should_exit on SIGTERM/SIGINT and stdin closure.
+    let should_exit = Arc::new(AtomicBool::new(false));
+
+    // Register signal handlers for graceful shutdown
+    #[cfg(unix)]
+    {
+        let flag = Arc::clone(&should_exit);
+        let _ = signal_hook::flag::register(signal_hook::consts::SIGTERM, Arc::clone(&flag));
+        let _ = signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&flag));
+    }
+
     // Zombie prevention: Monitor stdin for closure.
     // When the parent process (VS Code) dies, stdin will be closed.
     // This thread detects that and signals the main loop to exit.
-    let should_exit = Arc::new(AtomicBool::new(false));
     let should_exit_clone = Arc::clone(&should_exit);
 
     thread::spawn(move || {
@@ -171,24 +186,44 @@ pub fn run_daemon(crosslink_dir: &Path) -> Result<()> {
 
         // Auto-flush: read current session and write to session.json
         let mut active_issue_id: Option<i64> = None;
-        if let Ok(db) = Database::open(&db_path) {
-            if let Ok(Some(session)) = db.get_current_session() {
-                active_issue_id = session.active_issue_id;
-                let session_data = serde_json::json!({
-                    "session_id": session.id,
-                    "started_at": session.started_at.to_rfc3339(),
-                    "active_issue_id": session.active_issue_id,
-                });
+        match Database::open(&db_path) {
+            Ok(db) => {
+                consecutive_db_failures = 0;
+                let agent_id = crate::identity::AgentConfig::load(crosslink_dir)
+                    .ok()
+                    .flatten()
+                    .map(|a| a.agent_id);
+                if let Ok(Some(session)) = db.get_current_session_for_agent(agent_id.as_deref()) {
+                    active_issue_id = session.active_issue_id;
+                    let session_data = serde_json::json!({
+                        "session_id": session.id,
+                        "started_at": session.started_at.to_rfc3339(),
+                        "active_issue_id": session.active_issue_id,
+                    });
 
-                if let Ok(json) = serde_json::to_string_pretty(&session_data) {
-                    if let Err(e) = fs::write(&session_file, json) {
-                        eprintln!("Failed to write session file: {}", e);
-                    } else {
-                        println!(
-                            "Session flushed at {}",
-                            chrono::Utc::now().format("%H:%M:%S")
-                        );
+                    if let Ok(json) = serde_json::to_string_pretty(&session_data) {
+                        if let Err(e) = fs::write(&session_file, json) {
+                            eprintln!("Failed to write session file: {}", e);
+                        } else {
+                            println!(
+                                "Session flushed at {}",
+                                chrono::Utc::now().format("%H:%M:%S")
+                            );
+                        }
                     }
+                }
+            }
+            Err(e) => {
+                consecutive_db_failures += 1;
+                eprintln!(
+                    "Failed to open database: {} (failure #{})",
+                    e, consecutive_db_failures
+                );
+                if consecutive_db_failures == FAILURE_WARN_THRESHOLD {
+                    eprintln!(
+                        "WARNING: {} consecutive database failures. Daemon may not be functioning correctly.",
+                        FAILURE_WARN_THRESHOLD
+                    );
                 }
             }
         }
@@ -196,40 +231,60 @@ pub fn run_daemon(crosslink_dir: &Path) -> Result<()> {
         // Heartbeat + fetch/hydrate: every N cycles
         heartbeat_counter += 1;
         if heartbeat_counter.is_multiple_of(HEARTBEAT_EVERY_N) {
-            if let Ok(Some(agent)) = crate::identity::AgentConfig::load(crosslink_dir) {
-                if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
-                    let _ = sync.init_cache();
+            match crate::identity::AgentConfig::load(crosslink_dir) {
+                Ok(Some(agent)) => {
+                    match crate::sync::SyncManager::new(crosslink_dir) {
+                        Ok(sync) => {
+                            consecutive_sync_failures = 0;
+                            let _ = sync.init_cache();
 
-                    // Push heartbeat
-                    match sync.push_heartbeat(&agent, active_issue_id) {
-                        Ok(()) => println!(
-                            "Heartbeat pushed at {}",
-                            chrono::Utc::now().format("%H:%M:%S")
-                        ),
-                        Err(e) => eprintln!("Heartbeat push failed: {}", e),
-                    }
+                            // Push heartbeat
+                            match sync.push_heartbeat(&agent, active_issue_id) {
+                                Ok(()) => println!(
+                                    "Heartbeat pushed at {}",
+                                    chrono::Utc::now().format("%H:%M:%S")
+                                ),
+                                Err(e) => eprintln!("Heartbeat push failed: {}", e),
+                            }
 
-                    // Fetch latest coordination branch and hydrate SQLite
-                    match sync.fetch() {
-                        Ok(()) => {
-                            if let Ok(db) = Database::open(&db_path) {
-                                match hydrate_to_sqlite(sync.cache_path(), &db) {
-                                    Ok(stats) => {
-                                        if stats.issues > 0 {
-                                            println!(
-                                                "Hydrated {} issue(s) at {}",
-                                                stats.issues,
-                                                chrono::Utc::now().format("%H:%M:%S")
-                                            );
+                            // Fetch latest coordination branch and hydrate SQLite
+                            match sync.fetch() {
+                                Ok(()) => {
+                                    if let Ok(db) = Database::open(&db_path) {
+                                        match hydrate_to_sqlite(sync.cache_path(), &db) {
+                                            Ok(stats) => {
+                                                if stats.issues > 0 {
+                                                    println!(
+                                                        "Hydrated {} issue(s) at {}",
+                                                        stats.issues,
+                                                        chrono::Utc::now().format("%H:%M:%S")
+                                                    );
+                                                }
+                                            }
+                                            Err(e) => eprintln!("Hydration failed: {}", e),
                                         }
                                     }
-                                    Err(e) => eprintln!("Hydration failed: {}", e),
                                 }
+                                Err(e) => eprintln!("Fetch failed: {}", e),
                             }
                         }
-                        Err(e) => eprintln!("Fetch failed: {}", e),
+                        Err(e) => {
+                            consecutive_sync_failures += 1;
+                            eprintln!(
+                                "Sync init failed: {} (failure #{})",
+                                e, consecutive_sync_failures
+                            );
+                            if consecutive_sync_failures == FAILURE_WARN_THRESHOLD {
+                                eprintln!(
+                                    "WARNING: {} consecutive sync failures. Daemon may not be functioning correctly.",
+                                    FAILURE_WARN_THRESHOLD
+                                );
+                            }
+                        }
                     }
                 }
+                Ok(None) => {} // No agent configured, skip sync
+                Err(e) => eprintln!("Failed to load agent config: {}", e),
             }
         }
     }

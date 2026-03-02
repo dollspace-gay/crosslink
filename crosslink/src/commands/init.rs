@@ -1,8 +1,14 @@
 use anyhow::{Context, Result};
+use dialoguer::Select;
 use std::fs;
+use std::io::IsTerminal;
 use std::path::Path;
 
 use crate::db::Database;
+
+// Section markers for idempotent gitignore management
+const GITIGNORE_SECTION_START: &str = "# === Crosslink managed (do not edit between markers) ===";
+const GITIGNORE_SECTION_END: &str = "# === End crosslink managed ===";
 
 /// Detect the Python invocation prefix for hook commands based on project toolchain markers.
 ///
@@ -52,6 +58,204 @@ fn read_pyproject(project_root: &Path) -> Option<String> {
     fs::read_to_string(project_root.join("pyproject.toml")).ok()
 }
 
+/// Check if cpitd is already available on PATH.
+fn cpitd_is_installed() -> bool {
+    std::process::Command::new("cpitd")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+const CPITD_REPO_URL: &str = "https://github.com/scythia-marrow/cpitd.git";
+
+/// Install cpitd using the detected Python toolchain.
+/// Returns Ok(true) if installed, Ok(false) if already present, Err on failure.
+///
+/// Tries `pip install cpitd` first (PyPI). If that fails, falls back to
+/// cloning the git repo into a temp directory and installing from source.
+fn install_cpitd(python_prefix: &str) -> Result<bool> {
+    if cpitd_is_installed() {
+        return Ok(false);
+    }
+
+    // First attempt: install from PyPI
+    let pypi_result = install_cpitd_from_pypi(python_prefix);
+    if let Ok(true) = pypi_result {
+        return Ok(true);
+    }
+
+    // Second attempt: clone repo and install from source
+    println!("  PyPI install failed, trying install from source...");
+    install_cpitd_from_source(python_prefix)
+}
+
+/// Try installing cpitd from PyPI via pip/uv/poetry.
+fn install_cpitd_from_pypi(python_prefix: &str) -> Result<bool> {
+    if python_prefix.starts_with("uv ") {
+        return run_install_command("uv", &["pip", "install", "cpitd"]);
+    }
+    if python_prefix.starts_with("poetry ") {
+        return run_install_command("poetry", &["add", "--group", "dev", "cpitd"]);
+    }
+    if python_prefix.starts_with(".venv/") {
+        let pip = python_prefix
+            .replace("python3", "pip")
+            .replace("python", "pip");
+        return run_install_command(&pip, &["install", "cpitd"]);
+    }
+    if python_prefix.starts_with("pipenv ") {
+        return run_install_command("pipenv", &["install", "--dev", "cpitd"]);
+    }
+
+    // Fallback: system python
+    run_install_command("python3", &["-m", "pip", "install", "cpitd"])
+}
+
+/// Clone the cpitd repo to a temp directory and install from source.
+fn install_cpitd_from_source(python_prefix: &str) -> Result<bool> {
+    let tmp_dir = std::env::temp_dir().join("crosslink-cpitd-install");
+
+    // Clean up any previous failed attempt
+    if tmp_dir.exists() {
+        let _ = fs::remove_dir_all(&tmp_dir);
+    }
+
+    // Clone the repo
+    let clone_output = std::process::Command::new("git")
+        .args(["clone", "--depth", "1", CPITD_REPO_URL])
+        .arg(&tmp_dir)
+        .output()
+        .context("Failed to run git clone for cpitd")?;
+
+    if !clone_output.status.success() {
+        let stderr = String::from_utf8_lossy(&clone_output.stderr);
+        // Clean up on failure
+        let _ = fs::remove_dir_all(&tmp_dir);
+        anyhow::bail!("git clone failed: {}", stderr.trim());
+    }
+
+    let tmp_dir_str = tmp_dir.to_string_lossy();
+
+    // Install from the cloned directory
+    let result = if python_prefix.starts_with("uv ") {
+        run_install_command("uv", &["pip", "install", &tmp_dir_str])
+    } else if python_prefix.starts_with("poetry ") {
+        // Poetry can't install from arbitrary paths into dev deps easily,
+        // fall back to pip inside the poetry env
+        run_install_command("poetry", &["run", "pip", "install", &tmp_dir_str])
+    } else if python_prefix.starts_with(".venv/") {
+        let pip = python_prefix
+            .replace("python3", "pip")
+            .replace("python", "pip");
+        run_install_command(&pip, &["install", &tmp_dir_str])
+    } else if python_prefix.starts_with("pipenv ") {
+        run_install_command("pipenv", &["run", "pip", "install", &tmp_dir_str])
+    } else {
+        run_install_command("python3", &["-m", "pip", "install", &tmp_dir_str])
+    };
+
+    // Clean up cloned repo
+    let _ = fs::remove_dir_all(&tmp_dir);
+
+    result
+}
+
+fn run_install_command(program: &str, args: &[&str]) -> Result<bool> {
+    let output = std::process::Command::new(program)
+        .args(args)
+        .output()
+        .with_context(|| format!("Failed to run {} {}", program, args.join(" ")))?;
+
+    if output.status.success() {
+        Ok(true)
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("cpitd install failed: {}", stderr.trim());
+    }
+}
+
+/// Detect or configure the driver's SSH signing key.
+///
+/// If `signing_key` is provided, uses that path. Otherwise checks for an
+/// existing git signing key, then falls back to common SSH key locations.
+/// Stores the driver's public key at `.crosslink/driver-key.pub`.
+fn setup_driver_signing(project_root: &Path, signing_key: Option<&str>) -> Result<()> {
+    use crate::signing;
+
+    let crosslink_dir = project_root.join(".crosslink");
+    let driver_pub_path = crosslink_dir.join("driver-key.pub");
+
+    // If driver key already configured and not forcing, skip
+    if driver_pub_path.exists() {
+        return Ok(());
+    }
+
+    // Find the key to use
+    let pubkey_path = if let Some(key_path) = signing_key {
+        // Explicit --signing-key flag
+        let p = std::path::PathBuf::from(key_path);
+        if !p.exists() {
+            println!("Warning: Signing key not found at {}", key_path);
+            return Ok(());
+        }
+        Some(p)
+    } else {
+        // Try git's configured signing key first, then default SSH keys
+        signing::find_git_signing_key().or_else(signing::find_default_ssh_key)
+    };
+
+    let pubkey_path = match pubkey_path {
+        Some(p) => p,
+        None => {
+            println!("No SSH key found. Signing setup skipped.");
+            println!("  Generate one with: ssh-keygen -t ed25519");
+            println!("  Then re-run: crosslink init --force");
+            return Ok(());
+        }
+    };
+
+    // Ensure it's a public key (not private)
+    let pubkey_path = if !pubkey_path.to_string_lossy().ends_with(".pub") {
+        let pub_variant = std::path::PathBuf::from(format!("{}.pub", pubkey_path.display()));
+        if pub_variant.exists() {
+            pub_variant
+        } else {
+            pubkey_path
+        }
+    } else {
+        pubkey_path
+    };
+
+    match signing::read_public_key(&pubkey_path) {
+        Ok(public_key) => {
+            // Copy driver public key into .crosslink/
+            fs::write(&driver_pub_path, &public_key).context("Failed to write driver-key.pub")?;
+
+            // Get fingerprint for display
+            match signing::get_key_fingerprint(&pubkey_path) {
+                Ok(fp) => println!("Driver signing key: {} ({})", fp, pubkey_path.display()),
+                Err(_) => println!("Driver signing key: {}", pubkey_path.display()),
+            }
+
+            // NOTE: We intentionally do NOT call configure_git_ssh_signing()
+            // on the project worktree here. Crosslink should not override the
+            // user's git signing configuration. The hub cache worktree (used for
+            // lock claims, issue entries, etc.) has its own signing config set
+            // up separately in sync.rs.
+        }
+        Err(_) => {
+            println!(
+                "Warning: {} does not appear to be an SSH public key",
+                pubkey_path.display()
+            );
+            println!("  Signing setup skipped.");
+        }
+    }
+
+    Ok(())
+}
+
 /// The placeholder used in the settings.json template for the Python invocation prefix.
 const PYTHON_PREFIX_PLACEHOLDER: &str = "__PYTHON_PREFIX__";
 
@@ -74,11 +278,12 @@ const SAFE_FETCH_SERVER_PY: &str = include_str!("../../resources/claude/mcp/safe
 const MCP_JSON: &str = include_str!("../../resources/mcp.json");
 
 // Embed slash commands
-const REVIEW_CMD_MD: &str = include_str!("../../resources/claude/commands/review.md");
+const WORKFLOW_CMD_MD: &str = include_str!("../../resources/claude/commands/workflow.md");
 const FEATURE_CMD_MD: &str = include_str!("../../resources/claude/commands/feature.md");
 const FEATREE_CMD_MD: &str = include_str!("../../resources/claude/commands/featree.md");
 const KICKOFF_CMD_MD: &str = include_str!("../../resources/claude/commands/kickoff.md");
 const CHECK_CMD_MD: &str = include_str!("../../resources/claude/commands/check.md");
+const COMMIT_CMD_MD: &str = include_str!("../../resources/claude/commands/commit.md");
 
 // Embed sanitization patterns
 const SANITIZE_PATTERNS: &str =
@@ -157,6 +362,86 @@ pub(crate) const RULE_FILES: &[(&str, &str)] = &[
     ("tracking-relaxed.md", RULE_TRACKING_RELAXED),
 ];
 
+/// The managed gitignore section content.
+///
+/// This block is placed between `GITIGNORE_SECTION_START` and `GITIGNORE_SECTION_END`
+/// markers in the project root `.gitignore`. The markers make `crosslink init --force`
+/// idempotent — re-running replaces the section in-place instead of appending duplicates.
+const GITIGNORE_MANAGED_SECTION: &str = "\
+# .crosslink/ — machine-local state (never commit)
+.crosslink/issues.db
+.crosslink/issues.db-wal
+.crosslink/issues.db-shm
+.crosslink/agent.json
+.crosslink/session.json
+.crosslink/daemon.pid
+.crosslink/daemon.log
+.crosslink/last_test_run
+.crosslink/keys/
+.crosslink/.hub-cache/
+.crosslink/.knowledge-cache/
+.crosslink/.cache/
+.crosslink/hook-config.local.json
+.crosslink/integrations/
+
+# .crosslink/ — DO track these (project-level policy):
+#   .crosslink/hook-config.json   — shared team configuration
+#   .crosslink/rules/             — project coding standards
+#   .crosslink/.gitignore         — inner gitignore for agent files
+
+# .claude/ — auto-generated by crosslink init (not project source)
+.claude/hooks/
+.claude/commands/
+.claude/mcp/
+
+# .claude/ — DO track these (if manually configured):
+#   .claude/settings.json         — Claude Code project settings
+#   .claude/settings.local.json is per-developer, ignore separately if needed
+";
+
+/// Write or update a managed section in the project root `.gitignore`.
+///
+/// The section is delimited by `GITIGNORE_SECTION_START` / `GITIGNORE_SECTION_END` markers.
+/// On first run the section is appended; on subsequent runs the existing section is replaced
+/// in-place, preserving any user entries outside the markers.
+fn write_root_gitignore(project_root: &Path) -> Result<()> {
+    let gitignore_path = project_root.join(".gitignore");
+
+    let managed_block = format!(
+        "{}\n{}{}\n",
+        GITIGNORE_SECTION_START, GITIGNORE_MANAGED_SECTION, GITIGNORE_SECTION_END
+    );
+
+    let existing = fs::read_to_string(&gitignore_path).unwrap_or_default();
+
+    let new_content = if let (Some(start_pos), Some(end_pos)) = (
+        existing.find(GITIGNORE_SECTION_START),
+        existing.find(GITIGNORE_SECTION_END),
+    ) {
+        // Replace existing managed section in-place
+        let before = &existing[..start_pos];
+        let after = &existing[end_pos + GITIGNORE_SECTION_END.len()..];
+        // Strip leading newline from `after` so we don't accumulate blank lines
+        let after = after.strip_prefix('\n').unwrap_or(after);
+        format!("{}{}{}", before, managed_block, after)
+    } else {
+        // Append new section (with a blank separator if file has content)
+        if existing.is_empty() {
+            managed_block
+        } else {
+            let separator = if existing.ends_with('\n') {
+                "\n"
+            } else {
+                "\n\n"
+            };
+            format!("{}{}{}", existing, separator, managed_block)
+        }
+    };
+
+    fs::write(&gitignore_path, new_content).context("Failed to write .gitignore")?;
+    Ok(())
+}
+
 /// Merge crosslink's MCP server entries into an existing `.mcp.json`, or create it fresh.
 /// Returns a list of warnings (e.g. overwritten keys) for the caller to display.
 fn write_mcp_json_merged(mcp_path: &Path) -> Result<Vec<String>> {
@@ -218,7 +503,274 @@ fn write_mcp_json_merged(mcp_path: &Path) -> Result<Vec<String>> {
     Ok(warnings)
 }
 
-pub fn run(path: &Path, force: bool, python_prefix: Option<&str>) -> Result<()> {
+/// Merge crosslink's default `allowedTools` into an existing `.claude/settings.json`,
+/// or create it fresh.  Hooks are always overwritten (they are crosslink-managed),
+/// but user-added `allowedTools` entries are preserved.
+///
+/// The `python_prefix` is substituted into hook commands via the `__PYTHON_PREFIX__`
+/// placeholder in the embedded template.
+fn write_settings_json_merged(settings_path: &Path, python_prefix: &str) -> Result<()> {
+    let template_raw = SETTINGS_JSON.replace(PYTHON_PREFIX_PLACEHOLDER, python_prefix);
+    let template: serde_json::Value = serde_json::from_str(&template_raw).context(
+        "embedded SETTINGS_JSON is not valid JSON after substitution — this is a build defect",
+    )?;
+
+    let embedded_tools: Vec<String> = template
+        .get("allowedTools")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let mut obj = match fs::read_to_string(settings_path) {
+        Ok(raw) => {
+            let parsed: serde_json::Value = serde_json::from_str(&raw).with_context(|| {
+                format!(
+                    "Existing settings.json at {} contains invalid JSON — \
+                         refusing to overwrite. Fix or remove it, then retry.",
+                    settings_path.display()
+                )
+            })?;
+            match parsed {
+                serde_json::Value::Object(map) => map,
+                _ => anyhow::bail!(
+                    "Existing settings.json at {} is not a JSON object — \
+                     refusing to overwrite. Fix or remove it, then retry.",
+                    settings_path.display()
+                ),
+            }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => serde_json::Map::new(),
+        Err(e) => {
+            return Err(anyhow::Error::from(e).context("Failed to read existing settings.json"))
+        }
+    };
+
+    // Merge allowedTools: union of existing entries + embedded defaults (no duplicates)
+    let mut tools: Vec<String> = obj
+        .get("allowedTools")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    for tool in &embedded_tools {
+        if !tools.contains(tool) {
+            tools.push(tool.clone());
+        }
+    }
+
+    obj.insert(
+        "allowedTools".into(),
+        serde_json::Value::Array(tools.into_iter().map(serde_json::Value::String).collect()),
+    );
+
+    // Overwrite hooks (crosslink-managed) and enableAllProjectMcpServers
+    if let Some(hooks) = template.get("hooks") {
+        obj.insert("hooks".into(), hooks.clone());
+    }
+    if let Some(enable) = template.get("enableAllProjectMcpServers") {
+        obj.insert("enableAllProjectMcpServers".into(), enable.clone());
+    }
+
+    let mut output = serde_json::to_string_pretty(&serde_json::Value::Object(obj))
+        .context("Failed to serialize settings.json")?;
+    output.push('\n');
+    fs::write(settings_path, output).context("Failed to write settings.json")?;
+    Ok(())
+}
+
+/// TUI walkthrough choices for `crosslink init`.
+struct TuiChoices {
+    tracking_mode: String,
+    intervention_tracking: bool,
+    comment_discipline: String,
+    kickoff_verification: String,
+}
+
+impl Default for TuiChoices {
+    fn default() -> Self {
+        Self {
+            tracking_mode: "strict".to_string(),
+            intervention_tracking: true,
+            comment_discipline: "encouraged".to_string(),
+            kickoff_verification: "local".to_string(),
+        }
+    }
+}
+
+/// Run the interactive TUI walkthrough, returning user choices.
+/// Falls back to defaults if stdin is not a TTY.
+fn run_tui_walkthrough(existing: Option<&serde_json::Value>) -> Result<TuiChoices> {
+    if !std::io::stdin().is_terminal() {
+        println!("Non-interactive environment detected, using defaults.");
+        return Ok(TuiChoices::default());
+    }
+
+    println!("\n  Welcome to Crosslink! Let's configure your project.\n");
+
+    // Resolve current/default selections from existing config
+    let current_tracking = existing
+        .and_then(|v| v.get("tracking_mode"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("strict");
+    let current_intervention = existing
+        .and_then(|v| v.get("intervention_tracking"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    let current_comment = existing
+        .and_then(|v| v.get("comment_discipline"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("encouraged");
+    let current_kickoff = existing
+        .and_then(|v| v.get("kickoff_verification"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("local");
+
+    // 1. Issue tracking enforcement
+    let tracking_items = &[
+        "Strict (block tool calls without active issue)",
+        "Normal (remind but don't block)",
+        "Relaxed (no enforcement)",
+    ];
+    let tracking_default = match current_tracking {
+        "normal" => 1,
+        "relaxed" => 2,
+        _ => 0,
+    };
+    let tracking_idx = Select::new()
+        .with_prompt("Issue tracking enforcement")
+        .items(tracking_items)
+        .default(tracking_default)
+        .interact_opt()
+        .context("TUI prompt failed")?
+        .unwrap_or(tracking_default);
+    let tracking_mode = match tracking_idx {
+        1 => "normal",
+        2 => "relaxed",
+        _ => "strict",
+    }
+    .to_string();
+
+    // 2. Driver intervention tracking
+    let intervention_items = &["Enabled (log when the human operator steps in)", "Disabled"];
+    let intervention_default = if current_intervention { 0 } else { 1 };
+    let intervention_idx = Select::new()
+        .with_prompt("Driver intervention tracking")
+        .items(intervention_items)
+        .default(intervention_default)
+        .interact_opt()
+        .context("TUI prompt failed")?
+        .unwrap_or(intervention_default);
+    let intervention_tracking = intervention_idx == 0;
+
+    // 3. Comment discipline
+    let comment_items = &[
+        "Encouraged (remind agents to document decisions)",
+        "Required (block after N minutes without comments)",
+        "Off",
+    ];
+    let comment_default = match current_comment {
+        "required" => 1,
+        "off" => 2,
+        _ => 0,
+    };
+    let comment_idx = Select::new()
+        .with_prompt("Comment discipline")
+        .items(comment_items)
+        .default(comment_default)
+        .interact_opt()
+        .context("TUI prompt failed")?
+        .unwrap_or(comment_default);
+    let comment_discipline = match comment_idx {
+        1 => "required",
+        2 => "off",
+        _ => "encouraged",
+    }
+    .to_string();
+
+    // 4. Kickoff verification depth
+    let kickoff_items = &[
+        "Local only (tests + self-review)",
+        "CI (push and wait for CI)",
+        "Thorough (CI + adversarial review)",
+    ];
+    let kickoff_default = match current_kickoff {
+        "ci" => 1,
+        "thorough" => 2,
+        _ => 0,
+    };
+    let kickoff_idx = Select::new()
+        .with_prompt("Kickoff verification depth")
+        .items(kickoff_items)
+        .default(kickoff_default)
+        .interact_opt()
+        .context("TUI prompt failed")?
+        .unwrap_or(kickoff_default);
+    let kickoff_verification = match kickoff_idx {
+        1 => "ci",
+        2 => "thorough",
+        _ => "local",
+    }
+    .to_string();
+
+    Ok(TuiChoices {
+        tracking_mode,
+        intervention_tracking,
+        comment_discipline,
+        kickoff_verification,
+    })
+}
+
+/// Apply TUI choices onto a config JSON value, preserving fields not covered by the TUI.
+fn apply_tui_choices(config: &mut serde_json::Value, choices: &TuiChoices) -> Result<()> {
+    let obj = config
+        .as_object_mut()
+        .context("hook-config.json is not a JSON object")?;
+    obj.insert(
+        "tracking_mode".into(),
+        serde_json::Value::String(choices.tracking_mode.clone()),
+    );
+    obj.insert(
+        "intervention_tracking".into(),
+        serde_json::Value::Bool(choices.intervention_tracking),
+    );
+    obj.insert(
+        "comment_discipline".into(),
+        serde_json::Value::String(choices.comment_discipline.clone()),
+    );
+    obj.insert(
+        "kickoff_verification".into(),
+        serde_json::Value::String(choices.kickoff_verification.clone()),
+    );
+    Ok(())
+}
+
+/// Options for `crosslink init`.
+pub struct InitOpts<'a> {
+    pub force: bool,
+    pub python_prefix: Option<&'a str>,
+    pub skip_cpitd: bool,
+    pub skip_signing: bool,
+    pub signing_key: Option<&'a str>,
+    pub reconfigure: bool,
+    pub defaults: bool,
+}
+
+pub fn run(path: &Path, opts: &InitOpts<'_>) -> Result<()> {
+    let force = opts.force;
+    let python_prefix = opts.python_prefix;
+    let skip_cpitd = opts.skip_cpitd;
+    let skip_signing = opts.skip_signing;
+    let signing_key = opts.signing_key;
+    let reconfigure = opts.reconfigure;
+    let defaults = opts.defaults;
     let crosslink_dir = path.join(".crosslink");
     let claude_dir = path.join(".claude");
     let hooks_dir = claude_dir.join("hooks");
@@ -227,9 +779,10 @@ pub fn run(path: &Path, force: bool, python_prefix: Option<&str>) -> Result<()> 
     let crosslink_exists = crosslink_dir.exists();
     let claude_exists = claude_dir.exists();
 
-    if crosslink_exists && claude_exists && !force {
+    if crosslink_exists && claude_exists && !force && !reconfigure {
         println!("Already initialized at {}", path.display());
         println!("Use --force to update hooks to latest version.");
+        println!("Use --reconfigure to re-run the setup walkthrough.");
         return Ok(());
     }
 
@@ -244,10 +797,41 @@ pub fn run(path: &Path, force: bool, python_prefix: Option<&str>) -> Result<()> 
         println!("Created {}", crosslink_dir.display());
     }
 
-    // Write hook config (create or update)
+    // Write hook config — with TUI walkthrough when appropriate
     let config_path = crosslink_dir.join("hook-config.json");
-    if !config_path.exists() || force {
-        fs::write(&config_path, HOOK_CONFIG_JSON).context("Failed to write hook-config.json")?;
+    let config_exists = config_path.exists();
+    let should_run_tui = !defaults && (!config_exists || force || reconfigure);
+
+    if should_run_tui || !config_exists || force {
+        if should_run_tui {
+            // Start from existing config (for --reconfigure) or embedded default
+            let mut config: serde_json::Value = if config_exists && reconfigure {
+                let raw = fs::read_to_string(&config_path)
+                    .context("Failed to read existing hook-config.json")?;
+                serde_json::from_str(&raw).context("hook-config.json contains invalid JSON")?
+            } else {
+                serde_json::from_str(HOOK_CONFIG_JSON)
+                    .context("Embedded hook-config.json is invalid")?
+            };
+
+            let existing_ref = if config_exists {
+                Some(&config as &serde_json::Value)
+            } else {
+                None
+            };
+            let choices = run_tui_walkthrough(existing_ref)?;
+            apply_tui_choices(&mut config, &choices)?;
+            println!();
+
+            let output = serde_json::to_string_pretty(&config)
+                .context("Failed to serialize hook-config.json")?;
+            fs::write(&config_path, format!("{}\n", output))
+                .context("Failed to write hook-config.json")?;
+        } else {
+            // --defaults or non-interactive: write embedded config verbatim
+            fs::write(&config_path, HOOK_CONFIG_JSON)
+                .context("Failed to write hook-config.json")?;
+        }
     }
 
     // Write .crosslink/.gitignore for multi-agent files
@@ -255,10 +839,21 @@ pub fn run(path: &Path, force: bool, python_prefix: Option<&str>) -> Result<()> 
     if !crosslink_gitignore.exists() || force {
         fs::write(
             &crosslink_gitignore,
-            "# Multi-agent collaboration (machine-local)\nagent.json\n.hub-cache/\n\n# Machine-local hook overrides\nhook-config.local.json\n",
+            "# Multi-agent collaboration (machine-local)\n\
+             agent.json\n\
+             .hub-cache/\n\
+             .knowledge-cache/\n\
+             keys/\n\
+             integrations/\n\
+             \n\
+             # Machine-local hook overrides\n\
+             hook-config.local.json\n",
         )
         .context("Failed to write .crosslink/.gitignore")?;
     }
+
+    // Write/update managed section in root .gitignore
+    write_root_gitignore(path).context("Failed to update root .gitignore")?;
 
     // Create or update rules directory
     let rules_exist = rules_dir.exists();
@@ -277,16 +872,17 @@ pub fn run(path: &Path, force: bool, python_prefix: Option<&str>) -> Result<()> 
         }
     }
 
+    // Detect or use provided Python prefix (needed for settings.json and cpitd install)
+    let prefix = python_prefix
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| detect_python_prefix(path));
+
     // Create .claude directory and hooks (or update if force)
     if !claude_exists || force {
         fs::create_dir_all(&hooks_dir).context("Failed to create .claude/hooks directory")?;
 
-        // Detect or use provided Python prefix, then template settings.json
-        let prefix = python_prefix
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| detect_python_prefix(path));
-        let settings_content = SETTINGS_JSON.replace(PYTHON_PREFIX_PLACEHOLDER, &prefix);
-        fs::write(claude_dir.join("settings.json"), settings_content)
+        // Merge settings.json (preserves user-added allowedTools, updates hooks)
+        write_settings_json_merged(&claude_dir.join("settings.json"), &prefix)
             .context("Failed to write settings.json")?;
 
         // Write hook scripts
@@ -317,8 +913,8 @@ pub fn run(path: &Path, force: bool, python_prefix: Option<&str>) -> Result<()> 
         // Write slash commands
         let commands_dir = claude_dir.join("commands");
         fs::create_dir_all(&commands_dir).context("Failed to create .claude/commands directory")?;
-        fs::write(commands_dir.join("review.md"), REVIEW_CMD_MD)
-            .context("Failed to write review.md")?;
+        fs::write(commands_dir.join("workflow.md"), WORKFLOW_CMD_MD)
+            .context("Failed to write workflow.md")?;
         fs::write(commands_dir.join("feature.md"), FEATURE_CMD_MD)
             .context("Failed to write feature.md")?;
         fs::write(commands_dir.join("featree.md"), FEATREE_CMD_MD)
@@ -327,6 +923,8 @@ pub fn run(path: &Path, force: bool, python_prefix: Option<&str>) -> Result<()> 
             .context("Failed to write kickoff.md")?;
         fs::write(commands_dir.join("check.md"), CHECK_CMD_MD)
             .context("Failed to write check.md")?;
+        fs::write(commands_dir.join("commit.md"), COMMIT_CMD_MD)
+            .context("Failed to write commit.md")?;
 
         // Merge crosslink's MCP server entry into .mcp.json (preserving existing MCPs)
         let warnings =
@@ -342,6 +940,23 @@ pub fn run(path: &Path, force: bool, python_prefix: Option<&str>) -> Result<()> 
         }
     }
 
+    // Auto-install cpitd unless skipped
+    if !skip_cpitd {
+        match install_cpitd(&prefix) {
+            Ok(true) => println!("Installed cpitd (code clone detection)"),
+            Ok(false) => {} // already installed, silent
+            Err(e) => {
+                println!("Warning: Could not auto-install cpitd: {}", e);
+                println!("  You can install it manually: pip install cpitd");
+            }
+        }
+    }
+
+    // Driver SSH key detection and setup
+    if !skip_signing {
+        setup_driver_signing(path, signing_key)?;
+    }
+
     println!("Crosslink initialized successfully!");
     println!("\nNext steps:");
     println!("  crosslink session start     # Start a session");
@@ -355,10 +970,23 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
+    /// Build default test opts (skips cpitd/signing, uses --defaults to skip TUI).
+    fn test_opts(force: bool) -> InitOpts<'static> {
+        InitOpts {
+            force,
+            python_prefix: None,
+            skip_cpitd: true,
+            skip_signing: true,
+            signing_key: None,
+            reconfigure: false,
+            defaults: true,
+        }
+    }
+
     #[test]
     fn test_run_fresh_init() {
         let dir = tempdir().unwrap();
-        let result = run(dir.path(), false, None);
+        let result = run(dir.path(), &test_opts(false));
         assert!(result.is_ok());
 
         // Verify directories created
@@ -374,7 +1002,7 @@ mod tests {
     #[test]
     fn test_run_creates_hook_files() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         // Verify hook files
         assert!(dir.path().join(".claude/settings.json").exists());
@@ -394,7 +1022,7 @@ mod tests {
     #[test]
     fn test_run_creates_rule_files() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         let rules_dir = dir.path().join(".crosslink/rules");
         assert!(rules_dir.join("global.md").exists());
@@ -413,10 +1041,10 @@ mod tests {
         let dir = tempdir().unwrap();
 
         // First init
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         // Second init without force - should succeed but not recreate
-        let result = run(dir.path(), false, None);
+        let result = run(dir.path(), &test_opts(false));
         assert!(result.is_ok());
     }
 
@@ -425,14 +1053,14 @@ mod tests {
         let dir = tempdir().unwrap();
 
         // First init
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         // Modify a hook file
         let hook_path = dir.path().join(".claude/hooks/prompt-guard.py");
         fs::write(&hook_path, "# modified").unwrap();
 
         // Force update
-        run(dir.path(), true, None).unwrap();
+        run(dir.path(), &test_opts(true)).unwrap();
 
         // Verify file was restored
         let content = fs::read_to_string(&hook_path).unwrap();
@@ -454,7 +1082,7 @@ mod tests {
     #[test]
     fn test_force_init_preserves_existing_mcp_servers() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         // Add a custom MCP server entry alongside the embedded ones
         let mcp_path = dir.path().join(".mcp.json");
@@ -467,7 +1095,7 @@ mod tests {
         fs::write(&mcp_path, serde_json::to_string_pretty(&content).unwrap()).unwrap();
 
         // Force update
-        run(dir.path(), true, None).unwrap();
+        run(dir.path(), &test_opts(true)).unwrap();
 
         // Verify all embedded keys and the custom key are present
         let result: serde_json::Value =
@@ -494,7 +1122,7 @@ mod tests {
     #[test]
     fn test_force_init_returns_warnings_for_overwritten_keys() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         // The first init created .mcp.json with the embedded keys.
         // A second force init should warn about overwriting each one.
@@ -549,14 +1177,14 @@ mod tests {
     #[test]
     fn test_force_init_fails_on_malformed_mcp_json() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         // Write invalid JSON to .mcp.json
         let mcp_path = dir.path().join(".mcp.json");
         fs::write(&mcp_path, "not json {{{").unwrap();
 
         // Force init should fail, not silently overwrite
-        let result = run(dir.path(), true, None);
+        let result = run(dir.path(), &test_opts(true));
         assert!(result.is_err());
         let err = format!("{:#}", result.unwrap_err());
         assert!(
@@ -573,14 +1201,14 @@ mod tests {
     #[test]
     fn test_force_init_fails_on_non_object_mcp_json() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         // Write a JSON array to .mcp.json
         let mcp_path = dir.path().join(".mcp.json");
         fs::write(&mcp_path, "[1, 2, 3]").unwrap();
 
         // Force init should fail, not silently overwrite
-        let result = run(dir.path(), true, None);
+        let result = run(dir.path(), &test_opts(true));
         assert!(result.is_err());
         let err = format!("{:#}", result.unwrap_err());
         assert!(
@@ -597,14 +1225,14 @@ mod tests {
     #[test]
     fn test_force_init_handles_empty_mcp_json_file() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         // Write empty file
         let mcp_path = dir.path().join(".mcp.json");
         fs::write(&mcp_path, "").unwrap();
 
         // Should fail — empty file is not valid JSON
-        let result = run(dir.path(), true, None);
+        let result = run(dir.path(), &test_opts(true));
         assert!(result.is_err());
         let err = format!("{:#}", result.unwrap_err());
         assert!(
@@ -617,14 +1245,14 @@ mod tests {
     #[test]
     fn test_force_init_fails_on_non_object_mcp_servers_value() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         // Write valid JSON where mcpServers is a string instead of object
         let mcp_path = dir.path().join(".mcp.json");
         fs::write(&mcp_path, r#"{"mcpServers": "banana"}"#).unwrap();
 
         // Should fail, not silently replace
-        let result = run(dir.path(), true, None);
+        let result = run(dir.path(), &test_opts(true));
         assert!(result.is_err());
         let err = format!("{:#}", result.unwrap_err());
         assert!(
@@ -641,14 +1269,14 @@ mod tests {
     #[test]
     fn test_init_merges_into_mcp_json_without_mcp_servers_key() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         // Write a valid object with no mcpServers key
         let mcp_path = dir.path().join(".mcp.json");
         fs::write(&mcp_path, r#"{"someOtherKey": true}"#).unwrap();
 
         // Force init should add mcpServers, preserving the other key
-        run(dir.path(), true, None).unwrap();
+        run(dir.path(), &test_opts(true)).unwrap();
 
         let content = fs::read_to_string(&mcp_path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
@@ -663,7 +1291,7 @@ mod tests {
         // Create only .crosslink directory
         fs::create_dir_all(dir.path().join(".crosslink")).unwrap();
 
-        let result = run(dir.path(), false, None);
+        let result = run(dir.path(), &test_opts(false));
         assert!(result.is_ok());
 
         // .claude should now exist
@@ -677,7 +1305,7 @@ mod tests {
         // Create only .claude directory
         fs::create_dir_all(dir.path().join(".claude")).unwrap();
 
-        let result = run(dir.path(), false, None);
+        let result = run(dir.path(), &test_opts(false));
         assert!(result.is_ok());
 
         // .crosslink should now exist
@@ -687,7 +1315,7 @@ mod tests {
     #[test]
     fn test_run_database_usable() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         // Open the created database and verify it works
         let db_path = dir.path().join(".crosslink/issues.db");
@@ -701,7 +1329,7 @@ mod tests {
     #[test]
     fn test_run_rule_files_not_empty() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         let rules_dir = dir.path().join(".crosslink/rules");
 
@@ -716,14 +1344,14 @@ mod tests {
     #[test]
     fn test_run_force_updates_rules() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         // Modify a rule file
         let rule_path = dir.path().join(".crosslink/rules/global.md");
         fs::write(&rule_path, "# modified rule").unwrap();
 
         // Force update
-        run(dir.path(), true, None).unwrap();
+        run(dir.path(), &test_opts(true)).unwrap();
 
         // Verify file was restored
         let content = fs::read_to_string(&rule_path).unwrap();
@@ -736,7 +1364,7 @@ mod tests {
 
         // Multiple force runs should all succeed
         for _ in 0..3 {
-            let result = run(dir.path(), true, None);
+            let result = run(dir.path(), &test_opts(true));
             assert!(result.is_ok());
         }
 
@@ -757,11 +1385,12 @@ mod tests {
         assert!(!CROSSLINK_CONFIG_PY.is_empty());
         assert!(!SAFE_FETCH_SERVER_PY.is_empty());
         assert!(!MCP_JSON.is_empty());
-        assert!(!REVIEW_CMD_MD.is_empty());
+        assert!(!WORKFLOW_CMD_MD.is_empty());
         assert!(!FEATURE_CMD_MD.is_empty());
         assert!(!FEATREE_CMD_MD.is_empty());
         assert!(!KICKOFF_CMD_MD.is_empty());
         assert!(!CHECK_CMD_MD.is_empty());
+        assert!(!COMMIT_CMD_MD.is_empty());
         assert!(!SANITIZE_PATTERNS.is_empty());
         assert!(!HOOK_CONFIG_JSON.is_empty());
         assert!(!RULE_TRACKING_STRICT.is_empty());
@@ -790,7 +1419,7 @@ mod tests {
     #[test]
     fn test_gitignore_includes_local_config() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".crosslink/.gitignore")).unwrap();
         assert!(content.contains("agent.json"));
@@ -905,7 +1534,7 @@ mod tests {
     #[test]
     fn test_settings_json_default_uses_python3() {
         let dir = tempdir().unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
         assert!(
@@ -922,7 +1551,7 @@ mod tests {
     fn test_settings_json_uv_project() {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("uv.lock"), "").unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
         assert!(
@@ -936,7 +1565,14 @@ mod tests {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("uv.lock"), "").unwrap();
         // CLI override should beat auto-detection
-        run(dir.path(), false, Some("custom-python")).unwrap();
+        run(
+            dir.path(),
+            &InitOpts {
+                python_prefix: Some("custom-python"),
+                ..test_opts(false)
+            },
+        )
+        .unwrap();
 
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
         assert!(
@@ -953,7 +1589,7 @@ mod tests {
     fn test_settings_json_produces_valid_json() {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("uv.lock"), "").unwrap();
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&content);
@@ -967,17 +1603,383 @@ mod tests {
     fn test_force_re_detects_toolchain() {
         let dir = tempdir().unwrap();
         // First init: no markers → python3
-        run(dir.path(), false, None).unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
         assert!(content.contains("\"python3 \\\"$(git"));
 
         // Add uv.lock, force re-init → should now use uv
         fs::write(dir.path().join("uv.lock"), "").unwrap();
-        run(dir.path(), true, None).unwrap();
+        run(dir.path(), &test_opts(true)).unwrap();
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
         assert!(
             content.contains("uv run python3"),
             "Force re-init should re-detect toolchain"
         );
+    }
+
+    // --- Settings.json allowedTools merge tests ---
+
+    /// The default allowedTools entries that the embedded template provides.
+    fn embedded_allowed_tools() -> Vec<String> {
+        let template: serde_json::Value = serde_json::from_str(SETTINGS_JSON).unwrap();
+        template
+            .get("allowedTools")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn test_settings_json_includes_allowed_tools() {
+        let dir = tempdir().unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
+
+        let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        let tools = parsed["allowedTools"]
+            .as_array()
+            .expect("allowedTools should be an array");
+
+        for expected in embedded_allowed_tools() {
+            assert!(
+                tools.iter().any(|v| v.as_str() == Some(&expected)),
+                "allowedTools should contain \"{}\"",
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn test_settings_json_includes_tmux_and_worktree_permissions() {
+        let dir = tempdir().unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
+
+        let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        let tools: Vec<&str> = parsed["allowedTools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v.as_str())
+            .collect();
+
+        assert!(
+            tools.contains(&"Bash(tmux *)"),
+            "allowedTools should include tmux permission"
+        );
+        assert!(
+            tools.contains(&"Bash(git worktree *)"),
+            "allowedTools should include git worktree permission"
+        );
+    }
+
+    #[test]
+    fn test_force_init_preserves_user_allowed_tools() {
+        let dir = tempdir().unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
+
+        // Add a custom allowedTools entry
+        let settings_path = dir.path().join(".claude/settings.json");
+        let mut content: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&settings_path).unwrap()).unwrap();
+        content["allowedTools"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::Value::String("Bash(my-custom-tool *)".into()));
+        fs::write(
+            &settings_path,
+            serde_json::to_string_pretty(&content).unwrap(),
+        )
+        .unwrap();
+
+        // Force re-init
+        run(dir.path(), &test_opts(true)).unwrap();
+
+        let result: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&settings_path).unwrap()).unwrap();
+        let tools: Vec<&str> = result["allowedTools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v.as_str())
+            .collect();
+
+        // Should have embedded tools AND the custom one
+        for expected in embedded_allowed_tools() {
+            assert!(
+                tools.contains(&expected.as_str()),
+                "embedded tool \"{}\" should be preserved after force re-init",
+                expected
+            );
+        }
+        assert!(
+            tools.contains(&"Bash(my-custom-tool *)"),
+            "custom allowedTools entry should be preserved after force re-init"
+        );
+    }
+
+    #[test]
+    fn test_force_init_no_duplicate_allowed_tools() {
+        let dir = tempdir().unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
+
+        // Force re-init multiple times
+        run(dir.path(), &test_opts(true)).unwrap();
+        run(dir.path(), &test_opts(true)).unwrap();
+
+        let settings_path = dir.path().join(".claude/settings.json");
+        let content: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&settings_path).unwrap()).unwrap();
+        let tools: Vec<&str> = content["allowedTools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v.as_str())
+            .collect();
+
+        // Each embedded tool should appear exactly once (no duplicates)
+        for expected in embedded_allowed_tools() {
+            let count = tools.iter().filter(|&&t| t == expected.as_str()).count();
+            assert_eq!(
+                count, 1,
+                "\"{}\" should appear exactly once, found {}",
+                expected, count
+            );
+        }
+    }
+
+    #[test]
+    fn test_settings_json_merge_fails_on_malformed_json() {
+        let dir = tempdir().unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
+
+        // Write invalid JSON to settings.json
+        let settings_path = dir.path().join(".claude/settings.json");
+        fs::write(&settings_path, "not json {{{").unwrap();
+
+        // Force init should fail, not silently overwrite
+        let result = run(dir.path(), &test_opts(true));
+        assert!(result.is_err());
+        let err = format!("{:#}", result.unwrap_err());
+        assert!(
+            err.contains("invalid JSON"),
+            "Error should mention invalid JSON, got: {}",
+            err
+        );
+
+        // Original (broken) content should be untouched
+        let content = fs::read_to_string(&settings_path).unwrap();
+        assert_eq!(content, "not json {{{");
+    }
+
+    #[test]
+    fn test_settings_json_merge_fails_on_non_object() {
+        let dir = tempdir().unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
+
+        // Write a JSON array to settings.json
+        let settings_path = dir.path().join(".claude/settings.json");
+        fs::write(&settings_path, "[1, 2, 3]").unwrap();
+
+        // Force init should fail, not silently overwrite
+        let result = run(dir.path(), &test_opts(true));
+        assert!(result.is_err());
+        let err = format!("{:#}", result.unwrap_err());
+        assert!(
+            err.contains("not a JSON object"),
+            "Error should mention not a JSON object, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_settings_json_merge_creates_fresh_file() {
+        let dir = tempdir().unwrap();
+        let settings_path = dir.path().join(".claude/settings.json");
+        fs::create_dir_all(dir.path().join(".claude")).unwrap();
+
+        // No pre-existing file
+        assert!(!settings_path.exists());
+
+        write_settings_json_merged(&settings_path, "python3").unwrap();
+
+        let content: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&settings_path).unwrap()).unwrap();
+        let tools: Vec<&str> = content["allowedTools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v.as_str())
+            .collect();
+
+        for expected in embedded_allowed_tools() {
+            assert!(
+                tools.contains(&expected.as_str()),
+                "fresh file should contain \"{}\"",
+                expected
+            );
+        }
+    }
+
+    // --- Root .gitignore tests ---
+
+    #[test]
+    fn test_init_creates_root_gitignore() {
+        let dir = tempdir().unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
+
+        let content = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+        assert!(content.contains(GITIGNORE_SECTION_START));
+        assert!(content.contains(GITIGNORE_SECTION_END));
+        assert!(content.contains(".crosslink/issues.db"));
+        assert!(content.contains(".crosslink/agent.json"));
+        assert!(content.contains(".crosslink/session.json"));
+        assert!(content.contains(".crosslink/daemon.pid"));
+        assert!(content.contains(".crosslink/keys/"));
+        assert!(content.contains(".crosslink/.hub-cache/"));
+        assert!(content.contains(".crosslink/hook-config.local.json"));
+        assert!(content.contains(".claude/hooks/"));
+        assert!(content.contains(".claude/commands/"));
+        assert!(content.contains(".claude/mcp/"));
+    }
+
+    #[test]
+    fn test_root_gitignore_idempotent() {
+        let dir = tempdir().unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
+
+        let first = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+
+        // Force re-init should produce identical content
+        run(dir.path(), &test_opts(true)).unwrap();
+        let second = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+
+        assert_eq!(
+            first, second,
+            "Re-init should not duplicate gitignore entries"
+        );
+    }
+
+    #[test]
+    fn test_root_gitignore_preserves_user_entries() {
+        let dir = tempdir().unwrap();
+
+        // Write a pre-existing .gitignore with user content
+        fs::write(dir.path().join(".gitignore"), "/target/\n*.log\n").unwrap();
+
+        run(dir.path(), &test_opts(false)).unwrap();
+
+        let content = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+        assert!(
+            content.contains("/target/"),
+            "User entries before managed section should be preserved"
+        );
+        assert!(
+            content.contains("*.log"),
+            "User entries before managed section should be preserved"
+        );
+        assert!(content.contains(GITIGNORE_SECTION_START));
+        assert!(content.contains(".crosslink/issues.db"));
+    }
+
+    #[test]
+    fn test_root_gitignore_preserves_entries_around_managed_section() {
+        let dir = tempdir().unwrap();
+
+        // First init
+        run(dir.path(), &test_opts(false)).unwrap();
+
+        // Add user content before and after the managed section
+        let content = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+        let new_content = format!(
+            "# My custom rules\n/build/\n\n{}\n# Trailing rules\n*.tmp\n",
+            content
+        );
+        fs::write(dir.path().join(".gitignore"), new_content).unwrap();
+
+        // Force re-init
+        run(dir.path(), &test_opts(true)).unwrap();
+
+        let result = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+        assert!(
+            result.contains("/build/"),
+            "Pre-section user entries preserved"
+        );
+        assert!(
+            result.contains("*.tmp"),
+            "Post-section user entries preserved"
+        );
+        assert!(
+            result.contains(".crosslink/issues.db"),
+            "Managed entries present"
+        );
+
+        // Should have exactly one managed section
+        assert_eq!(
+            result.matches(GITIGNORE_SECTION_START).count(),
+            1,
+            "Should have exactly one managed section start marker"
+        );
+        assert_eq!(
+            result.matches(GITIGNORE_SECTION_END).count(),
+            1,
+            "Should have exactly one managed section end marker"
+        );
+    }
+
+    #[test]
+    fn test_root_gitignore_has_do_track_comments() {
+        let dir = tempdir().unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
+
+        let content = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+        assert!(
+            content.contains("DO track"),
+            "Should include DO track comments for documentation"
+        );
+        assert!(
+            content.contains("hook-config.json"),
+            "Should mention hook-config.json as tracked"
+        );
+    }
+
+    #[test]
+    fn test_write_root_gitignore_fresh() {
+        let dir = tempdir().unwrap();
+        write_root_gitignore(dir.path()).unwrap();
+
+        let content = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+        assert!(content.starts_with(GITIGNORE_SECTION_START));
+        assert!(content.contains(GITIGNORE_SECTION_END));
+        assert!(content.contains(".crosslink/issues.db"));
+    }
+
+    #[test]
+    fn test_write_root_gitignore_replaces_section() {
+        let dir = tempdir().unwrap();
+
+        // Write twice
+        write_root_gitignore(dir.path()).unwrap();
+        write_root_gitignore(dir.path()).unwrap();
+
+        let content = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+        assert_eq!(
+            content.matches(GITIGNORE_SECTION_START).count(),
+            1,
+            "Should have exactly one start marker after double write"
+        );
+    }
+
+    #[test]
+    fn test_crosslink_inner_gitignore_includes_integrations() {
+        let dir = tempdir().unwrap();
+        run(dir.path(), &test_opts(false)).unwrap();
+
+        let content = fs::read_to_string(dir.path().join(".crosslink/.gitignore")).unwrap();
+        assert!(content.contains("integrations/"));
     }
 }

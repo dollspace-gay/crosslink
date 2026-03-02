@@ -139,6 +139,10 @@ pub fn hydrate_to_sqlite(cache_dir: &Path, db: &Database) -> Result<HydrationSta
                     Some(&comment.author),
                     &comment.content,
                     &comment_created,
+                    &comment.kind,
+                    comment.trigger_type.as_deref(),
+                    comment.intervention_context.as_deref(),
+                    comment.driver_key_fingerprint.as_deref(),
                 )?;
                 stats.comments += 1;
             }
@@ -352,6 +356,12 @@ mod tests {
             author: "agent-1".to_string(),
             content: "First comment".to_string(),
             created_at: Utc::now(),
+            kind: "note".to_string(),
+            trigger_type: None,
+            intervention_context: None,
+            driver_key_fingerprint: None,
+            signed_by: None,
+            signature: None,
         }];
         write_issues_to_cache(cache.path(), &[issue]);
 

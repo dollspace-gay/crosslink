@@ -2,6 +2,8 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+use crate::signing;
+
 /// Machine-local agent identity. Lives at `.crosslink/agent.json`.
 /// This file is gitignored — each machine has its own.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -10,6 +12,15 @@ pub struct AgentConfig {
     pub machine_id: String,
     #[serde(default)]
     pub description: Option<String>,
+    /// Path to SSH private key, relative to .crosslink/ (e.g. "keys/agent_ed25519").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssh_key_path: Option<String>,
+    /// SSH public key fingerprint (e.g. "SHA256:...").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssh_fingerprint: Option<String>,
+    /// Full SSH public key line (e.g. "ssh-ed25519 AAAA... comment").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssh_public_key: Option<String>,
 }
 
 impl AgentConfig {
@@ -34,6 +45,9 @@ impl AgentConfig {
             agent_id: agent_id.to_string(),
             machine_id,
             description: description.map(|s| s.to_string()),
+            ssh_key_path: None,
+            ssh_fingerprint: None,
+            ssh_public_key: None,
         };
         config.validate()?;
         let path = crosslink_dir.join("agent.json");
@@ -45,6 +59,10 @@ impl AgentConfig {
 
     fn validate(&self) -> Result<()> {
         anyhow::ensure!(!self.agent_id.is_empty(), "agent_id cannot be empty");
+        anyhow::ensure!(
+            self.agent_id.len() >= 3,
+            "agent_id must be at least 3 characters"
+        );
         anyhow::ensure!(
             self.agent_id
                 .chars()
@@ -79,6 +97,17 @@ fn detect_hostname() -> String {
         }
     }
     "unknown".to_string()
+}
+
+/// Resolve the current driver's SSH key fingerprint from `.crosslink/driver-key.pub`.
+///
+/// Returns `None` if the driver key file doesn't exist or the fingerprint can't be computed.
+pub fn resolve_driver_fingerprint(crosslink_dir: &Path) -> Option<String> {
+    let driver_pub = crosslink_dir.join("driver-key.pub");
+    if !driver_pub.exists() {
+        return None;
+    }
+    signing::get_key_fingerprint(&driver_pub).ok()
 }
 
 #[cfg(test)]
@@ -116,61 +145,59 @@ mod tests {
         assert!(config.description.is_none());
     }
 
-    #[test]
-    fn test_validate_empty_id() {
-        let config = AgentConfig {
-            agent_id: "".to_string(),
+    /// Helper to build a minimal AgentConfig for tests.
+    fn test_config(agent_id: &str) -> AgentConfig {
+        AgentConfig {
+            agent_id: agent_id.to_string(),
             machine_id: "test".to_string(),
             description: None,
-        };
+            ssh_key_path: None,
+            ssh_fingerprint: None,
+            ssh_public_key: None,
+        }
+    }
+
+    #[test]
+    fn test_validate_empty_id() {
+        let config = test_config("");
         assert!(config.validate().is_err());
     }
 
     #[test]
     fn test_validate_invalid_chars() {
-        let config = AgentConfig {
-            agent_id: "worker 1".to_string(),
-            machine_id: "test".to_string(),
-            description: None,
-        };
-        assert!(config.validate().is_err());
-
-        let config2 = AgentConfig {
-            agent_id: "worker@1".to_string(),
-            machine_id: "test".to_string(),
-            description: None,
-        };
-        assert!(config2.validate().is_err());
+        assert!(test_config("worker 1").validate().is_err());
+        assert!(test_config("worker@1").validate().is_err());
     }
 
     #[test]
     fn test_validate_too_long() {
         let config = AgentConfig {
             agent_id: "a".repeat(65),
-            machine_id: "test".to_string(),
-            description: None,
+            ..test_config("xxx")
         };
         assert!(config.validate().is_err());
     }
 
     #[test]
+    fn test_validate_too_short() {
+        assert!(test_config("a").validate().is_err());
+        assert!(test_config("ab").validate().is_err());
+        assert!(test_config("abc").validate().is_ok());
+    }
+
+    #[test]
     fn test_validate_valid_ids() {
-        for id in &["worker-1", "agent_2", "MyAgent", "a", "test-agent-42"] {
-            let config = AgentConfig {
-                agent_id: id.to_string(),
-                machine_id: "test".to_string(),
-                description: None,
-            };
-            assert!(config.validate().is_ok(), "Failed for id: {}", id);
+        for id in &["worker-1", "agent_2", "MyAgent", "abc", "test-agent-42"] {
+            assert!(test_config(id).validate().is_ok(), "Failed for id: {}", id);
         }
     }
 
     #[test]
     fn test_json_roundtrip() {
         let config = AgentConfig {
-            agent_id: "worker-1".to_string(),
-            machine_id: "my-host".to_string(),
             description: Some("Test agent".to_string()),
+            machine_id: "my-host".to_string(),
+            ..test_config("worker-1")
         };
         let json = serde_json::to_string(&config).unwrap();
         let parsed: AgentConfig = serde_json::from_str(&json).unwrap();
@@ -182,6 +209,32 @@ mod tests {
         let json = r#"{"agent_id": "worker-1", "machine_id": "host"}"#;
         let config: AgentConfig = serde_json::from_str(json).unwrap();
         assert!(config.description.is_none());
+        assert!(config.ssh_key_path.is_none());
+        assert!(config.ssh_fingerprint.is_none());
+        assert!(config.ssh_public_key.is_none());
+    }
+
+    #[test]
+    fn test_json_backward_compat_no_ssh_fields() {
+        // Old agent.json without SSH fields should deserialize fine
+        let json = r#"{"agent_id": "worker-1", "machine_id": "host", "description": "old agent"}"#;
+        let config: AgentConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.agent_id, "worker-1");
+        assert!(config.ssh_key_path.is_none());
+    }
+
+    #[test]
+    fn test_json_with_ssh_fields() {
+        let config = AgentConfig {
+            ssh_key_path: Some("keys/test_ed25519".to_string()),
+            ssh_fingerprint: Some("SHA256:abc123".to_string()),
+            ssh_public_key: Some("ssh-ed25519 AAAA test".to_string()),
+            ..test_config("worker-1")
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: AgentConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.ssh_key_path, Some("keys/test_ed25519".to_string()));
+        assert_eq!(parsed.ssh_fingerprint, Some("SHA256:abc123".to_string()));
     }
 
     #[test]
@@ -190,14 +243,24 @@ mod tests {
         assert!(!hostname.is_empty());
     }
 
+    #[test]
+    fn test_resolve_driver_fingerprint_missing_file() {
+        let dir = tempdir().unwrap();
+        assert!(resolve_driver_fingerprint(dir.path()).is_none());
+    }
+
+    #[test]
+    fn test_resolve_driver_fingerprint_invalid_content() {
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("driver-key.pub"), "not a key").unwrap();
+        // ssh-keygen will fail on invalid content
+        assert!(resolve_driver_fingerprint(dir.path()).is_none());
+    }
+
     proptest! {
         #[test]
-        fn prop_valid_ids_roundtrip(id in "[a-zA-Z0-9_-]{1,64}") {
-            let config = AgentConfig {
-                agent_id: id.clone(),
-                machine_id: "test".to_string(),
-                description: None,
-            };
+        fn prop_valid_ids_roundtrip(id in "[a-zA-Z0-9_-]{3,64}") {
+            let config = test_config(&id);
             prop_assert!(config.validate().is_ok());
             let json = serde_json::to_string(&config).unwrap();
             let parsed: AgentConfig = serde_json::from_str(&json).unwrap();
