@@ -625,7 +625,15 @@ impl SyncManager {
     }
 
     /// Find locks that have gone stale (no heartbeat within the timeout).
+    ///
+    /// Auto-dispatches based on hub layout version:
+    /// - V2: uses per-agent heartbeat timestamps at `agents/{id}/heartbeat.json`
+    /// - V1: uses the legacy `heartbeats/` directory with `stale_lock_timeout_minutes`
     pub fn find_stale_locks(&self) -> Result<Vec<(i64, String)>> {
+        if self.is_v2_layout() {
+            return self.find_stale_locks_v2(chrono::Duration::minutes(30));
+        }
+
         let locks = self.read_locks_auto()?;
         let heartbeats = self.read_heartbeats()?;
         let timeout = chrono::Duration::minutes(locks.settings.stale_lock_timeout_minutes as i64);
@@ -646,6 +654,60 @@ impl SyncManager {
                 }
             }
         }
+        Ok(stale)
+    }
+
+    /// Find stale locks using agent heartbeat timestamps (V2 layout).
+    ///
+    /// A lock is considered stale if the holding agent's heartbeat is older than
+    /// `threshold`, or if no heartbeat file exists. Falls back to claim_at based
+    /// detection for V1.
+    pub fn find_stale_locks_v2(&self, threshold: chrono::Duration) -> Result<Vec<(i64, String)>> {
+        let locks = self.read_locks_v2()?;
+        let now = Utc::now();
+        let mut stale = Vec::new();
+
+        for (issue_id_str, lock) in &locks.locks {
+            let heartbeat_path = self
+                .cache_dir
+                .join("agents")
+                .join(&lock.agent_id)
+                .join("heartbeat.json");
+
+            let is_stale = if heartbeat_path.exists() {
+                match std::fs::read_to_string(&heartbeat_path) {
+                    Ok(content) => {
+                        match serde_json::from_str::<serde_json::Value>(&content) {
+                            Ok(val) => {
+                                match val.get("timestamp").and_then(|t| t.as_str()) {
+                                    Some(ts) => match chrono::DateTime::parse_from_rfc3339(ts) {
+                                        Ok(heartbeat_time) => {
+                                            let age = now
+                                                .signed_duration_since(heartbeat_time)
+                                                .max(chrono::Duration::zero());
+                                            age > threshold
+                                        }
+                                        Err(_) => true, // Unparseable timestamp → stale
+                                    },
+                                    None => true, // No timestamp field → stale
+                                }
+                            }
+                            Err(_) => true, // Invalid JSON → stale
+                        }
+                    }
+                    Err(_) => true, // Unreadable file → stale
+                }
+            } else {
+                true // No heartbeat file → stale
+            };
+
+            if is_stale {
+                if let Ok(id) = issue_id_str.parse::<i64>() {
+                    stale.push((id, lock.agent_id.clone()));
+                }
+            }
+        }
+
         Ok(stale)
     }
 
@@ -1081,6 +1143,135 @@ mod tests {
         let manager = SyncManager::new(&crosslink_dir).unwrap();
         let stale = manager.find_stale_locks().unwrap();
         assert!(stale.is_empty());
+    }
+
+    #[test]
+    fn test_find_stale_locks_v2_fresh_heartbeat() {
+        let dir = tempdir().unwrap();
+        let crosslink_dir = dir.path().join(".crosslink");
+        let cache_dir = crosslink_dir.join(HUB_CACHE_DIR);
+
+        // Set up V2 layout
+        let meta_dir = cache_dir.join("meta");
+        std::fs::create_dir_all(&meta_dir).unwrap();
+        crate::issue_file::write_layout_version(&meta_dir, 2).unwrap();
+
+        // Write a lock file
+        let locks_dir = cache_dir.join("locks");
+        std::fs::create_dir_all(&locks_dir).unwrap();
+        let lock = crate::issue_file::LockFileV2 {
+            issue_id: 5,
+            agent_id: "worker-1".to_string(),
+            branch: None,
+            claimed_at: Utc::now(),
+            signed_by: None,
+        };
+        std::fs::write(
+            locks_dir.join("5.json"),
+            serde_json::to_string_pretty(&lock).unwrap(),
+        )
+        .unwrap();
+
+        // Write a fresh heartbeat (now)
+        let agent_dir = cache_dir.join("agents").join("worker-1");
+        std::fs::create_dir_all(&agent_dir).unwrap();
+        let heartbeat = serde_json::json!({
+            "agent_id": "worker-1",
+            "timestamp": Utc::now().to_rfc3339(),
+            "status": "active"
+        });
+        std::fs::write(
+            agent_dir.join("heartbeat.json"),
+            serde_json::to_string_pretty(&heartbeat).unwrap(),
+        )
+        .unwrap();
+
+        let manager = SyncManager::new(&crosslink_dir).unwrap();
+        let stale = manager.find_stale_locks().unwrap();
+        assert!(stale.is_empty(), "Fresh heartbeat should not be stale");
+    }
+
+    #[test]
+    fn test_find_stale_locks_v2_old_heartbeat() {
+        let dir = tempdir().unwrap();
+        let crosslink_dir = dir.path().join(".crosslink");
+        let cache_dir = crosslink_dir.join(HUB_CACHE_DIR);
+
+        // Set up V2 layout
+        let meta_dir = cache_dir.join("meta");
+        std::fs::create_dir_all(&meta_dir).unwrap();
+        crate::issue_file::write_layout_version(&meta_dir, 2).unwrap();
+
+        // Write a lock file
+        let locks_dir = cache_dir.join("locks");
+        std::fs::create_dir_all(&locks_dir).unwrap();
+        let lock = crate::issue_file::LockFileV2 {
+            issue_id: 10,
+            agent_id: "worker-2".to_string(),
+            branch: None,
+            claimed_at: Utc::now(),
+            signed_by: None,
+        };
+        std::fs::write(
+            locks_dir.join("10.json"),
+            serde_json::to_string_pretty(&lock).unwrap(),
+        )
+        .unwrap();
+
+        // Write a stale heartbeat (2 hours ago)
+        let agent_dir = cache_dir.join("agents").join("worker-2");
+        std::fs::create_dir_all(&agent_dir).unwrap();
+        let old_timestamp = Utc::now() - chrono::Duration::hours(2);
+        let heartbeat = serde_json::json!({
+            "agent_id": "worker-2",
+            "timestamp": old_timestamp.to_rfc3339(),
+            "status": "active"
+        });
+        std::fs::write(
+            agent_dir.join("heartbeat.json"),
+            serde_json::to_string_pretty(&heartbeat).unwrap(),
+        )
+        .unwrap();
+
+        let manager = SyncManager::new(&crosslink_dir).unwrap();
+        let stale = manager.find_stale_locks().unwrap();
+        assert_eq!(stale.len(), 1);
+        assert_eq!(stale[0], (10, "worker-2".to_string()));
+    }
+
+    #[test]
+    fn test_find_stale_locks_v2_missing_heartbeat() {
+        let dir = tempdir().unwrap();
+        let crosslink_dir = dir.path().join(".crosslink");
+        let cache_dir = crosslink_dir.join(HUB_CACHE_DIR);
+
+        // Set up V2 layout
+        let meta_dir = cache_dir.join("meta");
+        std::fs::create_dir_all(&meta_dir).unwrap();
+        crate::issue_file::write_layout_version(&meta_dir, 2).unwrap();
+
+        // Write a lock file but NO heartbeat
+        let locks_dir = cache_dir.join("locks");
+        std::fs::create_dir_all(&locks_dir).unwrap();
+        let lock = crate::issue_file::LockFileV2 {
+            issue_id: 7,
+            agent_id: "ghost-agent".to_string(),
+            branch: None,
+            claimed_at: Utc::now(),
+            signed_by: None,
+        };
+        std::fs::write(
+            locks_dir.join("7.json"),
+            serde_json::to_string_pretty(&lock).unwrap(),
+        )
+        .unwrap();
+
+        // No agents/ghost-agent/heartbeat.json exists
+
+        let manager = SyncManager::new(&crosslink_dir).unwrap();
+        let stale = manager.find_stale_locks().unwrap();
+        assert_eq!(stale.len(), 1);
+        assert_eq!(stale[0], (7, "ghost-agent".to_string()));
     }
 
     /// Helper: create a git repo with an initial commit.

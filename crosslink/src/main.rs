@@ -90,6 +90,9 @@ enum Commands {
         /// Set as current session work item
         #[arg(short, long)]
         work: bool,
+        /// Skip compaction after creation (batch mode -- display ID assigned later)
+        #[arg(long)]
+        defer_id: bool,
     },
 
     /// Quick-create an issue and start working on it (create + label + session work)
@@ -441,6 +444,13 @@ enum Commands {
     Integrity {
         #[command(subcommand)]
         action: Option<IntegrityCommands>,
+    },
+
+    /// Run event compaction manually
+    Compact {
+        /// Force compaction even if lease is held by another agent
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -957,6 +967,7 @@ fn main() -> Result<()> {
             template,
             label,
             work,
+            defer_id,
         } => {
             let db = get_db()?;
             let crosslink_dir = find_crosslink_dir()?;
@@ -966,6 +977,7 @@ fn main() -> Result<()> {
                 work,
                 quiet: cli.quiet,
                 crosslink_dir: Some(&crosslink_dir),
+                defer_id,
             };
             commands::create::run(
                 &db,
@@ -993,6 +1005,7 @@ fn main() -> Result<()> {
                 work: true,
                 quiet: cli.quiet,
                 crosslink_dir: Some(&crosslink_dir),
+                defer_id: false,
             };
             commands::create::run(
                 &db,
@@ -1021,6 +1034,7 @@ fn main() -> Result<()> {
                 work,
                 quiet: cli.quiet,
                 crosslink_dir: Some(&crosslink_dir),
+                defer_id: false,
             };
             commands::create::run_subissue(
                 &db,
@@ -1440,6 +1454,45 @@ fn main() -> Result<()> {
             let crosslink_dir = find_crosslink_dir()?;
             let db = get_db()?;
             commands::integrity_cmd::run(action.as_ref(), &crosslink_dir, &db)
+        }
+
+        Commands::Compact { force } => {
+            let crosslink_dir = find_crosslink_dir()?;
+            let db = get_db()?;
+            let sync = crate::sync::SyncManager::new(&crosslink_dir)?;
+            sync.init_cache()?;
+            sync.fetch()?;
+            let cache_dir = sync.cache_path().to_path_buf();
+
+            // Load agent config for agent_id
+            let agent = crate::identity::AgentConfig::load(&crosslink_dir)?.ok_or_else(|| {
+                anyhow::anyhow!("No agent configured. Run 'crosslink agent init' first.")
+            })?;
+
+            match crate::compaction::compact(&cache_dir, &agent.agent_id, force)? {
+                Some(result) => {
+                    println!("Compaction complete.");
+                    if result.events_processed > 0 {
+                        println!(
+                            "  Events processed: {}, issues updated: {}, locks updated: {}",
+                            result.events_processed,
+                            result.issues_materialized,
+                            result.locks_materialized
+                        );
+                    } else {
+                        println!("  No new events to process.");
+                    }
+                }
+                None => {
+                    println!(
+                        "Compaction skipped: lease held by another agent. Use --force to override."
+                    );
+                }
+            }
+
+            // Re-hydrate after compaction
+            crate::hydration::hydrate_to_sqlite(&cache_dir, &db)?;
+            Ok(())
         }
 
         Commands::Style { command } => {

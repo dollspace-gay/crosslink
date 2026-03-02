@@ -84,6 +84,9 @@ struct WriteSet {
 /// Maximum number of push retries on conflict before giving up.
 const MAX_RETRIES: usize = 3;
 
+/// Maximum time to wait for lock confirmation compaction (design doc section 8).
+const LOCK_CONFIRM_TIMEOUT_SECS: u64 = 30;
+
 /// Outcome of a write_commit_push operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PushOutcome {
@@ -1544,12 +1547,24 @@ impl SharedWriter {
             }
         }
 
-        // Emit LockClaimed event
+        // Emit LockClaimed event, then compact+push with timeout guard.
+        // Per design doc section 8: if compaction hasn't completed within 30s,
+        // fail rather than treating a stale result as authoritative.
         let event = crate::events::Event::LockClaimed {
             issue_display_id,
             branch: branch.map(|s| s.to_string()),
         };
+        let start = std::time::Instant::now();
         self.emit_compact_push(event, &format!("claim lock on #{}", issue_display_id))?;
+        let elapsed = start.elapsed();
+        if elapsed > std::time::Duration::from_secs(LOCK_CONFIRM_TIMEOUT_SECS) {
+            bail!(
+                "Lock confirmation timed out after {}s (threshold {}s) — \
+                 compaction result may be stale, not treating as authoritative",
+                elapsed.as_secs(),
+                LOCK_CONFIRM_TIMEOUT_SECS
+            );
+        }
 
         // Re-read materialized lock to see who won
         match self.read_lock_v2(issue_display_id)? {
@@ -1989,6 +2004,11 @@ mod tests {
             parsed.driver_key_fingerprint,
             Some("SHA256:abc123".to_string())
         );
+    }
+
+    #[test]
+    fn test_lock_confirm_timeout_constant() {
+        assert_eq!(LOCK_CONFIRM_TIMEOUT_SECS, 30);
     }
 
     mod lock_v2_tests {

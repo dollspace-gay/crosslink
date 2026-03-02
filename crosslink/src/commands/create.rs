@@ -80,6 +80,8 @@ pub struct CreateOpts<'a> {
     pub quiet: bool,
     /// If set, lock enforcement is checked when --work is used.
     pub crosslink_dir: Option<&'a std::path::Path>,
+    /// Skip compaction after creation (batch mode — display ID assigned on next compaction).
+    pub defer_id: bool,
 }
 
 pub fn run(
@@ -156,7 +158,12 @@ pub fn run(
         }
     }
 
-    if opts.quiet {
+    if opts.defer_id && !opts.quiet {
+        println!(
+            "Created issue {} (display ID deferred — assigned on next compaction)",
+            format_issue_id(id)
+        );
+    } else if opts.quiet {
         println!("{}", id);
     } else {
         println!("Created issue {}", format_issue_id(id));
