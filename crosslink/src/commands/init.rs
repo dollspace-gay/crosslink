@@ -1,7 +1,19 @@
 use anyhow::{Context, Result};
-use dialoguer::Select;
+use crossterm::{
+    event::{self, Event, KeyCode, KeyEventKind},
+    execute,
+    style::Stylize,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use ratatui::{
+    layout::{Constraint, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, List, ListItem, ListState, Padding, Paragraph},
+    Frame,
+};
 use std::fs;
-use std::io::IsTerminal;
+use std::io::{self, IsTerminal, Write};
 use std::path::Path;
 
 use crate::db::Database;
@@ -605,15 +617,368 @@ impl Default for TuiChoices {
     }
 }
 
-/// Run the interactive TUI walkthrough, returning user choices.
+// ── Styled inline output helper ──────────────────────────────────────────────
+
+struct InitUI {
+    is_tty: bool,
+}
+
+impl InitUI {
+    fn new() -> Self {
+        Self {
+            is_tty: io::stdout().is_terminal(),
+        }
+    }
+
+    fn banner(&self) {
+        if self.is_tty {
+            println!();
+            println!("  {} {}", "crosslink".bold().cyan(), "init".dark_grey());
+            println!("  {}", "─".repeat(40).dark_grey());
+            println!();
+        }
+    }
+
+    fn step_start(&self, label: &str) {
+        if self.is_tty {
+            print!("  {} {}... ", "●".cyan(), label);
+            io::stdout().flush().ok();
+        } else {
+            print!("{}... ", label);
+        }
+    }
+
+    fn step_ok(&self, detail: Option<&str>) {
+        if self.is_tty {
+            match detail {
+                Some(d) => println!("{} {}", "✓".green(), d.dark_grey()),
+                None => println!("{}", "✓".green()),
+            }
+        } else {
+            match detail {
+                Some(d) => println!("done ({})", d),
+                None => println!("done"),
+            }
+        }
+    }
+
+    fn step_created(&self, what: &str) {
+        if self.is_tty {
+            println!(
+                "  {} {} {}",
+                "✓".green(),
+                "created".green(),
+                what.dark_grey()
+            );
+        } else {
+            println!("Created {}", what);
+        }
+    }
+
+    fn step_skip(&self, msg: &str) {
+        if self.is_tty {
+            println!("  {} {}", "–".dark_grey(), msg.dark_grey());
+        } else {
+            println!("{}", msg);
+        }
+    }
+
+    fn warn(&self, msg: &str) {
+        if self.is_tty {
+            println!("  {} {}", "⚠".yellow(), msg.yellow());
+        } else {
+            println!("Warning: {}", msg);
+        }
+    }
+
+    fn detail(&self, msg: &str) {
+        if self.is_tty {
+            println!("    {}", msg.dark_grey());
+        } else {
+            println!("  {}", msg);
+        }
+    }
+
+    fn success(&self) {
+        if self.is_tty {
+            println!();
+            println!(
+                "  {} {}",
+                "✓".green().bold(),
+                "Crosslink initialized successfully!".bold()
+            );
+            println!();
+            println!(
+                "  {} {} {}",
+                "next".dark_grey(),
+                "→".cyan(),
+                "crosslink session start".white()
+            );
+            println!(
+                "       {} {}",
+                "→".cyan(),
+                "crosslink create \"Task\"".white()
+            );
+            println!();
+        } else {
+            println!("Crosslink initialized successfully!");
+            println!("\nNext steps:");
+            println!("  crosslink session start     # Start a session");
+            println!("  crosslink create \"Task\"     # Create an issue");
+        }
+    }
+}
+
+// ── Ratatui TUI walkthrough ─────────────────────────────────────────────────
+
+struct WalkthroughQuestion {
+    title: &'static str,
+    description: &'static str,
+    options: Vec<(&'static str, &'static str)>,
+    selected: usize,
+}
+
+struct WalkthroughApp {
+    questions: Vec<WalkthroughQuestion>,
+    current: usize,
+    finished: bool,
+    cancelled: bool,
+}
+
+impl WalkthroughApp {
+    fn new(
+        tracking_default: usize,
+        intervention_default: usize,
+        comment_default: usize,
+        kickoff_default: usize,
+    ) -> Self {
+        Self {
+            questions: vec![
+                WalkthroughQuestion {
+                    title: "Issue Tracking Enforcement",
+                    description: "How strictly should agents be required to track work in issues?",
+                    options: vec![
+                        ("Strict", "Block tool calls without an active issue"),
+                        ("Normal", "Remind agents but don't block"),
+                        ("Relaxed", "No enforcement"),
+                    ],
+                    selected: tracking_default,
+                },
+                WalkthroughQuestion {
+                    title: "Driver Intervention Tracking",
+                    description: "Log when the human operator steps in to redirect an agent?",
+                    options: vec![
+                        ("Enabled", "Record interventions for process improvement"),
+                        ("Disabled", "Don't track interventions"),
+                    ],
+                    selected: intervention_default,
+                },
+                WalkthroughQuestion {
+                    title: "Comment Discipline",
+                    description: "Should agents document their decisions on issues?",
+                    options: vec![
+                        ("Encouraged", "Remind agents to document decisions"),
+                        ("Required", "Block after prolonged silence"),
+                        ("Off", "No comment requirements"),
+                    ],
+                    selected: comment_default,
+                },
+                WalkthroughQuestion {
+                    title: "Kickoff Verification Depth",
+                    description: "How thoroughly should background agents verify their work?",
+                    options: vec![
+                        ("Local", "Tests + self-review only"),
+                        ("CI", "Push and wait for CI"),
+                        ("Thorough", "CI + adversarial review"),
+                    ],
+                    selected: kickoff_default,
+                },
+            ],
+            current: 0,
+            finished: false,
+            cancelled: false,
+        }
+    }
+
+    fn move_up(&mut self) {
+        let q = &mut self.questions[self.current];
+        if q.selected > 0 {
+            q.selected -= 1;
+        }
+    }
+
+    fn move_down(&mut self) {
+        let q = &mut self.questions[self.current];
+        if q.selected < q.options.len() - 1 {
+            q.selected += 1;
+        }
+    }
+
+    fn confirm(&mut self) {
+        if self.current + 1 < self.questions.len() {
+            self.current += 1;
+        } else {
+            self.finished = true;
+        }
+    }
+
+    fn go_back(&mut self) {
+        if self.current > 0 {
+            self.current -= 1;
+        }
+    }
+}
+
+fn draw_walkthrough(frame: &mut Frame, app: &WalkthroughApp) {
+    let area = frame.area();
+
+    let outer = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::DarkGray))
+        .title(Line::from(vec![
+            Span::raw(" "),
+            Span::styled(
+                "crosslink",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" setup ", Style::default().fg(Color::DarkGray)),
+        ]))
+        .padding(Padding::new(2, 2, 1, 1));
+
+    let inner = outer.inner(area);
+    frame.render_widget(outer, area);
+
+    let chunks = Layout::vertical([
+        Constraint::Length(1), // progress dots
+        Constraint::Length(1), // spacer
+        Constraint::Length(1), // question title
+        Constraint::Length(1), // description
+        Constraint::Length(1), // spacer
+        Constraint::Min(3),    // options list
+        Constraint::Length(1), // help bar
+    ])
+    .split(inner);
+
+    // Progress dots
+    let progress_spans: Vec<Span> = (0..app.questions.len())
+        .map(|i| {
+            if i < app.current {
+                Span::styled(" ● ", Style::default().fg(Color::Green))
+            } else if i == app.current {
+                Span::styled(
+                    " ● ",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else {
+                Span::styled(" ○ ", Style::default().fg(Color::DarkGray))
+            }
+        })
+        .collect();
+    frame.render_widget(Paragraph::new(Line::from(progress_spans)), chunks[0]);
+
+    let q = &app.questions[app.current];
+
+    // Question title
+    frame.render_widget(
+        Paragraph::new(Line::from(Span::styled(
+            q.title,
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ))),
+        chunks[2],
+    );
+
+    // Description
+    frame.render_widget(
+        Paragraph::new(Line::from(Span::styled(
+            q.description,
+            Style::default().fg(Color::DarkGray),
+        ))),
+        chunks[3],
+    );
+
+    // Options list
+    let items: Vec<ListItem> = q
+        .options
+        .iter()
+        .enumerate()
+        .map(|(i, (label, desc))| {
+            let (marker, label_style) = if i == q.selected {
+                (
+                    "❯ ",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else {
+                ("  ", Style::default().fg(Color::Gray))
+            };
+            ListItem::new(Line::from(vec![
+                Span::styled(marker, label_style),
+                Span::styled(*label, label_style),
+                Span::raw("  "),
+                Span::styled(*desc, Style::default().fg(Color::DarkGray)),
+            ]))
+        })
+        .collect();
+
+    let list = List::new(items);
+    let mut state = ListState::default().with_selected(Some(q.selected));
+    frame.render_stateful_widget(list, chunks[5], &mut state);
+
+    // Previous selections summary (if room)
+    if app.current > 0 && area.width > 60 {
+        let summary_y = chunks[5].y + q.options.len() as u16 + 1;
+        if summary_y + app.current as u16 <= chunks[6].y {
+            let summary_area = Rect {
+                x: inner.x,
+                y: summary_y,
+                width: inner.width,
+                height: app.current as u16,
+            };
+            let summary_lines: Vec<Line> = app.questions[..app.current]
+                .iter()
+                .map(|pq| {
+                    let chosen = pq.options[pq.selected].0;
+                    Line::from(vec![
+                        Span::styled("  ✓ ", Style::default().fg(Color::Green)),
+                        Span::styled(pq.title, Style::default().fg(Color::DarkGray)),
+                        Span::styled(": ", Style::default().fg(Color::DarkGray)),
+                        Span::styled(chosen, Style::default().fg(Color::Green)),
+                    ])
+                })
+                .collect();
+            frame.render_widget(Paragraph::new(summary_lines), summary_area);
+        }
+    }
+
+    // Help bar
+    let help_text = if app.current > 0 {
+        "↑↓ select  Enter confirm  Backspace back  Esc cancel"
+    } else {
+        "↑↓ select  Enter confirm  Esc cancel"
+    };
+    frame.render_widget(
+        Paragraph::new(Line::from(Span::styled(
+            help_text,
+            Style::default().fg(Color::DarkGray),
+        ))),
+        chunks[6],
+    );
+}
+
+/// Run the interactive TUI walkthrough using ratatui, returning user choices.
 /// Falls back to defaults if stdin is not a TTY.
 fn run_tui_walkthrough(existing: Option<&serde_json::Value>) -> Result<TuiChoices> {
     if !std::io::stdin().is_terminal() {
         println!("Non-interactive environment detected, using defaults.");
         return Ok(TuiChoices::default());
     }
-
-    println!("\n  Welcome to Crosslink! Let's configure your project.\n");
 
     // Resolve current/default selections from existing config
     let current_tracking = existing
@@ -633,87 +998,95 @@ fn run_tui_walkthrough(existing: Option<&serde_json::Value>) -> Result<TuiChoice
         .and_then(|v| v.as_str())
         .unwrap_or("local");
 
-    // 1. Issue tracking enforcement
-    let tracking_items = &[
-        "Strict (block tool calls without active issue)",
-        "Normal (remind but don't block)",
-        "Relaxed (no enforcement)",
-    ];
     let tracking_default = match current_tracking {
         "normal" => 1,
         "relaxed" => 2,
         _ => 0,
     };
-    let tracking_idx = Select::new()
-        .with_prompt("Issue tracking enforcement")
-        .items(tracking_items)
-        .default(tracking_default)
-        .interact_opt()
-        .context("TUI prompt failed")?
-        .unwrap_or(tracking_default);
-    let tracking_mode = match tracking_idx {
+    let intervention_default = if current_intervention { 0 } else { 1 };
+    let comment_default = match current_comment {
+        "required" => 1,
+        "off" => 2,
+        _ => 0,
+    };
+    let kickoff_default = match current_kickoff {
+        "ci" => 1,
+        "thorough" => 2,
+        _ => 0,
+    };
+
+    let mut app = WalkthroughApp::new(
+        tracking_default,
+        intervention_default,
+        comment_default,
+        kickoff_default,
+    );
+
+    // Enter alternate screen + raw mode
+    enable_raw_mode().context("Failed to enable raw mode")?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen).context("Failed to enter alternate screen")?;
+    let backend = ratatui::backend::CrosstermBackend::new(stdout);
+    let mut terminal = ratatui::Terminal::new(backend).context("Failed to create terminal")?;
+
+    // Run event loop — closure so we can always restore terminal on exit
+    let result = (|| -> Result<()> {
+        loop {
+            terminal.draw(|f| draw_walkthrough(f, &app))?;
+
+            if let Event::Key(key) = event::read().context("Failed to read terminal event")? {
+                if key.kind != KeyEventKind::Press {
+                    continue;
+                }
+                match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => app.move_up(),
+                    KeyCode::Down | KeyCode::Char('j') => app.move_down(),
+                    KeyCode::Enter | KeyCode::Char(' ') => {
+                        app.confirm();
+                        if app.finished {
+                            break;
+                        }
+                    }
+                    KeyCode::Backspace | KeyCode::Left => app.go_back(),
+                    KeyCode::Esc | KeyCode::Char('q') => {
+                        app.cancelled = true;
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Ok(())
+    })();
+
+    // Always restore terminal state
+    disable_raw_mode().ok();
+    execute!(terminal.backend_mut(), LeaveAlternateScreen).ok();
+    terminal.show_cursor().ok();
+
+    result?;
+
+    if app.cancelled {
+        anyhow::bail!("Setup cancelled");
+    }
+
+    let tracking_mode = match app.questions[0].selected {
         1 => "normal",
         2 => "relaxed",
         _ => "strict",
     }
     .to_string();
 
-    // 2. Driver intervention tracking
-    let intervention_items = &["Enabled (log when the human operator steps in)", "Disabled"];
-    let intervention_default = if current_intervention { 0 } else { 1 };
-    let intervention_idx = Select::new()
-        .with_prompt("Driver intervention tracking")
-        .items(intervention_items)
-        .default(intervention_default)
-        .interact_opt()
-        .context("TUI prompt failed")?
-        .unwrap_or(intervention_default);
-    let intervention_tracking = intervention_idx == 0;
+    let intervention_tracking = app.questions[1].selected == 0;
 
-    // 3. Comment discipline
-    let comment_items = &[
-        "Encouraged (remind agents to document decisions)",
-        "Required (block after N minutes without comments)",
-        "Off",
-    ];
-    let comment_default = match current_comment {
-        "required" => 1,
-        "off" => 2,
-        _ => 0,
-    };
-    let comment_idx = Select::new()
-        .with_prompt("Comment discipline")
-        .items(comment_items)
-        .default(comment_default)
-        .interact_opt()
-        .context("TUI prompt failed")?
-        .unwrap_or(comment_default);
-    let comment_discipline = match comment_idx {
+    let comment_discipline = match app.questions[2].selected {
         1 => "required",
         2 => "off",
         _ => "encouraged",
     }
     .to_string();
 
-    // 4. Kickoff verification depth
-    let kickoff_items = &[
-        "Local only (tests + self-review)",
-        "CI (push and wait for CI)",
-        "Thorough (CI + adversarial review)",
-    ];
-    let kickoff_default = match current_kickoff {
-        "ci" => 1,
-        "thorough" => 2,
-        _ => 0,
-    };
-    let kickoff_idx = Select::new()
-        .with_prompt("Kickoff verification depth")
-        .items(kickoff_items)
-        .default(kickoff_default)
-        .interact_opt()
-        .context("TUI prompt failed")?
-        .unwrap_or(kickoff_default);
-    let kickoff_verification = match kickoff_idx {
+    let kickoff_verification = match app.questions[3].selected {
         1 => "ci",
         2 => "thorough",
         _ => "local",
@@ -775,26 +1148,30 @@ pub fn run(path: &Path, opts: &InitOpts<'_>) -> Result<()> {
     let claude_dir = path.join(".claude");
     let hooks_dir = claude_dir.join("hooks");
 
+    let ui = InitUI::new();
+
     // Check if already initialized
     let crosslink_exists = crosslink_dir.exists();
     let claude_exists = claude_dir.exists();
 
     if crosslink_exists && claude_exists && !force && !reconfigure {
-        println!("Already initialized at {}", path.display());
-        println!("Use --force to update hooks to latest version.");
-        println!("Use --reconfigure to re-run the setup walkthrough.");
+        ui.step_skip("Already initialized");
+        ui.detail("Use --force to update hooks to latest version.");
+        ui.detail("Use --reconfigure to re-run the setup walkthrough.");
         return Ok(());
     }
+
+    ui.banner();
 
     let rules_dir = crosslink_dir.join("rules");
 
     // Create .crosslink directory and database
     if !crosslink_exists {
+        ui.step_start("Initializing database");
         fs::create_dir_all(&crosslink_dir).context("Failed to create .crosslink directory")?;
-
         let db_path = crosslink_dir.join("issues.db");
         Database::open(&db_path)?;
-        println!("Created {}", crosslink_dir.display());
+        ui.step_ok(None);
     }
 
     // Write hook config — with TUI walkthrough when appropriate
@@ -804,7 +1181,6 @@ pub fn run(path: &Path, opts: &InitOpts<'_>) -> Result<()> {
 
     if should_run_tui || !config_exists || force {
         if should_run_tui {
-            // Start from existing config (for --reconfigure) or embedded default
             let mut config: serde_json::Value = if config_exists && reconfigure {
                 let raw = fs::read_to_string(&config_path)
                     .context("Failed to read existing hook-config.json")?;
@@ -821,16 +1197,16 @@ pub fn run(path: &Path, opts: &InitOpts<'_>) -> Result<()> {
             };
             let choices = run_tui_walkthrough(existing_ref)?;
             apply_tui_choices(&mut config, &choices)?;
-            println!();
 
             let output = serde_json::to_string_pretty(&config)
                 .context("Failed to serialize hook-config.json")?;
             fs::write(&config_path, format!("{}\n", output))
                 .context("Failed to write hook-config.json")?;
+            ui.step_created("hook-config.json");
         } else {
-            // --defaults or non-interactive: write embedded config verbatim
             fs::write(&config_path, HOOK_CONFIG_JSON)
                 .context("Failed to write hook-config.json")?;
+            ui.step_created("hook-config.json");
         }
     }
 
@@ -853,11 +1229,14 @@ pub fn run(path: &Path, opts: &InitOpts<'_>) -> Result<()> {
     }
 
     // Write/update managed section in root .gitignore
+    ui.step_start("Configuring .gitignore");
     write_root_gitignore(path).context("Failed to update root .gitignore")?;
+    ui.step_ok(None);
 
     // Create or update rules directory
     let rules_exist = rules_dir.exists();
     if !rules_exist || force {
+        ui.step_start("Deploying rules");
         fs::create_dir_all(&rules_dir).context("Failed to create .crosslink/rules directory")?;
 
         for (filename, content) in RULE_FILES {
@@ -866,9 +1245,9 @@ pub fn run(path: &Path, opts: &InitOpts<'_>) -> Result<()> {
         }
 
         if force && rules_exist {
-            println!("Updated {} with latest rules", rules_dir.display());
+            ui.step_ok(Some("updated"));
         } else {
-            println!("Created {} with default rules", rules_dir.display());
+            ui.step_ok(Some(&format!("{} files", RULE_FILES.len())));
         }
     }
 
@@ -879,38 +1258,30 @@ pub fn run(path: &Path, opts: &InitOpts<'_>) -> Result<()> {
 
     // Create .claude directory and hooks (or update if force)
     if !claude_exists || force {
+        ui.step_start("Setting up Claude Code hooks");
         fs::create_dir_all(&hooks_dir).context("Failed to create .claude/hooks directory")?;
 
-        // Merge settings.json (preserves user-added allowedTools, updates hooks)
         write_settings_json_merged(&claude_dir.join("settings.json"), &prefix)
             .context("Failed to write settings.json")?;
 
-        // Write hook scripts
         fs::write(hooks_dir.join("prompt-guard.py"), PROMPT_GUARD_PY)
             .context("Failed to write prompt-guard.py")?;
-
         fs::write(hooks_dir.join("post-edit-check.py"), POST_EDIT_CHECK_PY)
             .context("Failed to write post-edit-check.py")?;
-
         fs::write(hooks_dir.join("session-start.py"), SESSION_START_PY)
             .context("Failed to write session-start.py")?;
-
         fs::write(hooks_dir.join("pre-web-check.py"), PRE_WEB_CHECK_PY)
             .context("Failed to write pre-web-check.py")?;
-
         fs::write(hooks_dir.join("work-check.py"), WORK_CHECK_PY)
             .context("Failed to write work-check.py")?;
-
         fs::write(hooks_dir.join("crosslink_config.py"), CROSSLINK_CONFIG_PY)
             .context("Failed to write crosslink_config.py")?;
 
-        // Create MCP server directory and write safe-fetch server
         let mcp_dir = claude_dir.join("mcp");
         fs::create_dir_all(&mcp_dir).context("Failed to create .claude/mcp directory")?;
         fs::write(mcp_dir.join("safe-fetch-server.py"), SAFE_FETCH_SERVER_PY)
             .context("Failed to write safe-fetch-server.py")?;
 
-        // Write slash commands
         let commands_dir = claude_dir.join("commands");
         fs::create_dir_all(&commands_dir).context("Failed to create .claude/commands directory")?;
         fs::write(commands_dir.join("workflow.md"), WORKFLOW_CMD_MD)
@@ -926,41 +1297,41 @@ pub fn run(path: &Path, opts: &InitOpts<'_>) -> Result<()> {
         fs::write(commands_dir.join("commit.md"), COMMIT_CMD_MD)
             .context("Failed to write commit.md")?;
 
-        // Merge crosslink's MCP server entry into .mcp.json (preserving existing MCPs)
         let warnings =
             write_mcp_json_merged(&path.join(".mcp.json")).context("Failed to write .mcp.json")?;
-        for warning in warnings {
-            println!("{}", warning);
+        for warning in &warnings {
+            ui.warn(warning);
         }
 
         if force && claude_exists {
-            println!("Updated {} with latest hooks", claude_dir.display());
+            ui.step_ok(Some("updated"));
         } else {
-            println!("Created {} with Claude Code hooks", claude_dir.display());
+            ui.step_ok(None);
         }
     }
 
     // Auto-install cpitd unless skipped
     if !skip_cpitd {
+        ui.step_start("Checking cpitd");
         match install_cpitd(&prefix) {
-            Ok(true) => println!("Installed cpitd (code clone detection)"),
-            Ok(false) => {} // already installed, silent
+            Ok(true) => ui.step_ok(Some("installed")),
+            Ok(false) => ui.step_ok(Some("already installed")),
             Err(e) => {
-                println!("Warning: Could not auto-install cpitd: {}", e);
-                println!("  You can install it manually: pip install cpitd");
+                ui.step_ok(Some("skipped"));
+                ui.warn(&format!("Could not auto-install cpitd: {}", e));
+                ui.detail("You can install it manually: pip install cpitd");
             }
         }
     }
 
     // Driver SSH key detection and setup
     if !skip_signing {
+        ui.step_start("Configuring signing");
         setup_driver_signing(path, signing_key)?;
+        ui.step_ok(None);
     }
 
-    println!("Crosslink initialized successfully!");
-    println!("\nNext steps:");
-    println!("  crosslink session start     # Start a session");
-    println!("  crosslink create \"Task\"     # Create an issue");
+    ui.success();
 
     Ok(())
 }
