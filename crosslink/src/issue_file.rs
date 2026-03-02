@@ -269,7 +269,6 @@ pub fn read_all_milestone_files(
 /// A standalone comment file for the v2 hub layout.
 ///
 /// Stored at `issues/{issue-uuid}/comments/{comment-uuid}.json`.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommentFile {
     pub uuid: Uuid,
@@ -306,7 +305,6 @@ pub struct LockFileV2 {
 }
 
 /// Layout version marker stored at `meta/version.json`.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LayoutVersion {
     pub layout_version: u32,
@@ -317,7 +315,6 @@ pub struct LayoutVersion {
 pub const CURRENT_LAYOUT_VERSION: u32 = 2;
 
 /// Read a single comment file from disk.
-#[allow(dead_code)]
 pub fn read_comment_file(path: &std::path::Path) -> anyhow::Result<CommentFile> {
     let content = std::fs::read_to_string(path)
         .with_context(|| format!("Failed to read comment file: {}", path.display()))?;
@@ -337,7 +334,6 @@ pub fn write_comment_file(path: &std::path::Path, comment: &CommentFile) -> anyh
 }
 
 /// Read all comment files from a directory, sorted by `(created_at, author, uuid)`.
-#[allow(dead_code)]
 pub fn read_comment_files(comments_dir: &std::path::Path) -> anyhow::Result<Vec<CommentFile>> {
     let mut comments = Vec::new();
     if !comments_dir.exists() {
@@ -370,7 +366,6 @@ pub fn read_comment_files(comments_dir: &std::path::Path) -> anyhow::Result<Vec<
 /// Read the layout version from `meta/version.json`.
 ///
 /// Returns `1` if the file is absent, indicating a v1 (flat-file) layout.
-#[allow(dead_code)]
 pub fn read_layout_version(meta_dir: &std::path::Path) -> anyhow::Result<u32> {
     let path = meta_dir.join("version.json");
     if !path.exists() {

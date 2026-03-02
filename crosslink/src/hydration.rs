@@ -4,15 +4,20 @@
 //! the coordination branch worktree cache and writes them into the local SQLite
 //! database in a single transaction. This keeps SQLite as the universal read
 //! path while JSON on the git branch remains the source of truth.
+//!
+//! Supports both v1 (flat `issues/{uuid}.json`) and v2 (nested
+//! `issues/{uuid}/issue.json` with separate comment files) hub layouts.
 
 use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::Result;
+use uuid::Uuid;
 
 use crate::db::{Database, HydratedIssue, HydratedMilestone};
 use crate::issue_file::{
-    read_all_issue_files, read_all_milestone_files, read_milestones_file, IssueFile,
+    read_all_issue_files, read_all_milestone_files, read_comment_files, read_issue_file,
+    read_layout_version, read_milestones_file, CommentFile, IssueFile,
 };
 
 /// Statistics returned after hydration.
@@ -25,18 +30,75 @@ pub struct HydrationStats {
     pub milestones: usize,
 }
 
+/// Read all issue files from a v2 layout directory.
+///
+/// In v2, each issue lives in its own subdirectory: `issues/{uuid}/issue.json`.
+/// Non-directories and subdirectories missing `issue.json` are skipped with a
+/// warning on stderr.
+fn read_all_issue_files_v2(issues_dir: &Path) -> Result<Vec<IssueFile>> {
+    let mut issues = Vec::new();
+    if !issues_dir.exists() {
+        return Ok(issues);
+    }
+    for entry in std::fs::read_dir(issues_dir)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            eprintln!(
+                "Warning: skipping non-directory in v2 issues dir: {}",
+                entry.path().display()
+            );
+            continue;
+        }
+        let issue_path = entry.path().join("issue.json");
+        if !issue_path.exists() {
+            eprintln!(
+                "Warning: skipping issue dir missing issue.json: {}",
+                entry.path().display()
+            );
+            continue;
+        }
+        match read_issue_file(&issue_path) {
+            Ok(issue) => issues.push(issue),
+            Err(e) => {
+                eprintln!(
+                    "Warning: skipping malformed v2 issue file {}: {e}",
+                    issue_path.display()
+                );
+            }
+        }
+    }
+    Ok(issues)
+}
+
+/// Read comments for a specific issue in v2 layout.
+///
+/// Comment files live at `issues/{uuid}/comments/{comment-uuid}.json` and are
+/// returned sorted by `(created_at, author, uuid)`.
+fn read_issue_comments_v2(issues_dir: &Path, issue_uuid: &Uuid) -> Result<Vec<CommentFile>> {
+    let comments_dir = issues_dir.join(issue_uuid.to_string()).join("comments");
+    read_comment_files(&comments_dir)
+}
+
 /// Hydrate the local SQLite database from JSON files in the coordination branch cache.
 ///
 /// This function:
-/// 1. Reads all `issues/*.json` files from `cache_dir/issues/`
-/// 2. Reads `meta/counters.json` and `meta/milestones.json`
-/// 3. Clears all shared data from SQLite (issues, comments, labels, deps, etc.)
-/// 4. Re-inserts everything from the JSON files in a single transaction
+/// 1. Detects the hub layout version from `meta/version.json` (v1 if absent)
+/// 2. Reads issue files (v1: flat `issues/{uuid}.json`, v2: nested `issues/{uuid}/issue.json`)
+/// 3. Reads `meta/counters.json` and `meta/milestones.json`
+/// 4. Clears all shared data from SQLite (issues, comments, labels, deps, etc.)
+/// 5. Re-inserts everything from the JSON files in a single transaction
 ///
 /// Sessions are NOT touched — they are machine-local state.
 pub fn hydrate_to_sqlite(cache_dir: &Path, db: &Database) -> Result<HydrationStats> {
+    let meta_dir = cache_dir.join("meta");
+    let layout_version = read_layout_version(&meta_dir)?;
+
     let issues_dir = cache_dir.join("issues");
-    let issue_files = read_all_issue_files(&issues_dir)?;
+    let issue_files = if layout_version >= 2 {
+        read_all_issue_files_v2(&issues_dir)?
+    } else {
+        read_all_issue_files(&issues_dir)?
+    };
 
     if issue_files.is_empty() {
         return Ok(HydrationStats::default());
@@ -129,22 +191,45 @@ pub fn hydrate_to_sqlite(cache_dir: &Path, db: &Database) -> Result<HydrationSta
                 db.insert_hydrated_label(display_id, label)?;
             }
 
-            // Comments
-            for comment in &issue.comments {
-                let comment_created = comment.created_at.to_rfc3339();
-                db.insert_hydrated_comment(
-                    comment.id,
-                    display_id,
-                    None, // comment uuid not tracked yet
-                    Some(&comment.author),
-                    &comment.content,
-                    &comment_created,
-                    &comment.kind,
-                    comment.trigger_type.as_deref(),
-                    comment.intervention_context.as_deref(),
-                    comment.driver_key_fingerprint.as_deref(),
-                )?;
-                stats.comments += 1;
+            // Comments: v2 reads separate comment files, v1 uses inline comments
+            if layout_version >= 2 {
+                let comment_files = read_issue_comments_v2(&issues_dir, &issue.uuid)?;
+                let mut comment_counter: i64 = 1;
+                for cf in &comment_files {
+                    let comment_created = cf.created_at.to_rfc3339();
+                    let uuid_str = cf.uuid.to_string();
+                    db.insert_hydrated_comment(
+                        comment_counter,
+                        display_id,
+                        Some(&uuid_str),
+                        Some(&cf.author),
+                        &cf.content,
+                        &comment_created,
+                        &cf.kind,
+                        cf.trigger_type.as_deref(),
+                        cf.intervention_context.as_deref(),
+                        cf.driver_key_fingerprint.as_deref(),
+                    )?;
+                    comment_counter += 1;
+                    stats.comments += 1;
+                }
+            } else {
+                for comment in &issue.comments {
+                    let comment_created = comment.created_at.to_rfc3339();
+                    db.insert_hydrated_comment(
+                        comment.id,
+                        display_id,
+                        None, // comment uuid not tracked in v1
+                        Some(&comment.author),
+                        &comment.content,
+                        &comment_created,
+                        &comment.kind,
+                        comment.trigger_type.as_deref(),
+                        comment.intervention_context.as_deref(),
+                        comment.driver_key_fingerprint.as_deref(),
+                    )?;
+                    stats.comments += 1;
+                }
             }
 
             // Time entries
@@ -577,5 +662,123 @@ mod tests {
         let ms = db.get_milestone(1).unwrap();
         assert!(ms.is_some());
         assert_eq!(ms.unwrap().name, "legacy-ms");
+    }
+
+    // --- V2 layout helpers and tests ---
+
+    fn write_v2_issue_to_cache(
+        cache_dir: &Path,
+        issue: &IssueFile,
+        comments: &[crate::issue_file::CommentFile],
+    ) {
+        let issue_dir = cache_dir.join("issues").join(issue.uuid.to_string());
+        let comments_dir = issue_dir.join("comments");
+        std::fs::create_dir_all(&comments_dir).unwrap();
+
+        // Write issue.json (with empty comments vec for v2)
+        let mut issue_v2 = issue.clone();
+        issue_v2.comments = vec![];
+        write_issue_file(&issue_dir.join("issue.json"), &issue_v2).unwrap();
+
+        // Write comment files
+        for comment in comments {
+            let path = comments_dir.join(format!("{}.json", comment.uuid));
+            crate::issue_file::write_comment_file(&path, comment).unwrap();
+        }
+
+        // Write version.json
+        crate::issue_file::write_layout_version(&cache_dir.join("meta"), 2).unwrap();
+    }
+
+    fn make_comment_file(issue_uuid: Uuid, author: &str, content: &str) -> CommentFile {
+        CommentFile {
+            uuid: Uuid::new_v4(),
+            issue_uuid,
+            author: author.to_string(),
+            content: content.to_string(),
+            created_at: Utc::now(),
+            kind: "note".to_string(),
+            trigger_type: None,
+            intervention_context: None,
+            driver_key_fingerprint: None,
+            signed_by: None,
+            signature: None,
+        }
+    }
+
+    #[test]
+    fn test_hydrate_v2_layout() {
+        let (db, _dir) = setup_test_db();
+        let cache = tempdir().unwrap();
+
+        let issue_a = make_issue(1, "V2 issue A");
+        let issue_b = make_issue(2, "V2 issue B");
+
+        // Write both issues in v2 layout (no comments)
+        write_v2_issue_to_cache(cache.path(), &issue_a, &[]);
+        write_v2_issue_to_cache(cache.path(), &issue_b, &[]);
+
+        let stats = hydrate_to_sqlite(cache.path(), &db).unwrap();
+        assert_eq!(stats.issues, 2);
+
+        let loaded_a = db.get_issue(1).unwrap().unwrap();
+        assert_eq!(loaded_a.title, "V2 issue A");
+
+        let loaded_b = db.get_issue(2).unwrap().unwrap();
+        assert_eq!(loaded_b.title, "V2 issue B");
+    }
+
+    #[test]
+    fn test_hydrate_v2_with_comments() {
+        let (db, _dir) = setup_test_db();
+        let cache = tempdir().unwrap();
+
+        let issue = make_issue(1, "V2 commented issue");
+        let now = Utc::now();
+
+        let mut c1 = make_comment_file(issue.uuid, "alice", "First comment");
+        c1.created_at = now;
+        let mut c2 = make_comment_file(issue.uuid, "bob", "Second comment");
+        c2.created_at = now + chrono::Duration::seconds(1);
+        let mut c3 = make_comment_file(issue.uuid, "alice", "Third comment");
+        c3.created_at = now + chrono::Duration::seconds(2);
+
+        write_v2_issue_to_cache(cache.path(), &issue, &[c1, c2, c3]);
+
+        let stats = hydrate_to_sqlite(cache.path(), &db).unwrap();
+        assert_eq!(stats.issues, 1);
+        assert_eq!(stats.comments, 3);
+
+        let comments = db.get_comments(1).unwrap();
+        assert_eq!(comments.len(), 3);
+        // Comments should be ordered by created_at (sorted by read_comment_files)
+        assert_eq!(comments[0].content, "First comment");
+        assert_eq!(comments[1].content, "Second comment");
+        assert_eq!(comments[2].content, "Third comment");
+    }
+
+    #[test]
+    fn test_hydrate_v2_empty_comments() {
+        let (db, _dir) = setup_test_db();
+        let cache = tempdir().unwrap();
+
+        let issue = make_issue(1, "V2 no comments");
+
+        // Write v2 issue directory but remove the comments subdir
+        let issue_dir = cache.path().join("issues").join(issue.uuid.to_string());
+        std::fs::create_dir_all(&issue_dir).unwrap();
+
+        let mut issue_v2 = issue.clone();
+        issue_v2.comments = vec![];
+        write_issue_file(&issue_dir.join("issue.json"), &issue_v2).unwrap();
+
+        crate::issue_file::write_layout_version(&cache.path().join("meta"), 2).unwrap();
+
+        let stats = hydrate_to_sqlite(cache.path(), &db).unwrap();
+        assert_eq!(stats.issues, 1);
+        assert_eq!(stats.comments, 0);
+
+        let loaded = db.get_issue(1).unwrap().unwrap();
+        assert_eq!(loaded.title, "V2 no comments");
     }
 }
