@@ -493,6 +493,8 @@ impl SyncManager {
     }
 
     /// Write and optionally push a heartbeat file for this agent.
+    ///
+    /// Writes heartbeat to `agents/{agent_id}/heartbeat.json` (v2 layout).
     pub fn push_heartbeat(&self, agent: &AgentConfig, active_issue_id: Option<i64>) -> Result<()> {
         let heartbeat = Heartbeat {
             agent_id: agent.agent_id.clone(),
@@ -501,17 +503,16 @@ impl SyncManager {
             machine_id: agent.machine_id.clone(),
         };
 
-        // Ensure heartbeats directory exists
-        let hb_dir = self.cache_dir.join("heartbeats");
-        std::fs::create_dir_all(&hb_dir)?;
+        // Write heartbeat into the agent's directory
+        let agent_dir = self.cache_dir.join("agents").join(&agent.agent_id);
+        std::fs::create_dir_all(&agent_dir)?;
 
-        let filename = format!("{}.json", agent.agent_id);
-        let path = hb_dir.join(&filename);
+        let path = agent_dir.join("heartbeat.json");
         let json = serde_json::to_string_pretty(&heartbeat)?;
         std::fs::write(&path, json)?;
 
         // Stage the heartbeat file
-        self.git_in_cache(&["add", &format!("heartbeats/{}", filename)])?;
+        self.git_in_cache(&["add", &format!("agents/{}/heartbeat.json", agent.agent_id)])?;
 
         // Commit (may fail if nothing changed, that's fine)
         let msg = format!(
@@ -549,22 +550,46 @@ impl SyncManager {
     }
 
     /// Read all heartbeat files from the cache.
+    ///
+    /// Tries the v2 path (`agents/*/heartbeat.json`) first. If no heartbeats
+    /// are found there, falls back to the legacy path (`heartbeats/*.json`).
     pub fn read_heartbeats(&self) -> Result<Vec<Heartbeat>> {
-        let dir = self.cache_dir.join("heartbeats");
-        if !dir.exists() {
-            return Ok(Vec::new());
-        }
         let mut heartbeats = Vec::new();
-        for entry in std::fs::read_dir(&dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.extension().map(|e| e == "json").unwrap_or(false) {
-                let content = std::fs::read_to_string(&path)?;
-                if let Ok(hb) = serde_json::from_str::<Heartbeat>(&content) {
-                    heartbeats.push(hb);
+
+        // Try new agents/*/heartbeat.json path
+        let agents_dir = self.cache_dir.join("agents");
+        if agents_dir.exists() {
+            for entry in std::fs::read_dir(&agents_dir)? {
+                let entry = entry?;
+                if entry.file_type()?.is_dir() {
+                    let hb_path = entry.path().join("heartbeat.json");
+                    if hb_path.exists() {
+                        let content = std::fs::read_to_string(&hb_path)?;
+                        if let Ok(hb) = serde_json::from_str::<Heartbeat>(&content) {
+                            heartbeats.push(hb);
+                        }
+                    }
                 }
             }
         }
+
+        // If no heartbeats found in agents/, try legacy heartbeats/ dir
+        if heartbeats.is_empty() {
+            let dir = self.cache_dir.join("heartbeats");
+            if dir.exists() {
+                for entry in std::fs::read_dir(&dir)? {
+                    let entry = entry?;
+                    let path = entry.path();
+                    if path.extension().map(|e| e == "json").unwrap_or(false) {
+                        let content = std::fs::read_to_string(&path)?;
+                        if let Ok(hb) = serde_json::from_str::<Heartbeat>(&content) {
+                            heartbeats.push(hb);
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(heartbeats)
     }
 
@@ -1024,5 +1049,54 @@ mod tests {
             manager.repo_root.canonicalize().unwrap(),
             main_root.canonicalize().unwrap()
         );
+    }
+
+    #[test]
+    fn test_read_heartbeats_from_agents_dir() {
+        let dir = tempdir().unwrap();
+        let crosslink_dir = dir.path().join(".crosslink");
+        let cache_dir = crosslink_dir.join(HUB_CACHE_DIR);
+        let agent_dir = cache_dir.join("agents").join("worker-1");
+        std::fs::create_dir_all(&agent_dir).unwrap();
+
+        let hb = Heartbeat {
+            agent_id: "worker-1".to_string(),
+            last_heartbeat: Utc::now(),
+            active_issue_id: Some(3),
+            machine_id: "test-host".to_string(),
+        };
+        let json = serde_json::to_string_pretty(&hb).unwrap();
+        std::fs::write(agent_dir.join("heartbeat.json"), json).unwrap();
+
+        let manager = SyncManager::new(&crosslink_dir).unwrap();
+        let heartbeats = manager.read_heartbeats().unwrap();
+        assert_eq!(heartbeats.len(), 1);
+        assert_eq!(heartbeats[0].agent_id, "worker-1");
+        assert_eq!(heartbeats[0].active_issue_id, Some(3));
+    }
+
+    #[test]
+    fn test_read_heartbeats_fallback_to_legacy() {
+        let dir = tempdir().unwrap();
+        let crosslink_dir = dir.path().join(".crosslink");
+        let cache_dir = crosslink_dir.join(HUB_CACHE_DIR);
+        // Only create legacy heartbeats/ dir, no agents/ dir
+        let hb_dir = cache_dir.join("heartbeats");
+        std::fs::create_dir_all(&hb_dir).unwrap();
+
+        let hb = Heartbeat {
+            agent_id: "legacy-worker".to_string(),
+            last_heartbeat: Utc::now(),
+            active_issue_id: Some(7),
+            machine_id: "old-host".to_string(),
+        };
+        let json = serde_json::to_string_pretty(&hb).unwrap();
+        std::fs::write(hb_dir.join("legacy-worker.json"), json).unwrap();
+
+        let manager = SyncManager::new(&crosslink_dir).unwrap();
+        let heartbeats = manager.read_heartbeats().unwrap();
+        assert_eq!(heartbeats.len(), 1);
+        assert_eq!(heartbeats[0].agent_id, "legacy-worker");
+        assert_eq!(heartbeats[0].active_issue_id, Some(7));
     }
 }
