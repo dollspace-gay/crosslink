@@ -348,13 +348,20 @@ pub fn start(
         // Mount overrides (shadows originals inside container only)
         cmd.args([
             "-v",
-            &format!("{}:{}/.git:ro", override_dot_git.display(), container_workspace),
+            &format!(
+                "{}:{}/.git:ro",
+                override_dot_git.display(),
+                container_workspace
+            ),
         ]);
         cmd.args([
             "-v",
-            &format!("{}:{}/gitdir:ro", override_gitdir.display(), container_gitdir),
+            &format!(
+                "{}:{}/gitdir:ro",
+                override_gitdir.display(),
+                container_gitdir
+            ),
         ]);
-
     }
 
     // Mount hub cache if it exists
@@ -382,13 +389,17 @@ pub fn start(
     // avoiding permission issues with bind-mounted files.
     if let Ok(uid_output) = Command::new("id").arg("-u").output() {
         if uid_output.status.success() {
-            let uid = String::from_utf8_lossy(&uid_output.stdout).trim().to_string();
+            let uid = String::from_utf8_lossy(&uid_output.stdout)
+                .trim()
+                .to_string();
             cmd.args(["-e", &format!("HOST_UID={}", uid)]);
         }
     }
     if let Ok(gid_output) = Command::new("id").arg("-g").output() {
         if gid_output.status.success() {
-            let gid = String::from_utf8_lossy(&gid_output.stdout).trim().to_string();
+            let gid = String::from_utf8_lossy(&gid_output.stdout)
+                .trim()
+                .to_string();
             cmd.args(["-e", &format!("HOST_GID={}", gid)]);
         }
     }
