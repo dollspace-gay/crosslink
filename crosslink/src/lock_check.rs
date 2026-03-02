@@ -44,7 +44,7 @@ pub fn check_lock(crosslink_dir: &Path, issue_id: i64) -> Result<LockStatus> {
         return Ok(LockStatus::NotConfigured);
     }
 
-    let locks = match sync.read_locks() {
+    let locks = match sync.read_locks_auto() {
         Ok(l) => l,
         Err(_) => return Ok(LockStatus::NotConfigured),
     };

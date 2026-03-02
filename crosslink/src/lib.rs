@@ -2,7 +2,10 @@
 //!
 //! This module exposes the core functionality for use in fuzzing and testing.
 
+pub mod checkpoint;
+pub mod compaction;
 pub mod db;
+pub mod events;
 pub mod hydration;
 pub mod identity;
 pub mod issue_file;

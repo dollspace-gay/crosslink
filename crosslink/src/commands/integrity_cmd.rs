@@ -294,9 +294,20 @@ fn check_locks(crosslink_dir: &Path, repair: bool) -> Result<CheckResult> {
     };
 
     let mut released = 0;
-    for (id, _) in &stale {
-        if sync.release_lock(&agent, *id, true)? {
-            released += 1;
+    if sync.is_v2_layout() {
+        if let Ok(Some(writer)) = crate::shared_writer::SharedWriter::new(crosslink_dir) {
+            for (id, stale_agent_id) in &stale {
+                match writer.steal_lock_v2(*id, stale_agent_id, None) {
+                    Ok(_) => released += 1,
+                    Err(e) => eprintln!("Warning: Could not release stale lock #{}: {}", id, e),
+                }
+            }
+        }
+    } else {
+        for (id, _) in &stale {
+            if sync.release_lock(&agent, *id, true)? {
+                released += 1;
+            }
         }
     }
 

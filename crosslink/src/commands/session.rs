@@ -58,12 +58,28 @@ pub fn end(db: &Database, notes: Option<&str>, crosslink_dir: &std::path::Path) 
         if let Ok(Some(agent)) = crate::identity::AgentConfig::load(crosslink_dir) {
             if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
                 if sync.is_initialized() {
-                    match sync.release_lock(&agent, issue_id, false) {
-                        Ok(true) => {
-                            println!("Released lock on issue {}", format_issue_id(issue_id))
+                    if sync.is_v2_layout() {
+                        if let Ok(Some(writer)) =
+                            crate::shared_writer::SharedWriter::new(crosslink_dir)
+                        {
+                            match writer.release_lock_v2(issue_id) {
+                                Ok(true) => {
+                                    println!("Released lock on issue {}", format_issue_id(issue_id))
+                                }
+                                Ok(false) => {}
+                                Err(e) => {
+                                    eprintln!("Warning: Could not release lock: {}", e)
+                                }
+                            }
                         }
-                        Ok(false) => {} // Wasn't locked
-                        Err(e) => eprintln!("Warning: Could not release lock: {}", e),
+                    } else {
+                        match sync.release_lock(&agent, issue_id, false) {
+                            Ok(true) => {
+                                println!("Released lock on issue {}", format_issue_id(issue_id))
+                            }
+                            Ok(false) => {}
+                            Err(e) => eprintln!("Warning: Could not release lock: {}", e),
+                        }
                     }
                 }
             }
@@ -157,12 +173,36 @@ pub fn work(db: &Database, issue_id: i64, crosslink_dir: &std::path::Path) -> Re
     if let Ok(Some(agent)) = crate::identity::AgentConfig::load(crosslink_dir) {
         if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
             if sync.is_initialized() {
-                match sync.claim_lock(&agent, issue_id, None, false) {
-                    Ok(true) => {
-                        println!("Auto-claimed lock on issue {}", format_issue_id(issue_id))
+                if sync.is_v2_layout() {
+                    if let Ok(Some(writer)) = crate::shared_writer::SharedWriter::new(crosslink_dir)
+                    {
+                        match writer.claim_lock_v2(issue_id, None) {
+                            Ok(crate::shared_writer::LockClaimResult::Claimed) => {
+                                println!("Auto-claimed lock on issue {}", format_issue_id(issue_id))
+                            }
+                            Ok(crate::shared_writer::LockClaimResult::AlreadyHeld) => {}
+                            Ok(crate::shared_writer::LockClaimResult::Contended {
+                                winner_agent_id,
+                            }) => {
+                                eprintln!(
+                                    "Warning: Lock on {} won by '{}'",
+                                    format_issue_id(issue_id),
+                                    winner_agent_id
+                                )
+                            }
+                            Err(e) => {
+                                eprintln!("Warning: Could not auto-claim lock: {}", e)
+                            }
+                        }
                     }
-                    Ok(false) => {} // Already held
-                    Err(e) => eprintln!("Warning: Could not auto-claim lock: {}", e),
+                } else {
+                    match sync.claim_lock(&agent, issue_id, None, false) {
+                        Ok(true) => {
+                            println!("Auto-claimed lock on issue {}", format_issue_id(issue_id))
+                        }
+                        Ok(false) => {}
+                        Err(e) => eprintln!("Warning: Could not auto-claim lock: {}", e),
+                    }
                 }
             }
         }

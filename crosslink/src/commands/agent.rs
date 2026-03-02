@@ -1,5 +1,6 @@
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use std::path::Path;
+use std::process::Command;
 
 use crate::identity::AgentConfig;
 use crate::signing;
@@ -85,6 +86,177 @@ pub fn init(
     Ok(())
 }
 
+/// `crosslink agent bootstrap <target-dir> <repo-url> <agent-id> [--branch <branch>] [-d "description"] [--no-key]`
+///
+/// Enables a container agent to join an existing crosslink coordination hub by
+/// cloning a repository, initializing an agent identity, and registering on
+/// the hub branch.
+pub fn bootstrap(
+    target_dir: &Path,
+    repo_url: &str,
+    agent_id: &str,
+    branch: Option<&str>,
+    description: Option<&str>,
+    no_key: bool,
+) -> Result<()> {
+    // Step 1: Clone or verify repo
+    if !target_dir.exists()
+        || target_dir
+            .read_dir()
+            .map_or(true, |mut d| d.next().is_none())
+    {
+        let output = Command::new("git")
+            .args(["clone", "--depth", "1", repo_url])
+            .arg(target_dir)
+            .output()
+            .context("Failed to run git clone")?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            bail!("git clone failed: {}", stderr.trim());
+        }
+    } else {
+        // Verify the directory is a git repo with matching remote
+        let output = Command::new("git")
+            .current_dir(target_dir)
+            .args(["remote", "get-url", "origin"])
+            .output()
+            .context("Failed to check git remote")?;
+        if !output.status.success() {
+            bail!(
+                "Directory '{}' exists but is not a git repository with an origin remote",
+                target_dir.display()
+            );
+        }
+        let existing_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if existing_url != repo_url {
+            bail!(
+                "Remote mismatch: existing origin is '{}', expected '{}'",
+                existing_url,
+                repo_url
+            );
+        }
+    }
+
+    // Step 2: Checkout branch if specified
+    if let Some(br) = branch {
+        let output = Command::new("git")
+            .current_dir(target_dir)
+            .args(["checkout", br])
+            .output()
+            .context("Failed to run git checkout")?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            bail!("git checkout '{}' failed: {}", br, stderr.trim());
+        }
+    }
+
+    // Step 3: Find or create .crosslink
+    let crosslink_dir = target_dir.join(".crosslink");
+    std::fs::create_dir_all(&crosslink_dir).context("Failed to create .crosslink directory")?;
+
+    // Step 4: Initialize agent identity (skip if already exists)
+    if AgentConfig::load(&crosslink_dir)?.is_some() {
+        println!("Agent already configured in this repo, skipping identity init.");
+    } else {
+        AgentConfig::init(&crosslink_dir, agent_id, description)?;
+    }
+
+    let mut config = AgentConfig::load(&crosslink_dir)?
+        .ok_or_else(|| anyhow::anyhow!("Failed to load agent config after init"))?;
+
+    // Step 5: Generate SSH key unless opted out
+    if !no_key && config.ssh_key_path.is_none() {
+        let keys_dir = crosslink_dir.join("keys");
+        match signing::generate_agent_key(&keys_dir, agent_id, &config.machine_id) {
+            Ok(keypair) => {
+                let rel_path = format!("keys/{}_ed25519", agent_id);
+                config.ssh_key_path = Some(rel_path);
+                config.ssh_fingerprint = Some(keypair.fingerprint.clone());
+                config.ssh_public_key = Some(keypair.public_key.clone());
+
+                // Re-write agent.json with key info
+                let path = crosslink_dir.join("agent.json");
+                let json = serde_json::to_string_pretty(&config)?;
+                std::fs::write(&path, json)?;
+            }
+            Err(e) => {
+                println!("  Warning: Could not generate SSH key: {}", e);
+                println!("  Signing will be unavailable.");
+            }
+        }
+    }
+
+    // Step 6: Initialize hub cache
+    let sync = crate::sync::SyncManager::new(&crosslink_dir)?;
+    sync.init_cache()?;
+    let _ = sync.fetch();
+
+    // Step 7: Create agent directory on hub
+    let cache = sync.cache_path();
+    let agent_dir = cache.join("agents").join(agent_id);
+    std::fs::create_dir_all(&agent_dir).context("Failed to create agent directory on hub")?;
+
+    let heartbeat = serde_json::json!({
+        "agent_id": agent_id,
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "status": "active"
+    });
+    let heartbeat_path = agent_dir.join("heartbeat.json");
+    std::fs::write(&heartbeat_path, serde_json::to_string_pretty(&heartbeat)?)
+        .context("Failed to write heartbeat.json")?;
+
+    let git_in_cache = |args: &[&str]| -> Result<()> {
+        let output = Command::new("git").current_dir(cache).args(args).output()?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if !stderr.contains("nothing to commit") {
+                bail!("git {:?} failed: {}", args, stderr.trim());
+            }
+        }
+        Ok(())
+    };
+
+    git_in_cache(&["add", &format!("agents/{}/", agent_id)])?;
+    git_in_cache(&[
+        "commit",
+        "-m",
+        &format!("bootstrap: register agent '{}'", agent_id),
+    ])?;
+
+    // Best-effort push
+    let _ = Command::new("git")
+        .current_dir(cache)
+        .args(["push", "origin", crate::sync::HUB_BRANCH])
+        .output();
+
+    // Step 8: Configure signing
+    let _ = sync.configure_signing(&crosslink_dir);
+
+    // Step 9: Publish key to hub
+    if let Some(pub_key) = &config.ssh_public_key {
+        if let Err(e) = super::trust::publish_agent_key(&crosslink_dir, agent_id, pub_key) {
+            println!("  Note: Could not publish key to hub: {}", e);
+            println!("  The driver can manually copy your public key.");
+        }
+    }
+
+    // Step 10: Print summary
+    println!("Bootstrap complete:");
+    println!("  Agent ID:  {}", config.agent_id);
+    println!("  Machine:   {}", config.machine_id);
+    if let Some(fp) = &config.ssh_fingerprint {
+        println!("  SSH key:   {}", fp);
+    }
+    println!("  Repo path: {}", target_dir.display());
+    println!();
+    println!(
+        "Ask your driver to approve this agent with `crosslink trust approve {}`",
+        agent_id
+    );
+
+    Ok(())
+}
+
 /// `crosslink agent status`
 pub fn status(crosslink_dir: &Path) -> Result<()> {
     match AgentConfig::load(crosslink_dir)? {
@@ -104,7 +276,7 @@ pub fn status(crosslink_dir: &Path) -> Result<()> {
             if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
                 let _ = sync.init_cache();
                 let _ = sync.fetch();
-                if let Ok(locks) = sync.read_locks() {
+                if let Ok(locks) = sync.read_locks_auto() {
                     let my_locks = locks.agent_locks(&config.agent_id);
                     if my_locks.is_empty() {
                         println!("Locks: none");
@@ -131,7 +303,211 @@ pub fn status(crosslink_dir: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command as TestCommand;
     use tempfile::tempdir;
+
+    /// Helper: create a bare git repo that can be used as a clone source.
+    fn create_bare_repo(dir: &Path) {
+        let output = TestCommand::new("git")
+            .args(["init", "--bare", "-q"])
+            .arg(dir)
+            .output()
+            .expect("git init --bare failed");
+        assert!(output.status.success(), "Failed to create bare repo");
+    }
+
+    /// Helper: create a non-bare git repo with an initial commit so it can be cloned.
+    fn create_repo_with_commit(dir: &Path) {
+        TestCommand::new("git")
+            .args(["init", "-q"])
+            .arg(dir)
+            .output()
+            .expect("git init failed");
+        TestCommand::new("git")
+            .current_dir(dir)
+            .args(["config", "user.email", "test@test.com"])
+            .output()
+            .unwrap();
+        TestCommand::new("git")
+            .current_dir(dir)
+            .args(["config", "user.name", "Test"])
+            .output()
+            .unwrap();
+        // Disable gpg signing for test commits
+        TestCommand::new("git")
+            .current_dir(dir)
+            .args(["config", "commit.gpgsign", "false"])
+            .output()
+            .unwrap();
+        std::fs::write(dir.join("README"), "init").unwrap();
+        TestCommand::new("git")
+            .current_dir(dir)
+            .args(["add", "."])
+            .output()
+            .unwrap();
+        TestCommand::new("git")
+            .current_dir(dir)
+            .args(["commit", "-q", "-m", "initial"])
+            .output()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_bootstrap_creates_crosslink_dir() {
+        let tmp = tempdir().unwrap();
+        let bare = tmp.path().join("origin.git");
+        create_repo_with_commit(&tmp.path().join("seed"));
+        // Clone seed into a bare repo so we have something to clone from
+        TestCommand::new("git")
+            .args([
+                "clone",
+                "--bare",
+                "-q",
+                &tmp.path().join("seed").to_string_lossy(),
+                &bare.to_string_lossy(),
+            ])
+            .output()
+            .unwrap();
+
+        let target = tmp.path().join("cloned");
+        let result = bootstrap(
+            &target,
+            &bare.to_string_lossy(),
+            "bot-001",
+            None,
+            Some("test bootstrap"),
+            true, // skip SSH key generation in tests
+        );
+        assert!(result.is_ok(), "bootstrap failed: {:?}", result.err());
+
+        // .crosslink dir should exist in the cloned repo
+        assert!(target.join(".crosslink").exists());
+
+        // agent.json should exist
+        let config = AgentConfig::load(&target.join(".crosslink"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(config.agent_id, "bot-001");
+        assert_eq!(config.description, Some("test bootstrap".to_string()));
+    }
+
+    #[test]
+    fn test_bootstrap_rejects_invalid_agent_id() {
+        let tmp = tempdir().unwrap();
+        let bare = tmp.path().join("origin.git");
+        create_bare_repo(&bare);
+
+        let target = tmp.path().join("cloned");
+        // "x" is too short (< 3 chars) — AgentConfig::init validates this
+        let result = bootstrap(&target, &bare.to_string_lossy(), "x", None, None, true);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("at least 3 characters"),
+            "Unexpected error: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn test_bootstrap_existing_agent_skips() {
+        let tmp = tempdir().unwrap();
+        let bare = tmp.path().join("origin.git");
+        create_repo_with_commit(&tmp.path().join("seed"));
+        TestCommand::new("git")
+            .args([
+                "clone",
+                "--bare",
+                "-q",
+                &tmp.path().join("seed").to_string_lossy(),
+                &bare.to_string_lossy(),
+            ])
+            .output()
+            .unwrap();
+
+        let target = tmp.path().join("cloned");
+
+        // First bootstrap
+        bootstrap(
+            &target,
+            &bare.to_string_lossy(),
+            "bot-002",
+            None,
+            Some("first"),
+            true,
+        )
+        .unwrap();
+
+        // Second bootstrap with same target — should succeed without error
+        // (the agent identity step is skipped gracefully)
+        let result = bootstrap(
+            &target,
+            &bare.to_string_lossy(),
+            "bot-002",
+            None,
+            Some("second"),
+            true,
+        );
+        assert!(
+            result.is_ok(),
+            "second bootstrap failed: {:?}",
+            result.err()
+        );
+
+        // Config should still have the first description
+        let config = AgentConfig::load(&target.join(".crosslink"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(config.description, Some("first".to_string()));
+    }
+
+    #[test]
+    fn test_bootstrap_verifies_remote() {
+        let tmp = tempdir().unwrap();
+
+        // Create a repo with a real remote
+        let bare = tmp.path().join("origin.git");
+        create_repo_with_commit(&tmp.path().join("seed"));
+        TestCommand::new("git")
+            .args([
+                "clone",
+                "--bare",
+                "-q",
+                &tmp.path().join("seed").to_string_lossy(),
+                &bare.to_string_lossy(),
+            ])
+            .output()
+            .unwrap();
+
+        let target = tmp.path().join("cloned");
+        // Clone it first with the real URL
+        TestCommand::new("git")
+            .args([
+                "clone",
+                "-q",
+                &bare.to_string_lossy(),
+                &target.to_string_lossy(),
+            ])
+            .output()
+            .unwrap();
+
+        // Now try to bootstrap with a *different* URL — should fail
+        let result = bootstrap(
+            &target,
+            "https://example.com/wrong-repo.git",
+            "bot-003",
+            None,
+            None,
+            true,
+        );
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("Remote mismatch"),
+            "Unexpected error: {}",
+            err_msg
+        );
+    }
 
     #[test]
     fn test_init_creates_config() {

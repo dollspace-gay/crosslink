@@ -80,6 +80,8 @@ pub struct CreateOpts<'a> {
     pub quiet: bool,
     /// If set, lock enforcement is checked when --work is used.
     pub crosslink_dir: Option<&'a std::path::Path>,
+    /// Skip compaction after creation (batch mode — display ID assigned on next compaction).
+    pub defer_id: bool,
 }
 
 pub fn run(
@@ -156,7 +158,12 @@ pub fn run(
         }
     }
 
-    if opts.quiet {
+    if opts.defer_id && !opts.quiet {
+        println!(
+            "Created issue {} (display ID deferred — assigned on next compaction)",
+            format_issue_id(id)
+        );
+    } else if opts.quiet {
         println!("{}", id);
     } else {
         println!("Created issue {}", format_issue_id(id));
@@ -175,14 +182,45 @@ pub fn run(
             if let Ok(Some(agent)) = crate::identity::AgentConfig::load(dir) {
                 if let Ok(sync) = crate::sync::SyncManager::new(dir) {
                     if sync.is_initialized() {
-                        match sync.claim_lock(&agent, id, None, false) {
-                            Ok(true) => {
-                                if !opts.quiet {
-                                    println!("Auto-claimed lock on issue {}", format_issue_id(id));
+                        if sync.is_v2_layout() {
+                            if let Ok(Some(writer)) = SharedWriter::new(dir) {
+                                match writer.claim_lock_v2(id, None) {
+                                    Ok(crate::shared_writer::LockClaimResult::Claimed) => {
+                                        if !opts.quiet {
+                                            println!(
+                                                "Auto-claimed lock on issue {}",
+                                                format_issue_id(id)
+                                            );
+                                        }
+                                    }
+                                    Ok(crate::shared_writer::LockClaimResult::AlreadyHeld) => {}
+                                    Ok(crate::shared_writer::LockClaimResult::Contended {
+                                        winner_agent_id,
+                                    }) => {
+                                        eprintln!(
+                                            "Warning: Lock on {} won by '{}'",
+                                            format_issue_id(id),
+                                            winner_agent_id
+                                        );
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Warning: Could not auto-claim lock: {}", e)
+                                    }
                                 }
                             }
-                            Ok(false) => {} // Already held by us
-                            Err(e) => eprintln!("Warning: Could not auto-claim lock: {}", e),
+                        } else {
+                            match sync.claim_lock(&agent, id, None, false) {
+                                Ok(true) => {
+                                    if !opts.quiet {
+                                        println!(
+                                            "Auto-claimed lock on issue {}",
+                                            format_issue_id(id)
+                                        );
+                                    }
+                                }
+                                Ok(false) => {}
+                                Err(e) => eprintln!("Warning: Could not auto-claim lock: {}", e),
+                            }
                         }
                     }
                 }
@@ -265,14 +303,45 @@ pub fn run_subissue(
             if let Ok(Some(agent)) = crate::identity::AgentConfig::load(dir) {
                 if let Ok(sync) = crate::sync::SyncManager::new(dir) {
                     if sync.is_initialized() {
-                        match sync.claim_lock(&agent, id, None, false) {
-                            Ok(true) => {
-                                if !opts.quiet {
-                                    println!("Auto-claimed lock on issue {}", format_issue_id(id));
+                        if sync.is_v2_layout() {
+                            if let Ok(Some(writer)) = SharedWriter::new(dir) {
+                                match writer.claim_lock_v2(id, None) {
+                                    Ok(crate::shared_writer::LockClaimResult::Claimed) => {
+                                        if !opts.quiet {
+                                            println!(
+                                                "Auto-claimed lock on issue {}",
+                                                format_issue_id(id)
+                                            );
+                                        }
+                                    }
+                                    Ok(crate::shared_writer::LockClaimResult::AlreadyHeld) => {}
+                                    Ok(crate::shared_writer::LockClaimResult::Contended {
+                                        winner_agent_id,
+                                    }) => {
+                                        eprintln!(
+                                            "Warning: Lock on {} won by '{}'",
+                                            format_issue_id(id),
+                                            winner_agent_id
+                                        );
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Warning: Could not auto-claim lock: {}", e)
+                                    }
                                 }
                             }
-                            Ok(false) => {} // Already held by us
-                            Err(e) => eprintln!("Warning: Could not auto-claim lock: {}", e),
+                        } else {
+                            match sync.claim_lock(&agent, id, None, false) {
+                                Ok(true) => {
+                                    if !opts.quiet {
+                                        println!(
+                                            "Auto-claimed lock on issue {}",
+                                            format_issue_id(id)
+                                        );
+                                    }
+                                }
+                                Ok(false) => {}
+                                Err(e) => eprintln!("Warning: Could not auto-claim lock: {}", e),
+                            }
                         }
                     }
                 }

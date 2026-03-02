@@ -16,8 +16,8 @@ use crate::db::Database;
 use crate::hydration::hydrate_to_sqlite;
 use crate::identity::AgentConfig;
 use crate::issue_file::{
-    read_counters, read_issue_file, read_milestone_file, write_counters, CommentEntry, Counters,
-    IssueFile, MilestoneEntry,
+    read_counters, read_issue_file, read_milestone_file, write_counters, CommentEntry, CommentFile,
+    Counters, IssueFile, MilestoneEntry,
 };
 use crate::sync::SyncManager;
 
@@ -84,6 +84,9 @@ struct WriteSet {
 /// Maximum number of push retries on conflict before giving up.
 const MAX_RETRIES: usize = 3;
 
+/// Maximum time to wait for lock confirmation compaction (design doc section 8).
+const LOCK_CONFIRM_TIMEOUT_SECS: u64 = 30;
+
 /// Outcome of a write_commit_push operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PushOutcome {
@@ -91,6 +94,17 @@ enum PushOutcome {
     Pushed,
     /// Commit was saved locally but push failed (offline or all retries exhausted).
     LocalOnly,
+}
+
+/// Result of a V2 lock claim attempt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LockClaimResult {
+    /// Lock successfully claimed.
+    Claimed,
+    /// Lock already held by this agent.
+    AlreadyHeld,
+    /// Another agent won the lock.
+    Contended { winner_agent_id: String },
 }
 
 /// Write-side coordinator for multi-agent shared issue tracking.
@@ -101,6 +115,8 @@ pub struct SharedWriter {
     sync: SyncManager,
     agent: AgentConfig,
     cache_dir: PathBuf,
+    /// Per-session event sequence counter, monotonically increasing.
+    event_seq: Cell<u64>,
 }
 
 impl SharedWriter {
@@ -122,15 +138,158 @@ impl SharedWriter {
         std::fs::create_dir_all(cache_dir.join("issues"))?;
         std::fs::create_dir_all(cache_dir.join("meta").join("milestones"))?;
 
+        // Initialize event sequence counter from existing log
+        let event_seq = Cell::new(Self::read_max_event_seq(&cache_dir, &agent.agent_id));
+
         Ok(Some(SharedWriter {
             sync,
             agent,
             cache_dir,
+            event_seq,
         }))
     }
 
     pub fn agent_id(&self) -> &str {
         &self.agent.agent_id
+    }
+
+    /// Check the current hub layout version.
+    fn layout_version(&self) -> u32 {
+        let meta_dir = self.sync.cache_path().join("meta");
+        crate::issue_file::read_layout_version(&meta_dir).unwrap_or(1)
+    }
+
+    // ─────────────── Event emission infrastructure ───────────────
+
+    /// Read the max agent_seq from an existing event log.
+    fn read_max_event_seq(cache_dir: &Path, agent_id: &str) -> u64 {
+        let log_path = cache_dir.join("agents").join(agent_id).join("events.log");
+        match crate::events::read_events(&log_path) {
+            Ok(events) => events.iter().map(|e| e.agent_seq).max().unwrap_or(0),
+            Err(_) => 0,
+        }
+    }
+
+    /// Get the next event sequence number and increment the counter.
+    fn next_event_seq(&self) -> u64 {
+        let seq = self.event_seq.get() + 1;
+        self.event_seq.set(seq);
+        seq
+    }
+
+    /// Path to this agent's event log file.
+    fn event_log_path(&self) -> PathBuf {
+        self.cache_dir
+            .join("agents")
+            .join(&self.agent.agent_id)
+            .join("events.log")
+    }
+
+    /// Resolve the agent's SSH private key to an absolute path, if configured.
+    fn resolve_ssh_key_path(&self) -> Option<PathBuf> {
+        let rel = self.agent.ssh_key_path.as_ref()?;
+        let crosslink_dir = self
+            .sync
+            .cache_path()
+            .parent()
+            .unwrap_or(self.sync.cache_path());
+        let abs = crosslink_dir.join(rel);
+        if abs.exists() {
+            Some(abs)
+        } else {
+            None
+        }
+    }
+
+    /// Create and optionally sign an event envelope.
+    fn create_envelope(&self, event: crate::events::Event) -> crate::events::EventEnvelope {
+        let seq = self.next_event_seq();
+        let mut envelope = crate::events::EventEnvelope {
+            agent_id: self.agent.agent_id.clone(),
+            agent_seq: seq,
+            timestamp: Utc::now(),
+            event,
+            signed_by: None,
+            signature: None,
+        };
+
+        // Sign if key is available
+        if let (Some(key_path), Some(fingerprint)) = (
+            self.resolve_ssh_key_path(),
+            self.agent.ssh_fingerprint.as_ref(),
+        ) {
+            let _ = crate::events::sign_event(&mut envelope, &key_path, fingerprint);
+        }
+
+        envelope
+    }
+
+    /// Emit an event, run compaction, and push all changes.
+    ///
+    /// The event is appended once to the log before the retry loop.
+    /// On push conflict, compaction is re-run after rebase to incorporate
+    /// any new remote events.
+    fn emit_compact_push(&self, event: crate::events::Event, message: &str) -> Result<PushOutcome> {
+        let envelope = self.create_envelope(event);
+        let log_path = self.event_log_path();
+        crate::events::append_event(&log_path, &envelope)?;
+
+        for attempt in 0..MAX_RETRIES {
+            // Run compaction (force=true since we own the write path)
+            let _ = crate::compaction::compact(&self.cache_dir, &self.agent.agent_id, true)?;
+
+            // Stage event log + compaction output
+            let rel_log = format!("agents/{}/events.log", self.agent.agent_id);
+            self.git_in_cache(&["add", &rel_log])?;
+            let _ = self.git_in_cache(&["add", "checkpoint/"]);
+            let _ = self.git_in_cache(&["add", "issues/"]);
+            let _ = self.git_in_cache(&["add", "locks/"]);
+
+            // Commit
+            let commit_msg = format!(
+                "{}: {} at {}",
+                self.agent.agent_id,
+                message,
+                Utc::now().format("%Y-%m-%dT%H:%M:%SZ")
+            );
+            let commit_result = self.git_in_cache(&["commit", "-m", &commit_msg]);
+            if let Err(ref e) = commit_result {
+                let err_str = e.to_string();
+                if err_str.contains("nothing to commit") || err_str.contains("no changes added") {
+                    return Ok(PushOutcome::Pushed);
+                }
+            }
+            commit_result?;
+
+            // Push
+            let push_result = self.git_in_cache(&["push", "origin", crate::sync::HUB_BRANCH]);
+            match push_result {
+                Ok(_) => return Ok(PushOutcome::Pushed),
+                Err(e) => {
+                    let err_str = e.to_string();
+                    if err_str.contains("Could not resolve host")
+                        || err_str.contains("Could not read from remote")
+                    {
+                        return Ok(PushOutcome::LocalOnly);
+                    }
+                    if err_str.contains("rejected") || err_str.contains("non-fast-forward") {
+                        if attempt < MAX_RETRIES - 1 {
+                            let _ = self.git_in_cache(&["reset", "HEAD~1"]);
+                            self.git_in_cache(&[
+                                "pull",
+                                "--rebase",
+                                "origin",
+                                crate::sync::HUB_BRANCH,
+                            ])?;
+                            continue;
+                        }
+                        return Ok(PushOutcome::LocalOnly);
+                    }
+                    return Err(e);
+                }
+            }
+        }
+        Ok(PushOutcome::Pushed)
     }
 
     /// Create a new issue: generate UUID, claim display ID, write JSON, push, hydrate.
@@ -155,6 +314,7 @@ impl SharedWriter {
             |writer| {
                 let (id, counters) = writer.claim_display_id(1)?;
                 display_id.set(id);
+                let is_v2 = writer.layout_version() >= 2;
                 let issue = IssueFile {
                     uuid,
                     display_id: Some(id),
@@ -175,8 +335,19 @@ impl SharedWriter {
                     time_entries: vec![],
                 };
                 let json = serde_json::to_vec_pretty(&issue)?;
+                let rel_path = writer.issue_rel_path(&uuid);
+                if is_v2 {
+                    // Ensure the comments subdirectory exists for v2 layout
+                    let comments_dir = writer
+                        .cache_dir
+                        .join("issues")
+                        .join(uuid.to_string())
+                        .join("comments");
+                    std::fs::create_dir_all(&comments_dir)
+                        .context("Failed to create v2 comments directory")?;
+                }
                 Ok(WriteSet {
-                    files: vec![(format!("issues/{}.json", uuid), json)],
+                    files: vec![(rel_path, json)],
                     counters: Some(counters),
                     use_git_rm: false,
                 })
@@ -218,6 +389,7 @@ impl SharedWriter {
             |writer| {
                 let (id, counters) = writer.claim_display_id(1)?;
                 display_id.set(id);
+                let is_v2 = writer.layout_version() >= 2;
                 let issue = IssueFile {
                     uuid,
                     display_id: Some(id),
@@ -238,8 +410,18 @@ impl SharedWriter {
                     time_entries: vec![],
                 };
                 let json = serde_json::to_vec_pretty(&issue)?;
+                let rel_path = writer.issue_rel_path(&uuid);
+                if is_v2 {
+                    let comments_dir = writer
+                        .cache_dir
+                        .join("issues")
+                        .join(uuid.to_string())
+                        .join("comments");
+                    std::fs::create_dir_all(&comments_dir)
+                        .context("Failed to create v2 comments directory")?;
+                }
                 Ok(WriteSet {
-                    files: vec![(format!("issues/{}.json", uuid), json)],
+                    files: vec![(rel_path, json)],
                     counters: Some(counters),
                     use_git_rm: false,
                 })
@@ -289,8 +471,9 @@ impl SharedWriter {
                 }
                 issue.updated_at = Utc::now();
                 let json = serde_json::to_vec_pretty(&issue)?;
+                let rel_path = writer.issue_rel_path(&issue.uuid);
                 Ok(WriteSet {
-                    files: vec![(format!("issues/{}.json", issue.uuid), json)],
+                    files: vec![(rel_path, json)],
                     counters: None,
                     use_git_rm: false,
                 })
@@ -312,8 +495,9 @@ impl SharedWriter {
                 issue.closed_at = Some(now);
                 issue.updated_at = now;
                 let json = serde_json::to_vec_pretty(&issue)?;
+                let rel_path = writer.issue_rel_path(&issue.uuid);
                 Ok(WriteSet {
-                    files: vec![(format!("issues/{}.json", issue.uuid), json)],
+                    files: vec![(rel_path, json)],
                     counters: None,
                     use_git_rm: false,
                 })
@@ -334,8 +518,9 @@ impl SharedWriter {
                 issue.closed_at = None;
                 issue.updated_at = Utc::now();
                 let json = serde_json::to_vec_pretty(&issue)?;
+                let rel_path = writer.issue_rel_path(&issue.uuid);
                 Ok(WriteSet {
-                    files: vec![(format!("issues/{}.json", issue.uuid), json)],
+                    files: vec![(rel_path, json)],
                     counters: None,
                     use_git_rm: false,
                 })
@@ -391,33 +576,62 @@ impl SharedWriter {
 
         let _ = self.write_commit_push(
             |writer| {
-                let mut issue = writer.load_issue_by_id(display_id, db)?;
                 let mut counters = writer.read_counters()?;
                 let id = counters.next_comment_id;
                 counters.next_comment_id += 1;
                 comment_id.set(id);
 
                 let (signed_by, signature) = writer.sign_comment(&content_owned, &agent_id, id);
-                issue.comments.push(CommentEntry {
-                    id,
-                    author: agent_id.clone(),
-                    content: content_owned.clone(),
-                    created_at: Utc::now(),
-                    kind: kind_owned.clone(),
-                    trigger_type: None,
-                    intervention_context: None,
-                    driver_key_fingerprint: None,
-                    signed_by,
-                    signature,
-                });
-                issue.updated_at = Utc::now();
 
-                let json = serde_json::to_vec_pretty(&issue)?;
-                Ok(WriteSet {
-                    files: vec![(format!("issues/{}.json", issue.uuid), json)],
-                    counters: Some(counters),
-                    use_git_rm: false,
-                })
+                if writer.layout_version() >= 2 {
+                    // V2: write a standalone comment file, don't modify the issue file
+                    let issue = writer.load_issue_by_id(display_id, db)?;
+                    let comment_uuid = Uuid::new_v4();
+                    let comment_file = CommentFile {
+                        uuid: comment_uuid,
+                        issue_uuid: issue.uuid,
+                        author: agent_id.clone(),
+                        content: content_owned.clone(),
+                        created_at: Utc::now(),
+                        kind: kind_owned.clone(),
+                        trigger_type: None,
+                        intervention_context: None,
+                        driver_key_fingerprint: None,
+                        signed_by,
+                        signature,
+                    };
+                    let json = serde_json::to_vec_pretty(&comment_file)?;
+                    let rel_path = format!("issues/{}/comments/{}.json", issue.uuid, comment_uuid);
+                    Ok(WriteSet {
+                        files: vec![(rel_path, json)],
+                        counters: Some(counters),
+                        use_git_rm: false,
+                    })
+                } else {
+                    // V1: append comment inline to the issue file
+                    let mut issue = writer.load_issue_by_id(display_id, db)?;
+                    issue.comments.push(CommentEntry {
+                        id,
+                        author: agent_id.clone(),
+                        content: content_owned.clone(),
+                        created_at: Utc::now(),
+                        kind: kind_owned.clone(),
+                        trigger_type: None,
+                        intervention_context: None,
+                        driver_key_fingerprint: None,
+                        signed_by,
+                        signature,
+                    });
+                    issue.updated_at = Utc::now();
+
+                    let json = serde_json::to_vec_pretty(&issue)?;
+                    let rel_path = writer.issue_rel_path(&issue.uuid);
+                    Ok(WriteSet {
+                        files: vec![(rel_path, json)],
+                        counters: Some(counters),
+                        use_git_rm: false,
+                    })
+                }
             },
             &format!("comment on issue #{}", display_id),
         )?;
@@ -445,33 +659,62 @@ impl SharedWriter {
 
         let _ = self.write_commit_push(
             |writer| {
-                let mut issue = writer.load_issue_by_id(display_id, db)?;
                 let mut counters = writer.read_counters()?;
                 let id = counters.next_comment_id;
                 counters.next_comment_id += 1;
                 comment_id.set(id);
 
                 let (signed_by, signature) = writer.sign_comment(&content_owned, &agent_id, id);
-                issue.comments.push(CommentEntry {
-                    id,
-                    author: agent_id.clone(),
-                    content: content_owned.clone(),
-                    created_at: Utc::now(),
-                    kind: "intervention".to_string(),
-                    trigger_type: Some(trigger_owned.clone()),
-                    intervention_context: context_owned.clone(),
-                    driver_key_fingerprint: driver_fp_owned.clone(),
-                    signed_by,
-                    signature,
-                });
-                issue.updated_at = Utc::now();
 
-                let json = serde_json::to_vec_pretty(&issue)?;
-                Ok(WriteSet {
-                    files: vec![(format!("issues/{}.json", issue.uuid), json)],
-                    counters: Some(counters),
-                    use_git_rm: false,
-                })
+                if writer.layout_version() >= 2 {
+                    // V2: write a standalone comment file
+                    let issue = writer.load_issue_by_id(display_id, db)?;
+                    let comment_uuid = Uuid::new_v4();
+                    let comment_file = CommentFile {
+                        uuid: comment_uuid,
+                        issue_uuid: issue.uuid,
+                        author: agent_id.clone(),
+                        content: content_owned.clone(),
+                        created_at: Utc::now(),
+                        kind: "intervention".to_string(),
+                        trigger_type: Some(trigger_owned.clone()),
+                        intervention_context: context_owned.clone(),
+                        driver_key_fingerprint: driver_fp_owned.clone(),
+                        signed_by,
+                        signature,
+                    };
+                    let json = serde_json::to_vec_pretty(&comment_file)?;
+                    let rel_path = format!("issues/{}/comments/{}.json", issue.uuid, comment_uuid);
+                    Ok(WriteSet {
+                        files: vec![(rel_path, json)],
+                        counters: Some(counters),
+                        use_git_rm: false,
+                    })
+                } else {
+                    // V1: append comment inline to the issue file
+                    let mut issue = writer.load_issue_by_id(display_id, db)?;
+                    issue.comments.push(CommentEntry {
+                        id,
+                        author: agent_id.clone(),
+                        content: content_owned.clone(),
+                        created_at: Utc::now(),
+                        kind: "intervention".to_string(),
+                        trigger_type: Some(trigger_owned.clone()),
+                        intervention_context: context_owned.clone(),
+                        driver_key_fingerprint: driver_fp_owned.clone(),
+                        signed_by,
+                        signature,
+                    });
+                    issue.updated_at = Utc::now();
+
+                    let json = serde_json::to_vec_pretty(&issue)?;
+                    let rel_path = writer.issue_rel_path(&issue.uuid);
+                    Ok(WriteSet {
+                        files: vec![(rel_path, json)],
+                        counters: Some(counters),
+                        use_git_rm: false,
+                    })
+                }
             },
             &format!("intervention on issue #{}", display_id),
         )?;
@@ -492,8 +735,9 @@ impl SharedWriter {
                     issue.updated_at = Utc::now();
                 }
                 let json = serde_json::to_vec_pretty(&issue)?;
+                let rel_path = writer.issue_rel_path(&issue.uuid);
                 Ok(WriteSet {
-                    files: vec![(format!("issues/{}.json", issue.uuid), json)],
+                    files: vec![(rel_path, json)],
                     counters: None,
                     use_git_rm: false,
                 })
@@ -517,8 +761,9 @@ impl SharedWriter {
                     issue.updated_at = Utc::now();
                 }
                 let json = serde_json::to_vec_pretty(&issue)?;
+                let rel_path = writer.issue_rel_path(&issue.uuid);
                 Ok(WriteSet {
-                    files: vec![(format!("issues/{}.json", issue.uuid), json)],
+                    files: vec![(rel_path, json)],
                     counters: None,
                     use_git_rm: false,
                 })
@@ -544,8 +789,9 @@ impl SharedWriter {
                     issue.updated_at = Utc::now();
                 }
                 let json = serde_json::to_vec_pretty(&issue)?;
+                let rel_path = writer.issue_rel_path(&issue.uuid);
                 Ok(WriteSet {
-                    files: vec![(format!("issues/{}.json", issue.uuid), json)],
+                    files: vec![(rel_path, json)],
                     counters: None,
                     use_git_rm: false,
                 })
@@ -569,8 +815,9 @@ impl SharedWriter {
                     issue.updated_at = Utc::now();
                 }
                 let json = serde_json::to_vec_pretty(&issue)?;
+                let rel_path = writer.issue_rel_path(&issue.uuid);
                 Ok(WriteSet {
-                    files: vec![(format!("issues/{}.json", issue.uuid), json)],
+                    files: vec![(rel_path, json)],
                     counters: None,
                     use_git_rm: false,
                 })
@@ -594,8 +841,9 @@ impl SharedWriter {
                     issue.updated_at = Utc::now();
                 }
                 let json = serde_json::to_vec_pretty(&issue)?;
+                let rel_path = writer.issue_rel_path(&issue.uuid);
                 Ok(WriteSet {
-                    files: vec![(format!("issues/{}.json", issue.uuid), json)],
+                    files: vec![(rel_path, json)],
                     counters: None,
                     use_git_rm: false,
                 })
@@ -619,8 +867,9 @@ impl SharedWriter {
                     issue.updated_at = Utc::now();
                 }
                 let json = serde_json::to_vec_pretty(&issue)?;
+                let rel_path = writer.issue_rel_path(&issue.uuid);
                 Ok(WriteSet {
-                    files: vec![(format!("issues/{}.json", issue.uuid), json)],
+                    files: vec![(rel_path, json)],
                     counters: None,
                     use_git_rm: false,
                 })
@@ -975,6 +1224,8 @@ impl SharedWriter {
     }
 
     /// Find all issue files in the cache with `display_id: null` created by this agent.
+    ///
+    /// Supports both v1 (`issues/{uuid}.json`) and v2 (`issues/{uuid}/issue.json`) layouts.
     fn find_offline_issues(&self) -> Result<Vec<IssueFile>> {
         let issues_dir = self.cache_dir.join("issues");
         let mut offline = Vec::new();
@@ -984,12 +1235,23 @@ impl SharedWriter {
         for entry in std::fs::read_dir(&issues_dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("json") {
-                continue;
+            // V1: issues/{uuid}.json (flat file)
+            if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("json") {
+                if let Ok(issue) = read_issue_file(&path) {
+                    if issue.display_id.is_none() && issue.created_by == self.agent.agent_id {
+                        offline.push(issue);
+                    }
+                }
             }
-            if let Ok(issue) = read_issue_file(&path) {
-                if issue.display_id.is_none() && issue.created_by == self.agent.agent_id {
-                    offline.push(issue);
+            // V2: issues/{uuid}/issue.json (directory per issue)
+            if path.is_dir() {
+                let issue_file = path.join("issue.json");
+                if issue_file.exists() {
+                    if let Ok(issue) = read_issue_file(&issue_file) {
+                        if issue.display_id.is_none() && issue.created_by == self.agent.agent_id {
+                            offline.push(issue);
+                        }
+                    }
                 }
             }
         }
@@ -1056,7 +1318,8 @@ impl SharedWriter {
         self.write_counters_to_cache(&counters)?;
 
         // Amend the local commit with the reverted files
-        self.git_in_cache(&["add", &format!("issues/{}.json", uuid)])?;
+        let rel_path = self.issue_rel_path(&uuid);
+        self.git_in_cache(&["add", &rel_path])?;
         self.git_in_cache(&["add", "meta/counters.json"])?;
         self.git_in_cache(&["commit", "--amend", "--no-edit"])?;
         Ok(())
@@ -1075,13 +1338,36 @@ impl SharedWriter {
     }
 
     /// Path to an issue JSON file in the cache.
+    ///
+    /// V1: `issues/{uuid}.json`
+    /// V2: `issues/{uuid}/issue.json`
     fn issue_path(&self, uuid: &Uuid) -> PathBuf {
-        self.cache_dir.join("issues").join(format!("{}.json", uuid))
+        if self.layout_version() >= 2 {
+            self.cache_dir
+                .join("issues")
+                .join(uuid.to_string())
+                .join("issue.json")
+        } else {
+            self.cache_dir.join("issues").join(format!("{}.json", uuid))
+        }
+    }
+
+    /// Relative path to an issue JSON file (for WriteSet entries and git staging).
+    ///
+    /// V1: `issues/{uuid}.json`
+    /// V2: `issues/{uuid}/issue.json`
+    fn issue_rel_path(&self, uuid: &Uuid) -> String {
+        if self.layout_version() >= 2 {
+            format!("issues/{}/issue.json", uuid)
+        } else {
+            format!("issues/{}.json", uuid)
+        }
     }
 
     /// Load an issue JSON file by its display ID.
     ///
     /// Scans the issues directory for a file matching the display ID.
+    /// Supports both v1 (`issues/{uuid}.json`) and v2 (`issues/{uuid}/issue.json`) layouts.
     fn load_issue_by_display_id(&self, display_id: i64) -> Result<IssueFile> {
         let issues_dir = self.cache_dir.join("issues");
         for entry in std::fs::read_dir(&issues_dir)
@@ -1089,12 +1375,23 @@ impl SharedWriter {
         {
             let entry = entry?;
             let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("json") {
-                continue;
+            // V1: issues/{uuid}.json (flat file)
+            if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("json") {
+                if let Ok(issue) = read_issue_file(&path) {
+                    if issue.display_id == Some(display_id) {
+                        return Ok(issue);
+                    }
+                }
             }
-            if let Ok(issue) = read_issue_file(&path) {
-                if issue.display_id == Some(display_id) {
-                    return Ok(issue);
+            // V2: issues/{uuid}/issue.json (directory per issue)
+            if path.is_dir() {
+                let issue_file = path.join("issue.json");
+                if issue_file.exists() {
+                    if let Ok(issue) = read_issue_file(&issue_file) {
+                        if issue.display_id == Some(display_id) {
+                            return Ok(issue);
+                        }
+                    }
                 }
             }
         }
@@ -1225,6 +1522,144 @@ impl SharedWriter {
             }
         }
         Ok(PushOutcome::Pushed)
+    }
+
+    // ─────────────── V2 Lock Protocol (event-based) ───────────────
+
+    /// Claim a lock on an issue using the V2 event-based protocol.
+    ///
+    /// 1. Check if already held by self → AlreadyHeld
+    /// 2. Emit LockClaimed event → append to event log
+    /// 3. Push event log (conflict-free per-agent file)
+    /// 4. Compact with force=true
+    /// 5. Stage + commit + push compaction output (rebase-retry)
+    /// 6. Read materialized lock file
+    /// 7. If winner is self → Claimed; else → emit LockReleased cleanup → Contended
+    pub fn claim_lock_v2(
+        &self,
+        issue_display_id: i64,
+        branch: Option<&str>,
+    ) -> Result<LockClaimResult> {
+        // Check if already held
+        if let Some(lock) = self.read_lock_v2(issue_display_id)? {
+            if lock.agent_id == self.agent.agent_id {
+                return Ok(LockClaimResult::AlreadyHeld);
+            }
+        }
+
+        // Emit LockClaimed event, then compact+push with timeout guard.
+        // Per design doc section 8: if compaction hasn't completed within 30s,
+        // fail rather than treating a stale result as authoritative.
+        let event = crate::events::Event::LockClaimed {
+            issue_display_id,
+            branch: branch.map(|s| s.to_string()),
+        };
+        let start = std::time::Instant::now();
+        self.emit_compact_push(event, &format!("claim lock on #{}", issue_display_id))?;
+        let elapsed = start.elapsed();
+        if elapsed > std::time::Duration::from_secs(LOCK_CONFIRM_TIMEOUT_SECS) {
+            bail!(
+                "Lock confirmation timed out after {}s (threshold {}s) — \
+                 compaction result may be stale, not treating as authoritative",
+                elapsed.as_secs(),
+                LOCK_CONFIRM_TIMEOUT_SECS
+            );
+        }
+
+        // Re-read materialized lock to see who won
+        match self.read_lock_v2(issue_display_id)? {
+            Some(lock) if lock.agent_id == self.agent.agent_id => Ok(LockClaimResult::Claimed),
+            Some(lock) => {
+                // We lost — clean up by emitting LockReleased
+                let release = crate::events::Event::LockReleased { issue_display_id };
+                let _ = self.emit_compact_push(
+                    release,
+                    &format!("release lock on #{} (contention cleanup)", issue_display_id),
+                );
+                Ok(LockClaimResult::Contended {
+                    winner_agent_id: lock.agent_id,
+                })
+            }
+            None => {
+                // Lock wasn't materialized — shouldn't happen, but treat as claimed
+                Ok(LockClaimResult::Claimed)
+            }
+        }
+    }
+
+    /// Release a lock on an issue using the V2 event-based protocol.
+    ///
+    /// Returns Ok(true) if released, Ok(false) if not held.
+    pub fn release_lock_v2(&self, issue_display_id: i64) -> Result<bool> {
+        // Check if we actually hold it
+        match self.read_lock_v2(issue_display_id)? {
+            Some(lock) if lock.agent_id == self.agent.agent_id => {
+                // We hold it — release
+                let event = crate::events::Event::LockReleased { issue_display_id };
+                self.emit_compact_push(event, &format!("release lock on #{}", issue_display_id))?;
+                Ok(true)
+            }
+            Some(_) => {
+                // Held by someone else — can't release
+                Ok(false)
+            }
+            None => {
+                // Not locked
+                Ok(false)
+            }
+        }
+    }
+
+    /// Steal a lock from a stale agent using the V2 event-based protocol.
+    ///
+    /// Prunes the stale agent's events, clears checkpoint lock state,
+    /// then claims normally.
+    pub fn steal_lock_v2(
+        &self,
+        issue_display_id: i64,
+        stale_agent_id: &str,
+        branch: Option<&str>,
+    ) -> Result<LockClaimResult> {
+        // Prune stale agent's compacted events so they don't replay
+        crate::compaction::prune_events(&self.cache_dir, stale_agent_id)?;
+
+        // Clear lock from checkpoint state
+        let mut state = crate::checkpoint::read_checkpoint(&self.cache_dir)?;
+        state.locks.remove(&issue_display_id);
+        crate::checkpoint::write_checkpoint(&self.cache_dir, &state)?;
+
+        // Remove materialized lock file
+        let lock_path = self
+            .cache_dir
+            .join("locks")
+            .join(format!("{}.json", issue_display_id));
+        if lock_path.exists() {
+            std::fs::remove_file(&lock_path)?;
+        }
+
+        // Now claim normally
+        self.claim_lock_v2(issue_display_id, branch)
+    }
+
+    /// Read a V2 lock file for a specific issue.
+    ///
+    /// Returns None if the lock file doesn't exist.
+    pub fn read_lock_v2(
+        &self,
+        issue_display_id: i64,
+    ) -> Result<Option<crate::issue_file::LockFileV2>> {
+        let lock_path = self
+            .cache_dir
+            .join("locks")
+            .join(format!("{}.json", issue_display_id));
+        if !lock_path.exists() {
+            return Ok(None);
+        }
+        let content = std::fs::read_to_string(&lock_path)
+            .with_context(|| format!("Failed to read lock file: {}", lock_path.display()))?;
+        let lock: crate::issue_file::LockFileV2 = serde_json::from_str(&content)
+            .with_context(|| format!("Failed to parse lock file: {}", lock_path.display()))?;
+        Ok(Some(lock))
     }
 
     /// Run a git command in the cache worktree.
@@ -1448,5 +1883,364 @@ mod tests {
             }
         }
         bail!("Issue #{} not found", display_id)
+    }
+
+    #[test]
+    fn test_v1_issue_path_format() {
+        let uuid = Uuid::parse_str("a1b2c3d4-e5f6-7890-abcd-ef1234567890").unwrap();
+        let path = format!("issues/{}.json", uuid);
+        assert_eq!(path, "issues/a1b2c3d4-e5f6-7890-abcd-ef1234567890.json");
+    }
+
+    #[test]
+    fn test_v2_issue_path_format() {
+        let uuid = Uuid::parse_str("a1b2c3d4-e5f6-7890-abcd-ef1234567890").unwrap();
+        let path = format!("issues/{}/issue.json", uuid);
+        assert_eq!(
+            path,
+            "issues/a1b2c3d4-e5f6-7890-abcd-ef1234567890/issue.json"
+        );
+    }
+
+    #[test]
+    fn test_v2_comment_path_format() {
+        let issue_uuid = Uuid::parse_str("a1b2c3d4-e5f6-7890-abcd-ef1234567890").unwrap();
+        let comment_uuid = Uuid::parse_str("11111111-2222-3333-4444-555555555555").unwrap();
+        let path = format!("issues/{}/comments/{}.json", issue_uuid, comment_uuid);
+        assert_eq!(
+            path,
+            "issues/a1b2c3d4-e5f6-7890-abcd-ef1234567890/comments/11111111-2222-3333-4444-555555555555.json"
+        );
+    }
+
+    #[test]
+    fn test_v2_scan_finds_issue_in_subdirectory() {
+        let dir = tempdir().unwrap();
+        let issues_dir = dir.path().join("issues");
+
+        // Create a v2-style issue directory
+        let issue = make_issue(7, "V2 Issue");
+        let issue_subdir = issues_dir.join(issue.uuid.to_string());
+        std::fs::create_dir_all(issue_subdir.join("comments")).unwrap();
+        write_issue_file(&issue_subdir.join("issue.json"), &issue).unwrap();
+
+        // The v2 scan should find it
+        let mut found = false;
+        for entry in std::fs::read_dir(&issues_dir).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if path.is_dir() {
+                let issue_file = path.join("issue.json");
+                if issue_file.exists() {
+                    if let Ok(loaded) = read_issue_file(&issue_file) {
+                        if loaded.display_id == Some(7) {
+                            assert_eq!(loaded.title, "V2 Issue");
+                            found = true;
+                        }
+                    }
+                }
+            }
+        }
+        assert!(found, "v2 issue not found in subdirectory scan");
+    }
+
+    #[test]
+    fn test_v2_comment_file_construction() {
+        use crate::issue_file::CommentFile;
+
+        let issue_uuid = Uuid::parse_str("a1b2c3d4-e5f6-7890-abcd-ef1234567890").unwrap();
+        let comment_uuid = Uuid::new_v4();
+        let comment = CommentFile {
+            uuid: comment_uuid,
+            issue_uuid,
+            author: "test-agent".to_string(),
+            content: "A standalone comment".to_string(),
+            created_at: Utc::now(),
+            kind: "note".to_string(),
+            trigger_type: None,
+            intervention_context: None,
+            driver_key_fingerprint: None,
+            signed_by: None,
+            signature: None,
+        };
+
+        let json = serde_json::to_string_pretty(&comment).unwrap();
+        let parsed: CommentFile = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.uuid, comment_uuid);
+        assert_eq!(parsed.issue_uuid, issue_uuid);
+        assert_eq!(parsed.content, "A standalone comment");
+        assert_eq!(parsed.kind, "note");
+    }
+
+    #[test]
+    fn test_v2_intervention_comment_file_construction() {
+        use crate::issue_file::CommentFile;
+
+        let issue_uuid = Uuid::parse_str("a1b2c3d4-e5f6-7890-abcd-ef1234567890").unwrap();
+        let comment_uuid = Uuid::new_v4();
+        let comment = CommentFile {
+            uuid: comment_uuid,
+            issue_uuid,
+            author: "test-agent".to_string(),
+            content: "Driver intervention".to_string(),
+            created_at: Utc::now(),
+            kind: "intervention".to_string(),
+            trigger_type: Some("redirect".to_string()),
+            intervention_context: Some("User redirected task".to_string()),
+            driver_key_fingerprint: Some("SHA256:abc123".to_string()),
+            signed_by: None,
+            signature: None,
+        };
+
+        let json = serde_json::to_string_pretty(&comment).unwrap();
+        let parsed: CommentFile = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.kind, "intervention");
+        assert_eq!(parsed.trigger_type, Some("redirect".to_string()));
+        assert_eq!(
+            parsed.intervention_context,
+            Some("User redirected task".to_string())
+        );
+        assert_eq!(
+            parsed.driver_key_fingerprint,
+            Some("SHA256:abc123".to_string())
+        );
+    }
+
+    #[test]
+    fn test_lock_confirm_timeout_constant() {
+        assert_eq!(LOCK_CONFIRM_TIMEOUT_SECS, 30);
+    }
+
+    mod lock_v2_tests {
+        use super::*;
+        use crate::issue_file::LockFileV2;
+        use tempfile::tempdir;
+
+        #[test]
+        fn test_lock_claim_result_variants() {
+            let claimed = LockClaimResult::Claimed;
+            let already = LockClaimResult::AlreadyHeld;
+            let contended = LockClaimResult::Contended {
+                winner_agent_id: "agent-2".to_string(),
+            };
+            assert_eq!(claimed, LockClaimResult::Claimed);
+            assert_eq!(already, LockClaimResult::AlreadyHeld);
+            assert_ne!(claimed, already);
+            assert_ne!(claimed, contended.clone());
+            assert_eq!(
+                contended,
+                LockClaimResult::Contended {
+                    winner_agent_id: "agent-2".to_string(),
+                }
+            );
+            // Verify Debug
+            let _ = format!("{:?}", claimed);
+            let _ = format!("{:?}", contended);
+        }
+
+        #[test]
+        fn test_read_lock_v2_file() {
+            let dir = tempdir().unwrap();
+            let locks_dir = dir.path().join("locks");
+            std::fs::create_dir_all(&locks_dir).unwrap();
+
+            let lock = LockFileV2 {
+                issue_id: 42,
+                agent_id: "agent-1".to_string(),
+                branch: Some("feature/x".to_string()),
+                claimed_at: chrono::Utc::now(),
+                signed_by: Some("SHA256:abc".to_string()),
+            };
+            let json = serde_json::to_string_pretty(&lock).unwrap();
+            std::fs::write(locks_dir.join("42.json"), &json).unwrap();
+
+            // Read it back
+            let content = std::fs::read_to_string(locks_dir.join("42.json")).unwrap();
+            let parsed: LockFileV2 = serde_json::from_str(&content).unwrap();
+            assert_eq!(parsed.issue_id, 42);
+            assert_eq!(parsed.agent_id, "agent-1");
+            assert_eq!(parsed.branch, Some("feature/x".to_string()));
+        }
+
+        #[test]
+        fn test_read_lock_v2_missing() {
+            let dir = tempdir().unwrap();
+            let lock_path = dir.path().join("locks").join("99.json");
+            assert!(!lock_path.exists());
+        }
+
+        #[test]
+        fn test_lock_v2_file_roundtrip() {
+            let dir = tempdir().unwrap();
+            let locks_dir = dir.path().join("locks");
+            std::fs::create_dir_all(&locks_dir).unwrap();
+
+            let lock = LockFileV2 {
+                issue_id: 5,
+                agent_id: "worker-1".to_string(),
+                branch: None,
+                claimed_at: chrono::Utc::now(),
+                signed_by: None,
+            };
+            let json = serde_json::to_string_pretty(&lock).unwrap();
+            let path = locks_dir.join("5.json");
+            std::fs::write(&path, &json).unwrap();
+
+            let content = std::fs::read_to_string(&path).unwrap();
+            let parsed: LockFileV2 = serde_json::from_str(&content).unwrap();
+            assert_eq!(parsed.issue_id, lock.issue_id);
+            assert_eq!(parsed.agent_id, lock.agent_id);
+            assert!(parsed.branch.is_none());
+            assert!(parsed.signed_by.is_none());
+        }
+
+        #[test]
+        fn test_lock_contention_deterministic_winner() {
+            // Verify that compaction's first-claim-wins rule works
+            use crate::checkpoint::{read_checkpoint, write_checkpoint, CheckpointState};
+            use crate::events::{append_event, Event, EventEnvelope};
+            use chrono::Utc;
+
+            let dir = tempdir().unwrap();
+            let cache = dir.path();
+
+            // Set up checkpoint
+            std::fs::create_dir_all(cache.join("checkpoint")).unwrap();
+            std::fs::create_dir_all(cache.join("agents/agent-a")).unwrap();
+            std::fs::create_dir_all(cache.join("agents/agent-b")).unwrap();
+            std::fs::create_dir_all(cache.join("locks")).unwrap();
+            std::fs::create_dir_all(cache.join("issues")).unwrap();
+
+            let state = CheckpointState::default();
+            write_checkpoint(cache, &state).unwrap();
+
+            let now = Utc::now();
+
+            // Agent A claims first (earlier timestamp)
+            let e1 = EventEnvelope {
+                agent_id: "agent-a".to_string(),
+                agent_seq: 1,
+                timestamp: now - chrono::Duration::seconds(1),
+                event: Event::LockClaimed {
+                    issue_display_id: 1,
+                    branch: None,
+                },
+                signed_by: None,
+                signature: None,
+            };
+            append_event(&cache.join("agents/agent-a/events.log"), &e1).unwrap();
+
+            // Agent B claims second (later timestamp)
+            let e2 = EventEnvelope {
+                agent_id: "agent-b".to_string(),
+                agent_seq: 1,
+                timestamp: now,
+                event: Event::LockClaimed {
+                    issue_display_id: 1,
+                    branch: None,
+                },
+                signed_by: None,
+                signature: None,
+            };
+            append_event(&cache.join("agents/agent-b/events.log"), &e2).unwrap();
+
+            // Run compaction
+            let result = crate::compaction::compact(cache, "agent-a", true)
+                .unwrap()
+                .unwrap();
+            assert_eq!(result.locks_materialized, 1);
+
+            // Read checkpoint — agent-a should win (earlier timestamp)
+            let state = read_checkpoint(cache).unwrap();
+            let lock = state.locks.get(&1).unwrap();
+            assert_eq!(lock.agent_id, "agent-a");
+        }
+
+        #[test]
+        fn test_prune_then_checkpoint_clear() {
+            use crate::checkpoint::{
+                write_checkpoint, write_watermark, CheckpointState, LockEntry,
+            };
+            use crate::events::{append_event, Event, EventEnvelope, OrderingKey};
+            use chrono::Utc;
+
+            let dir = tempdir().unwrap();
+            let cache = dir.path();
+
+            std::fs::create_dir_all(cache.join("checkpoint")).unwrap();
+            std::fs::create_dir_all(cache.join("agents/stale-agent")).unwrap();
+            std::fs::create_dir_all(cache.join("locks")).unwrap();
+            std::fs::create_dir_all(cache.join("issues")).unwrap();
+
+            let now = Utc::now();
+
+            // Write an event for the stale agent
+            let e = EventEnvelope {
+                agent_id: "stale-agent".to_string(),
+                agent_seq: 1,
+                timestamp: now,
+                event: Event::LockClaimed {
+                    issue_display_id: 5,
+                    branch: None,
+                },
+                signed_by: None,
+                signature: None,
+            };
+            append_event(&cache.join("agents/stale-agent/events.log"), &e).unwrap();
+
+            // Write a watermark that covers the event so prune_events will prune it
+            let watermark = OrderingKey {
+                timestamp: now + chrono::Duration::seconds(1),
+                agent_id: "stale-agent".to_string(),
+                agent_seq: 1,
+            };
+            write_watermark(cache, &watermark).unwrap();
+
+            // Compact to materialize
+            let mut state = CheckpointState::default();
+            state.locks.insert(
+                5,
+                LockEntry {
+                    agent_id: "stale-agent".to_string(),
+                    branch: None,
+                    claimed_at: now,
+                },
+            );
+            write_checkpoint(cache, &state).unwrap();
+
+            // Write materialized lock file
+            let lock = crate::issue_file::LockFileV2 {
+                issue_id: 5,
+                agent_id: "stale-agent".to_string(),
+                branch: None,
+                claimed_at: now,
+                signed_by: None,
+            };
+            std::fs::write(
+                cache.join("locks/5.json"),
+                serde_json::to_string_pretty(&lock).unwrap(),
+            )
+            .unwrap();
+
+            // Prune stale agent events
+            let pruned = crate::compaction::prune_events(cache, "stale-agent").unwrap();
+            assert!(pruned > 0);
+
+            // Clear checkpoint lock
+            let mut state = crate::checkpoint::read_checkpoint(cache).unwrap();
+            state.locks.remove(&5);
+            write_checkpoint(cache, &state).unwrap();
+
+            // Remove lock file
+            let lock_path = cache.join("locks/5.json");
+            if lock_path.exists() {
+                std::fs::remove_file(&lock_path).unwrap();
+            }
+
+            // Verify clean state
+            let state = crate::checkpoint::read_checkpoint(cache).unwrap();
+            assert!(state.locks.is_empty());
+            assert!(!cache.join("locks/5.json").exists());
+        }
     }
 }

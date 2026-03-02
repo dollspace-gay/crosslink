@@ -18,7 +18,7 @@ fn load_locks_filter(crosslink_dir: &Path) -> Option<(LocksFile, String)> {
     let sync = crate::sync::SyncManager::new(crosslink_dir).ok()?;
     let _ = sync.init_cache();
     let _ = sync.fetch();
-    let locks = sync.read_locks().ok()?;
+    let locks = sync.read_locks_auto().ok()?;
     Some((locks, agent.agent_id))
 }
 

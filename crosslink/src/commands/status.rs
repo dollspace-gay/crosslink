@@ -59,11 +59,23 @@ fn close_inner(
     if let Ok(Some(agent)) = crate::identity::AgentConfig::load(crosslink_dir) {
         if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
             if sync.is_initialized() {
-                match sync.release_lock(&agent, id, false) {
-                    Ok(true) if !quiet => {
-                        println!("Released lock on issue {}", format_issue_id(id))
+                if sync.is_v2_layout() {
+                    if let Ok(Some(writer)) = crate::shared_writer::SharedWriter::new(crosslink_dir)
+                    {
+                        match writer.release_lock_v2(id) {
+                            Ok(true) if !quiet => {
+                                println!("Released lock on issue {}", format_issue_id(id))
+                            }
+                            _ => {}
+                        }
                     }
-                    _ => {}
+                } else {
+                    match sync.release_lock(&agent, id, false) {
+                        Ok(true) if !quiet => {
+                            println!("Released lock on issue {}", format_issue_id(id))
+                        }
+                        _ => {}
+                    }
                 }
             }
         }

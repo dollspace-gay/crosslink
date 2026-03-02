@@ -60,7 +60,7 @@ pub fn list(crosslink_dir: &Path, db: &Database, json_output: bool) -> Result<()
     sync.init_cache()?;
     sync.fetch()?;
 
-    let locks_file = sync.read_locks()?;
+    let locks_file = sync.read_locks_auto()?;
 
     if json_output {
         let json = serde_json::to_string_pretty(&locks_file)?;
@@ -111,7 +111,7 @@ pub fn check(crosslink_dir: &Path, issue_id: i64) -> Result<()> {
     sync.init_cache()?;
     sync.fetch()?;
 
-    let locks_file = sync.read_locks()?;
+    let locks_file = sync.read_locks_auto()?;
 
     match locks_file.get_lock(issue_id) {
         Some(lock) => {
@@ -150,6 +150,34 @@ pub fn claim(crosslink_dir: &Path, issue_id: i64, branch: Option<&str>) -> Resul
     sync.init_cache()?;
     sync.fetch()?;
 
+    if sync.is_v2_layout() {
+        let writer = SharedWriter::new(crosslink_dir)?
+            .ok_or_else(|| anyhow::anyhow!("SharedWriter not available — is agent configured?"))?;
+        use crate::shared_writer::LockClaimResult;
+        match writer.claim_lock_v2(issue_id, branch)? {
+            LockClaimResult::Claimed => {
+                println!("Claimed lock on issue {}", format_issue_id(issue_id));
+                if let Some(b) = branch {
+                    println!("  Branch: {}", b);
+                }
+            }
+            LockClaimResult::AlreadyHeld => {
+                println!(
+                    "You already hold the lock on issue {}",
+                    format_issue_id(issue_id)
+                );
+            }
+            LockClaimResult::Contended { winner_agent_id } => {
+                anyhow::bail!(
+                    "Lock on issue {} was won by agent '{}'",
+                    format_issue_id(issue_id),
+                    winner_agent_id
+                );
+            }
+        }
+        return Ok(());
+    }
+
     match sync.claim_lock(&agent, issue_id, branch, false)? {
         true => {
             println!("Claimed lock on issue {}", format_issue_id(issue_id));
@@ -169,7 +197,7 @@ pub fn claim(crosslink_dir: &Path, issue_id: i64, branch: Option<&str>) -> Resul
 
 /// `crosslink locks release <id>` — release a lock on an issue
 pub fn release(crosslink_dir: &Path, issue_id: i64) -> Result<()> {
-    let agent = AgentConfig::load(crosslink_dir)?.ok_or_else(|| {
+    let _agent = AgentConfig::load(crosslink_dir)?.ok_or_else(|| {
         anyhow::anyhow!("No agent configured. Run 'crosslink agent init <id>' first.")
     })?;
 
@@ -177,7 +205,17 @@ pub fn release(crosslink_dir: &Path, issue_id: i64) -> Result<()> {
     sync.init_cache()?;
     sync.fetch()?;
 
-    match sync.release_lock(&agent, issue_id, false)? {
+    if sync.is_v2_layout() {
+        let writer = SharedWriter::new(crosslink_dir)?
+            .ok_or_else(|| anyhow::anyhow!("SharedWriter not available — is agent configured?"))?;
+        match writer.release_lock_v2(issue_id)? {
+            true => println!("Released lock on issue {}", format_issue_id(issue_id)),
+            false => println!("Issue {} was not locked.", format_issue_id(issue_id)),
+        }
+        return Ok(());
+    }
+
+    match sync.release_lock(&_agent, issue_id, false)? {
         true => println!("Released lock on issue {}", format_issue_id(issue_id)),
         false => println!("Issue {} was not locked.", format_issue_id(issue_id)),
     }
@@ -195,7 +233,7 @@ pub fn steal(crosslink_dir: &Path, issue_id: i64) -> Result<()> {
     sync.fetch()?;
 
     // Check if the lock is actually stale before allowing steal
-    let locks = sync.read_locks()?;
+    let locks = sync.read_locks_auto()?;
     if let Some(existing) = locks.get_lock(issue_id) {
         if existing.agent_id == agent.agent_id {
             println!(
@@ -216,15 +254,38 @@ pub fn steal(crosslink_dir: &Path, issue_id: i64) -> Result<()> {
             );
         }
 
-        sync.claim_lock(&agent, issue_id, None, true)?;
-        println!(
-            "Stole lock on issue {} from '{}'",
-            format_issue_id(issue_id),
-            existing.agent_id
-        );
+        if sync.is_v2_layout() {
+            let writer = SharedWriter::new(crosslink_dir)?
+                .ok_or_else(|| anyhow::anyhow!("SharedWriter not available"))?;
+            writer.steal_lock_v2(issue_id, &existing.agent_id, None)?;
+            println!(
+                "Stole lock on issue {} from '{}'",
+                format_issue_id(issue_id),
+                existing.agent_id
+            );
+        } else {
+            sync.claim_lock(&agent, issue_id, None, true)?;
+            println!(
+                "Stole lock on issue {} from '{}'",
+                format_issue_id(issue_id),
+                existing.agent_id
+            );
+        }
     } else {
         // Not locked — just claim it
-        sync.claim_lock(&agent, issue_id, None, false)?;
+        if sync.is_v2_layout() {
+            let writer = SharedWriter::new(crosslink_dir)?
+                .ok_or_else(|| anyhow::anyhow!("SharedWriter not available"))?;
+            use crate::shared_writer::LockClaimResult;
+            match writer.claim_lock_v2(issue_id, None)? {
+                LockClaimResult::Claimed | LockClaimResult::AlreadyHeld => {}
+                LockClaimResult::Contended { winner_agent_id } => {
+                    anyhow::bail!("Lock contended — won by '{}'", winner_agent_id);
+                }
+            }
+        } else {
+            sync.claim_lock(&agent, issue_id, None, false)?;
+        }
         println!(
             "Claimed lock on issue {} (was not locked)",
             format_issue_id(issue_id)
@@ -353,7 +414,7 @@ pub fn sync_cmd(crosslink_dir: &Path, db: &Database) -> Result<()> {
         }
     }
 
-    let locks_file = sync.read_locks()?;
+    let locks_file = sync.read_locks_auto()?;
     println!("{} active lock(s).", locks_file.locks.len());
 
     let stale = sync.find_stale_locks()?;

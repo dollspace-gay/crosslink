@@ -1,6 +1,12 @@
+#[allow(dead_code)]
+mod checkpoint;
 mod commands;
+#[allow(dead_code)]
+mod compaction;
 mod daemon;
 mod db;
+#[allow(dead_code)]
+mod events;
 mod hydration;
 mod identity;
 mod issue_file;
@@ -8,6 +14,7 @@ mod knowledge;
 mod lock_check;
 mod locks;
 mod models;
+#[allow(dead_code)]
 mod shared_writer;
 mod signing;
 mod sync;
@@ -83,6 +90,9 @@ enum Commands {
         /// Set as current session work item
         #[arg(short, long)]
         work: bool,
+        /// Skip compaction after creation (batch mode -- display ID assigned later)
+        #[arg(long)]
+        defer_id: bool,
     },
 
     /// Quick-create an issue and start working on it (create + label + session work)
@@ -435,6 +445,13 @@ enum Commands {
         #[command(subcommand)]
         action: Option<IntegrityCommands>,
     },
+
+    /// Run event compaction manually
+    Compact {
+        /// Force compaction even if lease is held by another agent
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -590,6 +607,27 @@ enum AgentCommands {
     },
     /// Show current agent identity
     Status,
+    /// Bootstrap agent identity in a new or existing repo clone
+    Bootstrap {
+        /// Git repository URL to clone
+        #[arg(long)]
+        repo: String,
+        /// Agent ID (alphanumeric, hyphens, underscores)
+        #[arg(long)]
+        identity: String,
+        /// Branch to checkout after cloning
+        #[arg(long)]
+        branch: Option<String>,
+        /// Agent description
+        #[arg(short, long)]
+        description: Option<String>,
+        /// Skip SSH key generation
+        #[arg(long)]
+        no_key: bool,
+        /// Target directory (default: current directory)
+        #[arg(long, default_value = ".")]
+        target: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -932,6 +970,7 @@ fn main() -> Result<()> {
             template,
             label,
             work,
+            defer_id,
         } => {
             let db = get_db()?;
             let crosslink_dir = find_crosslink_dir()?;
@@ -941,6 +980,7 @@ fn main() -> Result<()> {
                 work,
                 quiet: cli.quiet,
                 crosslink_dir: Some(&crosslink_dir),
+                defer_id,
             };
             commands::create::run(
                 &db,
@@ -968,6 +1008,7 @@ fn main() -> Result<()> {
                 work: true,
                 quiet: cli.quiet,
                 crosslink_dir: Some(&crosslink_dir),
+                defer_id: false,
             };
             commands::create::run(
                 &db,
@@ -996,6 +1037,7 @@ fn main() -> Result<()> {
                 work,
                 quiet: cli.quiet,
                 crosslink_dir: Some(&crosslink_dir),
+                defer_id: false,
             };
             commands::create::run_subissue(
                 &db,
@@ -1336,6 +1378,31 @@ fn main() -> Result<()> {
                     force,
                 ),
                 AgentCommands::Status => commands::agent::status(&crosslink_dir),
+                AgentCommands::Bootstrap {
+                    repo,
+                    identity,
+                    branch,
+                    description,
+                    no_key,
+                    target,
+                } => {
+                    let target_path = std::path::PathBuf::from(&target);
+                    commands::agent::bootstrap(
+                        &target_path,
+                        &repo,
+                        &identity,
+                        branch.as_deref(),
+                        description.as_deref(),
+                        no_key,
+                    )?;
+                    // Ensure the agent directory exists on the hub branch
+                    // (idempotent — safe if bootstrap already created it)
+                    let cl_dir = target_path.join(".crosslink");
+                    if let Ok(sync) = sync::SyncManager::new(&cl_dir) {
+                        let _ = sync.ensure_agent_dir(&identity);
+                    }
+                    Ok(())
+                }
             }
         }
 
@@ -1395,6 +1462,45 @@ fn main() -> Result<()> {
             let crosslink_dir = find_crosslink_dir()?;
             let db = get_db()?;
             commands::integrity_cmd::run(action.as_ref(), &crosslink_dir, &db)
+        }
+
+        Commands::Compact { force } => {
+            let crosslink_dir = find_crosslink_dir()?;
+            let db = get_db()?;
+            let sync = crate::sync::SyncManager::new(&crosslink_dir)?;
+            sync.init_cache()?;
+            sync.fetch()?;
+            let cache_dir = sync.cache_path().to_path_buf();
+
+            // Load agent config for agent_id
+            let agent = crate::identity::AgentConfig::load(&crosslink_dir)?.ok_or_else(|| {
+                anyhow::anyhow!("No agent configured. Run 'crosslink agent init' first.")
+            })?;
+
+            match crate::compaction::compact(&cache_dir, &agent.agent_id, force)? {
+                Some(result) => {
+                    println!("Compaction complete.");
+                    if result.events_processed > 0 {
+                        println!(
+                            "  Events processed: {}, issues updated: {}, locks updated: {}",
+                            result.events_processed,
+                            result.issues_materialized,
+                            result.locks_materialized
+                        );
+                    } else {
+                        println!("  No new events to process.");
+                    }
+                }
+                None => {
+                    println!(
+                        "Compaction skipped: lease held by another agent. Use --force to override."
+                    );
+                }
+            }
+
+            // Re-hydrate after compaction
+            crate::hydration::hydrate_to_sqlite(&cache_dir, &db)?;
+            Ok(())
         }
 
         Commands::Style { command } => {
