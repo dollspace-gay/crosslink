@@ -7,12 +7,6 @@
       "claimed_at": "2026-03-02T10:51:01.378539Z",
       "signed_by": "SHA256:tPoWJXhTXDtZe8O3w+zx+GJWc+jzz9f70Oukj4bjr9Q"
     },
-    "102": {
-      "agent_id": "maxine-at-forecast--noether--tui-dashboard",
-      "branch": null,
-      "claimed_at": "2026-03-02T17:42:05.959974Z",
-      "signed_by": "SHA256:tPoWJXhTXDtZe8O3w+zx+GJWc+jzz9f70Oukj4bjr9Q"
-    },
     "100": {
       "agent_id": "maxine-at-forecast--noether--tui-dashboard",
       "branch": null,
