@@ -1,6 +1,12 @@
 {
   "version": 1,
   "locks": {
+    "57": {
+      "agent_id": "maxine-at-forecast--noether--untrack-init-files",
+      "branch": null,
+      "claimed_at": "2026-03-02T03:32:12.646208Z",
+      "signed_by": "maxine-at-forecast--noether--untrack-init-files"
+    },
     "56": {
       "agent_id": "maxine-at-forecast--noether",
       "branch": null,
