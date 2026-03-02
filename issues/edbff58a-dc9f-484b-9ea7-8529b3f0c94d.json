@@ -6,7 +6,7 @@
   "priority": "medium",
   "created_by": "maxine-at-forecast--noether--ci-cd-restructure",
   "created_at": "2026-03-02T23:39:27.709199Z",
-  "updated_at": "2026-03-02T23:52:01.797627Z",
+  "updated_at": "2026-03-02T23:53:26.236938Z",
   "labels": [
     "feature"
   ],
@@ -24,6 +24,15 @@
       "content": "Decision: Implementing as a direct integration into the existing compaction pipeline rather than a standalone module, since compaction.rs already exists and is fully functional. The SkewViolation struct will be separate from the existing SkewWarning struct - SkewWarning uses Utc::now() as reference, SkewViolation uses git commit timestamps. Both serve complementary roles.",
       "created_at": "2026-03-02T23:52:01.797626Z",
       "kind": "decision"
+    },
+    {
+      "id": 197,
+      "author": "maxine-at-forecast--noether--clock-skew",
+      "content": "PreToolUse hook blocked Write because session had no active issue despite earlier 'session work 114' call. Re-ran 'session work 114' to re-activate.",
+      "created_at": "2026-03-02T23:53:26.236937Z",
+      "kind": "intervention",
+      "trigger_type": "tool_blocked",
+      "intervention_context": "Attempting to create clock_skew.rs"
     }
   ]
 }
