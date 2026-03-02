@@ -6,7 +6,7 @@
   "priority": "medium",
   "created_by": "maxine-at-forecast--noether",
   "created_at": "2026-03-02T02:17:41.649463Z",
-  "updated_at": "2026-03-02T02:33:26.505649Z",
+  "updated_at": "2026-03-02T02:33:33.464898Z",
   "labels": [
     "feature"
   ],
@@ -24,6 +24,13 @@
       "content": "Plan: (1) Fix the column name in the version query from 'version' to 'user_version'. (2) Make the v7 migration idempotent by dropping sessions_new if it exists before recreating it, and using explicit column names in the INSERT. (3) Clean up sessions_new in a new migration step.",
       "created_at": "2026-03-02T02:33:26.505649Z",
       "kind": "plan"
+    },
+    {
+      "id": 65,
+      "author": "maxine-at-forecast--noether--fix-sessions-migration",
+      "content": "Decision: Fix the column name (primary fix) AND make v7 migration robust (defensive fix). The column name fix prevents re-running migrations on every open. The v7 robustness fix ensures that even if the migration does re-run (e.g., from a DB at user_version < 7), it handles the case where sessions has extra columns. Also dropping leftover sessions_new table.",
+      "created_at": "2026-03-02T02:33:33.464897Z",
+      "kind": "decision"
     }
   ]
 }
