@@ -6,8 +6,19 @@
   "priority": "medium",
   "created_by": "m1",
   "created_at": "2026-02-28T22:29:58.934769Z",
-  "updated_at": "2026-02-28T22:30:00.451165Z",
+  "updated_at": "2026-03-02T08:53:19.307192Z",
   "labels": [
     "feature"
+  ],
+  "comments": [
+    {
+      "id": 111,
+      "author": "maxine-at-forecast--noether",
+      "content": "Completed: PR #108 merged — signing key override fix",
+      "created_at": "2026-03-02T08:53:19.307191Z",
+      "kind": "note",
+      "signed_by": "SHA256:k0PWejDto36xlyTpXwVGHDbRl7ZIvkCkaAU0ioOEhRU",
+      "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgubz4yfS1wSDvxmlSGQNKwSPYUq0ktzwpVKHmFR9N0y4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAVNe55DST/6r5V2wVcMv1tzoLbVYJIEPv8Wf8iKmLDtNHNTkWVKOCsp4lTIiaG1yRNv8U04YD+MULLI4CBMn7DA=="
+    }
   ]
 }
