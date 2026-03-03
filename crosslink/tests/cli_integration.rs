@@ -2788,11 +2788,7 @@ fn test_kickoff_dry_run_prints_prompt_and_metadata() {
         &["kickoff", "run", "--dry-run", "add batch retry logic"],
     );
 
-    assert!(
-        success,
-        "kickoff --dry-run failed: stderr={}",
-        stderr
-    );
+    assert!(success, "kickoff --dry-run failed: stderr={}", stderr);
 
     // Prompt content
     assert!(
