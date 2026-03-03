@@ -771,17 +771,19 @@ pub fn run(
     writer: Option<&SharedWriter>,
     opts: &KickoffOpts,
 ) -> Result<()> {
-    // 1. Validate prerequisites
-    if opts.container == ContainerMode::None && !command_available("tmux") {
-        bail!("tmux is not installed. Install tmux or use --container docker.");
-    }
-    if opts.container == ContainerMode::None && !command_available("claude") {
-        bail!("claude CLI is not installed. Install it from https://claude.ai/install.sh");
-    }
-    if (opts.verify == VerifyLevel::Ci || opts.verify == VerifyLevel::Thorough)
-        && !command_available("gh")
-    {
-        bail!("GitHub CLI (gh) is required for --verify ci/thorough. Install from https://cli.github.com");
+    // 1. Validate prerequisites (skip for dry-run — no agent is launched)
+    if !opts.dry_run {
+        if opts.container == ContainerMode::None && !command_available("tmux") {
+            bail!("tmux is not installed. Install tmux or use --container docker.");
+        }
+        if opts.container == ContainerMode::None && !command_available("claude") {
+            bail!("claude CLI is not installed. Install it from https://claude.ai/install.sh");
+        }
+        if (opts.verify == VerifyLevel::Ci || opts.verify == VerifyLevel::Thorough)
+            && !command_available("gh")
+        {
+            bail!("GitHub CLI (gh) is required for --verify ci/thorough. Install from https://cli.github.com");
+        }
     }
 
     let root = repo_root()?;
