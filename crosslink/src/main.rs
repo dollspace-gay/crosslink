@@ -848,6 +848,9 @@ enum KnowledgeCommands {
         /// Page content (body text after frontmatter)
         #[arg(long)]
         content: Option<String>,
+        /// Import from a design document file
+        #[arg(long, value_name = "PATH")]
+        from_doc: Option<PathBuf>,
     },
     /// Display a knowledge page
     Show {
@@ -1766,6 +1769,7 @@ fn main() -> Result<()> {
                     tag,
                     source,
                     content,
+                    from_doc,
                 } => commands::knowledge::add(
                     &crosslink_dir,
                     &slug,
@@ -1773,6 +1777,7 @@ fn main() -> Result<()> {
                     &tag,
                     &source,
                     content.as_deref(),
+                    from_doc.as_deref(),
                 ),
                 KnowledgeCommands::Show { slug } => {
                     commands::knowledge::show(&crosslink_dir, &slug, cli.json)

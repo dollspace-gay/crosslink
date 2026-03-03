@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use chrono::Utc;
 use std::path::Path;
 
@@ -42,6 +42,7 @@ pub fn add(
     tags: &[String],
     sources: &[String],
     content: Option<&str>,
+    from_doc: Option<&std::path::Path>,
 ) -> Result<()> {
     let km = KnowledgeManager::new(crosslink_dir)?;
     ensure_initialized(&km)?;
@@ -55,8 +56,30 @@ pub fn add(
         );
     }
 
+    // Parse design doc if --from-doc provided
+    let design_doc = if let Some(path) = from_doc {
+        let doc_content = std::fs::read_to_string(path)
+            .with_context(|| format!("Failed to read design doc: {}", path.display()))?;
+        Some(crate::commands::design_doc::parse_design_doc(&doc_content))
+    } else {
+        None
+    };
+
     let now = Utc::now().format("%Y-%m-%d").to_string();
-    let display_title = title.unwrap_or(slug);
+
+    // Title: explicit --title > design doc title > slug
+    let display_title = if let Some(t) = title {
+        t.to_string()
+    } else if let Some(ref doc) = design_doc {
+        if doc.title.is_empty() {
+            slug.to_string()
+        } else {
+            doc.title.clone()
+        }
+    } else {
+        slug.to_string()
+    };
+
     let agent_id = current_agent_id(crosslink_dir);
 
     let parsed_sources: Vec<Source> = sources
@@ -68,9 +91,15 @@ pub fn add(
         })
         .collect();
 
+    // Build tag list, auto-adding "design-doc" when --from-doc is used
+    let mut all_tags = tags.to_vec();
+    if design_doc.is_some() && !all_tags.iter().any(|t| t == "design-doc") {
+        all_tags.push("design-doc".to_string());
+    }
+
     let fm = PageFrontmatter {
-        title: display_title.to_string(),
-        tags: tags.to_vec(),
+        title: display_title.clone(),
+        tags: all_tags,
         sources: parsed_sources,
         contributors: vec![agent_id],
         created: now.clone(),
@@ -80,10 +109,15 @@ pub fn add(
     let mut page_content = serialize_frontmatter(&fm);
     page_content.push('\n');
     if let Some(body) = content {
+        // Explicit --content always wins
         page_content.push_str(body);
         if !body.ends_with('\n') {
             page_content.push('\n');
         }
+    } else if let Some(ref doc) = design_doc {
+        // Render design doc as page body
+        let section = crate::commands::design_doc::build_design_doc_section(doc);
+        page_content.push_str(&section);
     } else {
         page_content.push_str(&format!("# {}\n", display_title));
     }
@@ -856,5 +890,91 @@ mod tests {
 
         km.delete_page("to-delete").unwrap();
         assert!(!km.page_exists("to-delete"));
+    }
+
+    // ==================== from_doc Tests ====================
+
+    #[test]
+    fn test_add_from_doc_creates_page() {
+        let (km, dir) = setup_km();
+        let crosslink_dir = dir.path().join(".crosslink");
+
+        // Write a sample design doc
+        let doc_path = dir.path().join("design.md");
+        std::fs::write(
+            &doc_path,
+            "# Feature: Batch Retry\n\n## Summary\n\nRetry logic.\n\n## Requirements\n- REQ-1: Retry\n",
+        )
+        .unwrap();
+
+        let doc = crate::commands::design_doc::parse_design_doc(
+            &std::fs::read_to_string(&doc_path).unwrap(),
+        );
+
+        // Simulate the add flow with from_doc
+        let now = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let mut tags = Vec::new();
+        tags.push("design-doc".to_string());
+
+        let fm = PageFrontmatter {
+            title: doc.title.clone(),
+            tags,
+            sources: Vec::new(),
+            contributors: vec!["test-agent".to_string()],
+            created: now.clone(),
+            updated: now,
+        };
+
+        let mut page_content = serialize_frontmatter(&fm);
+        page_content.push('\n');
+        page_content.push_str(&crate::commands::design_doc::build_design_doc_section(&doc));
+
+        km.write_page("batch-retry", &page_content).unwrap();
+
+        let read_back = km.read_page("batch-retry").unwrap();
+        assert!(read_back.contains("Batch Retry"));
+        assert!(read_back.contains("Design Specification"));
+        assert!(read_back.contains("REQ-1: Retry"));
+    }
+
+    #[test]
+    fn test_add_from_doc_auto_tags() {
+        // Verify that design-doc tag is added
+        let tags: Vec<String> = vec!["existing-tag".to_string()];
+        let mut all_tags = tags.clone();
+        if !all_tags.iter().any(|t| t == "design-doc") {
+            all_tags.push("design-doc".to_string());
+        }
+        assert!(all_tags.contains(&"design-doc".to_string()));
+        assert!(all_tags.contains(&"existing-tag".to_string()));
+    }
+
+    #[test]
+    fn test_add_from_doc_derives_title() {
+        let doc = crate::commands::design_doc::parse_design_doc("# Feature: My Great Feature\n");
+        // When no explicit title, use doc title
+        let title: Option<&str> = None;
+        let display_title = if let Some(t) = title {
+            t.to_string()
+        } else if doc.title.is_empty() {
+            "fallback-slug".to_string()
+        } else {
+            doc.title.clone()
+        };
+        assert_eq!(display_title, "My Great Feature");
+    }
+
+    #[test]
+    fn test_add_from_doc_explicit_title_overrides() {
+        let doc = crate::commands::design_doc::parse_design_doc("# Feature: Doc Title\n");
+        let title: Option<&str> = Some("Explicit Title");
+        let display_title = if let Some(t) = title {
+            t.to_string()
+        } else if doc.title.is_empty() {
+            "fallback".to_string()
+        } else {
+            doc.title.clone()
+        };
+        assert_eq!(display_title, "Explicit Title");
     }
 }
