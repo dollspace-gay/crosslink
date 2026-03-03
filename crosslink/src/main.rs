@@ -1,5 +1,6 @@
 #[allow(dead_code)]
 mod checkpoint;
+mod clock_skew;
 mod commands;
 #[allow(dead_code)]
 mod compaction;
@@ -18,6 +19,7 @@ mod models;
 mod shared_writer;
 mod signing;
 mod sync;
+mod tui;
 mod utils;
 
 use anyhow::{bail, Context, Result};
@@ -422,6 +424,12 @@ enum Commands {
         command: ConfigCommands,
     },
 
+    /// Measure and check context injection overhead
+    Context {
+        #[command(subcommand)]
+        command: ContextCommands,
+    },
+
     /// Manage crosslink workflow configuration
     Workflow {
         #[command(subcommand)]
@@ -457,6 +465,87 @@ enum Commands {
     Kickoff {
         #[command(subcommand)]
         action: KickoffCommands,
+    },
+    /// Interactive terminal dashboard (read-only)
+    Tui,
+    /// Manage container-based agent execution
+    Container {
+        #[command(subcommand)]
+        action: ContainerCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum ContainerCommands {
+    /// Build the crosslink agent container image
+    Build {
+        /// Rebuild from scratch (no cache)
+        #[arg(long)]
+        force: bool,
+        /// Image tag (default: latest)
+        #[arg(long)]
+        tag: Option<String>,
+        /// Path to a custom Dockerfile
+        #[arg(long)]
+        dockerfile: Option<String>,
+    },
+    /// Start a task container for a worktree
+    Start {
+        /// Path to the worktree directory
+        worktree: String,
+        /// Container name (default: derived from worktree slug)
+        #[arg(long)]
+        name: Option<String>,
+        /// Path to the prompt file (default: KICKOFF.md in worktree)
+        #[arg(long)]
+        prompt: Option<String>,
+        /// Crosslink issue ID being worked on
+        #[arg(long)]
+        issue: Option<i64>,
+        /// Memory limit (default: auto-detect from host)
+        #[arg(long)]
+        memory: Option<String>,
+    },
+    /// List running task containers
+    Ps,
+    /// Stream logs from a container
+    Logs {
+        /// Container name
+        name: String,
+        /// Follow log output
+        #[arg(short, long)]
+        follow: bool,
+        /// Number of lines to show (default: 100)
+        #[arg(long)]
+        tail: Option<u32>,
+    },
+    /// Stop a running container
+    Stop {
+        /// Container name
+        name: String,
+    },
+    /// Remove a stopped container
+    Rm {
+        /// Container name
+        name: String,
+    },
+    /// Stop and remove a container
+    Kill {
+        /// Container name
+        name: String,
+    },
+    /// Open a shell inside a running container
+    Shell {
+        /// Container name
+        name: String,
+    },
+    /// Snapshot a container as a cached image (preserves installed toolchains)
+    Snapshot {
+        /// Container name
+        name: String,
+        /// Image tag for the snapshot (default: cached)
+        #[arg(long)]
+        tag: Option<String>,
     },
 }
 
@@ -926,6 +1015,18 @@ enum ConfigCommands {
     Diff,
 }
 
+#[derive(Subcommand)]
+enum ContextCommands {
+    /// Measure context injection sizes and estimate token overhead
+    Measure {
+        /// Show additional details (hook config contents, etc.)
+        #[arg(short, long)]
+        verbose: bool,
+    },
+    /// Verify all expected crosslink files are deployed and valid
+    Check,
+}
+
 fn find_crosslink_dir() -> Result<PathBuf> {
     let mut current = env::current_dir()?;
 
@@ -1362,9 +1463,11 @@ fn main() -> Result<()> {
                 }
                 MilestoneCommands::List { status } => commands::milestone::list(&db, Some(&status)),
                 MilestoneCommands::Show { id } => commands::milestone::show(&db, id),
-                MilestoneCommands::Add { id, issues } => commands::milestone::add(&db, id, &issues),
+                MilestoneCommands::Add { id, issues } => {
+                    commands::milestone::add(&db, shared_ref, id, &issues)
+                }
                 MilestoneCommands::Remove { id, issue } => {
-                    commands::milestone::remove(&db, id, issue)
+                    commands::milestone::remove(&db, shared_ref, id, issue)
                 }
                 MilestoneCommands::Close { id } => commands::milestone::close(&db, shared_ref, id),
                 MilestoneCommands::Delete { id } => {
@@ -1550,6 +1653,24 @@ fn main() -> Result<()> {
                     } else {
                         println!("  No new events to process.");
                     }
+                    if result.git_skew_violations > 0 {
+                        eprintln!(
+                            "  Warning: {} clock skew violation(s) detected (see checkpoint/skew_warnings.json)",
+                            result.git_skew_violations
+                        );
+                        let violations =
+                            crate::clock_skew::read_skew_violations(&cache_dir).unwrap_or_default();
+                        for v in &violations {
+                            eprintln!(
+                                "    - agent={}, skew={}s, event={}, event_ts={}, commit_ts={}",
+                                v.agent_id,
+                                v.skew_seconds,
+                                v.event_description,
+                                v.event_timestamp.to_rfc3339(),
+                                v.commit_timestamp.to_rfc3339()
+                            );
+                        }
+                    }
                 }
                 None => {
                     println!(
@@ -1562,6 +1683,41 @@ fn main() -> Result<()> {
             crate::hydration::hydrate_to_sqlite(&cache_dir, &db)?;
             Ok(())
         }
+
+        Commands::Container { action } => match action {
+            ContainerCommands::Build {
+                force,
+                tag,
+                dockerfile,
+            } => commands::container::build(force, tag.as_deref(), dockerfile.as_deref()),
+            ContainerCommands::Start {
+                worktree,
+                name,
+                prompt,
+                issue,
+                memory,
+            } => {
+                let path = std::path::PathBuf::from(&worktree);
+                commands::container::start(
+                    &path,
+                    name.as_deref(),
+                    prompt.as_deref(),
+                    issue,
+                    memory.as_deref(),
+                )
+            }
+            ContainerCommands::Ps => commands::container::ps(),
+            ContainerCommands::Logs { name, follow, tail } => {
+                commands::container::logs(&name, follow, tail)
+            }
+            ContainerCommands::Stop { name } => commands::container::stop(&name),
+            ContainerCommands::Rm { name } => commands::container::rm(&name),
+            ContainerCommands::Kill { name } => commands::container::kill(&name),
+            ContainerCommands::Shell { name } => commands::container::shell(&name),
+            ContainerCommands::Snapshot { name, tag } => {
+                commands::container::snapshot(&name, tag.as_deref())
+            }
+        },
 
         Commands::Style { command } => {
             let crosslink_dir = find_crosslink_dir()?;
@@ -1637,6 +1793,10 @@ fn main() -> Result<()> {
             let crosslink_dir = find_crosslink_dir()?;
             commands::config::run(command, &crosslink_dir)
         }
+        Commands::Context { command } => {
+            let crosslink_dir = find_crosslink_dir()?;
+            commands::context::run(command, &crosslink_dir)
+        }
         Commands::Workflow { command } => {
             let crosslink_dir = find_crosslink_dir()?;
             let claude_dir = crosslink_dir
@@ -1694,6 +1854,11 @@ fn main() -> Result<()> {
                     commands::kickoff::stop(&crosslink_dir, &agent, force)
                 }
             }
+        }
+        Commands::Tui => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            commands::tui::run(&db, &crosslink_dir)
         }
     }
 }

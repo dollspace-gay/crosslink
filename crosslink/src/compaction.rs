@@ -31,6 +31,7 @@ pub struct CompactionResult {
     pub locks_materialized: usize,
     pub skew_warnings: usize,
     pub unsigned_warnings: usize,
+    pub git_skew_violations: usize,
 }
 
 /// Run compaction on the hub cache.
@@ -73,6 +74,12 @@ pub fn compact(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<C
     }
 
     if all_events.is_empty() && watermark.is_some() {
+        // Still run git-based skew detection even with no new events
+        let git_violations =
+            crate::clock_skew::detect_git_skew_violations(cache_dir).unwrap_or_default();
+        let git_skew_violations = git_violations.len();
+        crate::clock_skew::write_skew_violations(cache_dir, &git_violations)?;
+
         release_lease(&mut state);
         write_checkpoint(cache_dir, &state)?;
         return Ok(Some(CompactionResult {
@@ -81,6 +88,7 @@ pub fn compact(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<C
             locks_materialized: 0,
             skew_warnings: state.skew_warnings.len(),
             unsigned_warnings: state.unsigned_event_warnings.len(),
+            git_skew_violations,
         }));
     }
 
@@ -125,6 +133,12 @@ pub fn compact(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<C
     // Materialize changed entities to disk
     materialize(cache_dir, &state, &changed_issues, &changed_locks)?;
 
+    // Run git-based clock skew detection
+    let git_violations =
+        crate::clock_skew::detect_git_skew_violations(cache_dir).unwrap_or_default();
+    let git_skew_violations = git_violations.len();
+    crate::clock_skew::write_skew_violations(cache_dir, &git_violations)?;
+
     let issues_materialized = changed_issues.len();
     let locks_materialized = changed_locks.len();
     let skew_warnings = state.skew_warnings.len();
@@ -139,6 +153,7 @@ pub fn compact(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<C
         locks_materialized,
         skew_warnings,
         unsigned_warnings,
+        git_skew_violations,
     }))
 }
 
@@ -1022,14 +1037,14 @@ mod tests {
 
     #[test]
     fn test_lease_expiry() {
-        let mut state = CheckpointState::default();
-
-        // Set an expired lease
-        state.compaction_lease = Some(CompactionLease {
-            agent_id: "agent-1".to_string(),
-            acquired_at: Utc::now() - Duration::seconds(60),
-            expires_at: Utc::now() - Duration::seconds(30),
-        });
+        let mut state = CheckpointState {
+            compaction_lease: Some(CompactionLease {
+                agent_id: "agent-1".to_string(),
+                acquired_at: Utc::now() - Duration::seconds(60),
+                expires_at: Utc::now() - Duration::seconds(30),
+            }),
+            ..Default::default()
+        };
 
         // Different agent can take expired lease
         assert!(try_acquire_lease(&mut state, "agent-2"));
@@ -1257,12 +1272,14 @@ mod tests {
         setup_cache(cache_dir);
 
         // Set an active lease by another agent
-        let mut state = CheckpointState::default();
-        state.compaction_lease = Some(CompactionLease {
-            agent_id: "agent-2".to_string(),
-            acquired_at: Utc::now(),
-            expires_at: Utc::now() + Duration::seconds(30),
-        });
+        let state = CheckpointState {
+            compaction_lease: Some(CompactionLease {
+                agent_id: "agent-2".to_string(),
+                acquired_at: Utc::now(),
+                expires_at: Utc::now() + Duration::seconds(30),
+            }),
+            ..Default::default()
+        };
         write_checkpoint(cache_dir, &state).unwrap();
 
         // Try to compact as agent-1 without force

@@ -25,7 +25,7 @@ USER root
 RUN curl -fsSL "https://github.com/tianon/gosu/releases/download/1.17/gosu-amd64" -o /usr/local/bin/gosu \
     && chmod +x /usr/local/bin/gosu
 
-# Crosslink binary (copied from build context or host)
+# Crosslink binary
 COPY --chown=agent crosslink /usr/local/bin/crosslink
 COPY entrypoint.sh /usr/local/bin/crosslink-entrypoint.sh
 RUN chmod +x /usr/local/bin/crosslink-entrypoint.sh

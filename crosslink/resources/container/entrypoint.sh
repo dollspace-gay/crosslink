@@ -87,7 +87,7 @@ fi
 # bound by the same rules as host agents.
 if [ -n "$WORKSPACE" ] && command -v crosslink &>/dev/null; then
     echo "[crosslink-entrypoint] Initializing crosslink hooks in workspace..."
-    gosu agent bash -c "cd '$WORKSPACE' && crosslink init --force --defaults" 2>&1 || true
+    gosu agent bash -c "cd '$WORKSPACE' && crosslink init --force" 2>&1 || true
 fi
 
 echo "[crosslink-entrypoint] Setup complete. Running command as agent..."

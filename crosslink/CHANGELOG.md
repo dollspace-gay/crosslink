@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [0.1.1-alpha.1] - 2026-02-26
 
 ### Added
+- Add crosslink kickoff CLI command with local and container agent execution (#2)
 - Update injected prompting rules to enforce typed comment discipline (#7)
 
 - **Multi-agent shared issue coordination** — issues can now be shared across agents via a git coordination branch (`crosslink/locks`)
@@ -26,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Agent identity in session-start hook** — displays agent identity and coordination sync status on startup
 
 ### Changed
+- Add Dockerfile and entrypoint for crosslink-agent container image (#3)
 
 - **Write commands accept `Option<&SharedWriter>`** — `create`, `update`, `close/reopen`, `delete`, `comment`, `label/unlabel`, `block/unblock`, `relate/unrelate`, and `session work` route through `SharedWriter` in multi-agent mode, falling back to direct SQLite otherwise
 - **`SyncManager` extended** — new methods for shared issue file operations: `push_issue()`, `delete_issue_file()`, `read_counters()`, `write_counters()`, `read_milestones_file()`, `write_milestones_file()`, `cache_path()`
