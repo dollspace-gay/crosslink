@@ -1732,4 +1732,86 @@ mod tests {
         assert!(!prompt.contains("Adversarial Self-Review"));
         assert!(prompt.contains("Final Steps"));
     }
+
+    #[test]
+    fn test_build_prompt_contains_blocked_actions() {
+        let conventions = ProjectConventions {
+            test_command: None,
+            lint_commands: vec![],
+            allowed_tools: vec![],
+        };
+        let opts = KickoffOpts {
+            description: "test blocked actions",
+            issue: None,
+            container: ContainerMode::None,
+            verify: VerifyLevel::Local,
+            model: "opus",
+            image: "",
+            timeout: Duration::from_secs(3600),
+            dry_run: false,
+            branch: None,
+            quiet: false,
+        };
+        let prompt = build_prompt(&opts, 1, "feature/test", &conventions);
+
+        assert!(prompt.contains("Blocked Actions"));
+        assert!(prompt.contains("git push"));
+        assert!(prompt.contains("git merge"));
+        assert!(prompt.contains("git reset"));
+    }
+
+    #[test]
+    fn test_build_prompt_embeds_issue_id_in_instructions() {
+        let conventions = ProjectConventions {
+            test_command: Some("cargo test".to_string()),
+            lint_commands: vec!["cargo clippy".to_string()],
+            allowed_tools: vec![],
+        };
+        let opts = KickoffOpts {
+            description: "test issue refs",
+            issue: None,
+            container: ContainerMode::None,
+            verify: VerifyLevel::Local,
+            model: "opus",
+            image: "",
+            timeout: Duration::from_secs(3600),
+            dry_run: false,
+            branch: None,
+            quiet: false,
+        };
+        let prompt = build_prompt(&opts, 999, "feature/test-refs", &conventions);
+
+        // Issue ID should appear in context header and in session/comment instructions
+        assert!(prompt.contains("#999"));
+        assert!(prompt.contains("crosslink session work 999"));
+        assert!(prompt.contains("crosslink comment 999"));
+    }
+
+    #[test]
+    fn test_build_prompt_empty_conventions_uses_generic_instructions() {
+        let conventions = ProjectConventions {
+            test_command: None,
+            lint_commands: vec![],
+            allowed_tools: vec![],
+        };
+        let opts = KickoffOpts {
+            description: "test generic",
+            issue: None,
+            container: ContainerMode::None,
+            verify: VerifyLevel::Local,
+            model: "opus",
+            image: "",
+            timeout: Duration::from_secs(3600),
+            dry_run: false,
+            branch: None,
+            quiet: false,
+        };
+        let prompt = build_prompt(&opts, 1, "feature/test-generic", &conventions);
+
+        // Without specific test/lint commands, prompt should use generic phrasing
+        assert!(prompt.contains("Run the project's test suite"));
+        assert!(prompt.contains("Run lint and format checks"));
+        // Should NOT contain backtick-quoted commands
+        assert!(!prompt.contains("`cargo test`"));
+    }
 }
