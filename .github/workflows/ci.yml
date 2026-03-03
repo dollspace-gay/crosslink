@@ -1,14 +1,13 @@
 name: CI
 
-# Triggers: develop branch validation only.
+# Triggers: develop, hotfix/*, and release/* branch validation.
 # Feature branches use ci-feature.yml (fast path) instead.
-# PRs to main rely on branch protection requiring this check suite to pass
-# on the source branch before merge — no need for workflow_call.
+# PRs to main or develop run the full suite.
 on:
   push:
-    branches: [develop]
+    branches: [develop, 'hotfix/**', 'release/**']
   pull_request:
-    branches: [develop]
+    branches: [develop, main]
 
 permissions:
   contents: read
