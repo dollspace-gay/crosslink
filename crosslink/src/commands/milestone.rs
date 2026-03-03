@@ -101,6 +101,8 @@ pub fn add(
         bail!("Milestone #{} not found", milestone_id);
     }
 
+    // Validate issue IDs and collect the ones that exist
+    let mut valid_ids = Vec::new();
     for &issue_id in issue_ids {
         if db.get_issue(issue_id)?.is_none() {
             println!(
@@ -109,24 +111,36 @@ pub fn add(
             );
             continue;
         }
+        valid_ids.push(issue_id);
+    }
 
-        if db.add_issue_to_milestone(milestone_id, issue_id)? {
+    if let Some(sw) = shared {
+        // Shared writer path: write JSON then hydrate back to SQLite
+        sw.set_milestone_on_issues(db, milestone_id, &valid_ids)?;
+        for &issue_id in &valid_ids {
             println!(
                 "Added {} to milestone #{}",
                 format_issue_id(issue_id),
                 milestone_id
             );
-        } else {
-            println!(
-                "Issue {} already in milestone #{}",
-                format_issue_id(issue_id),
-                milestone_id
-            );
         }
-    }
-
-    if let Some(sw) = shared {
-        sw.set_milestone_on_issues(db, milestone_id, issue_ids)?;
+    } else {
+        // SQLite-only fallback (no coordination branch)
+        for &issue_id in &valid_ids {
+            if db.add_issue_to_milestone(milestone_id, issue_id)? {
+                println!(
+                    "Added {} to milestone #{}",
+                    format_issue_id(issue_id),
+                    milestone_id
+                );
+            } else {
+                println!(
+                    "Issue {} already in milestone #{}",
+                    format_issue_id(issue_id),
+                    milestone_id
+                );
+            }
+        }
     }
 
     Ok(())
@@ -138,15 +152,20 @@ pub fn remove(
     milestone_id: i64,
     issue_id: i64,
 ) -> Result<()> {
-    if db.remove_issue_from_milestone(milestone_id, issue_id)? {
+    if let Some(sw) = shared {
+        // Shared writer path: write JSON then hydrate back to SQLite
+        sw.clear_milestone_on_issue(db, issue_id)?;
         println!(
             "Removed {} from milestone #{}",
             format_issue_id(issue_id),
             milestone_id
         );
-        if let Some(sw) = shared {
-            sw.clear_milestone_on_issue(db, issue_id)?;
-        }
+    } else if db.remove_issue_from_milestone(milestone_id, issue_id)? {
+        println!(
+            "Removed {} from milestone #{}",
+            format_issue_id(issue_id),
+            milestone_id
+        );
     } else {
         println!(
             "Issue {} not in milestone #{}",

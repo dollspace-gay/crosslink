@@ -977,6 +977,7 @@ impl SharedWriter {
     /// Set `milestone_uuid` on issue JSON files for the given issue IDs.
     ///
     /// Loads the milestone to get its UUID, then patches each issue file.
+    /// Also adds the issues to the SQLite milestone_issues table via hydration.
     pub fn set_milestone_on_issues(
         &self,
         db: &Database,
@@ -991,13 +992,12 @@ impl SharedWriter {
             |writer| {
                 let mut files = Vec::new();
                 for &issue_id in &ids {
-                    if let Ok(mut issue) = writer.load_issue_by_id(issue_id, db) {
-                        issue.milestone_uuid = Some(ms_uuid);
-                        issue.updated_at = Utc::now();
-                        let json = serde_json::to_vec_pretty(&issue)?;
-                        let rel_path = writer.issue_rel_path(&issue.uuid);
-                        files.push((rel_path, json));
-                    }
+                    let mut issue = writer.load_issue_by_id(issue_id, db)?;
+                    issue.milestone_uuid = Some(ms_uuid);
+                    issue.updated_at = Utc::now();
+                    let json = serde_json::to_vec_pretty(&issue)?;
+                    let rel_path = writer.issue_rel_path(&issue.uuid);
+                    files.push((rel_path, json));
                 }
                 Ok(WriteSet {
                     files,
