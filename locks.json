@@ -1,6 +1,13 @@
 {
   "version": 1,
-  "locks": {},
+  "locks": {
+    "120": {
+      "agent_id": "driver--create-maintain-claude-skill-for-codebase-maintenance",
+      "branch": null,
+      "claimed_at": "2026-03-03T17:54:58.988925178Z",
+      "signed_by": "driver--create-maintain-claude-skill-for-codebase-maintenance"
+    }
+  },
   "settings": {
     "stale_lock_timeout_minutes": 60
   }
