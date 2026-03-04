@@ -179,10 +179,10 @@ pub fn work(db: &Database, issue_id: i64, crosslink_dir: &std::path::Path) -> Re
         None => bail!("Issue {} not found", format_issue_id(issue_id)),
     };
 
-    // Check lock status before allowing work
+    // Check lock status (handles auto-steal of stale locks if configured)
     crate::lock_check::enforce_lock(crosslink_dir, issue_id, db)?;
 
-    // Auto-claim lock in multi-agent mode
+    // Atomically claim lock then set session — bail if another agent wins
     if let Ok(Some(agent)) = crate::identity::AgentConfig::load(crosslink_dir) {
         if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
             if sync.is_initialized() {
@@ -191,36 +191,49 @@ pub fn work(db: &Database, issue_id: i64, crosslink_dir: &std::path::Path) -> Re
                     {
                         match writer.claim_lock_v2(issue_id, None) {
                             Ok(crate::shared_writer::LockClaimResult::Claimed) => {
-                                println!("Auto-claimed lock on issue {}", format_issue_id(issue_id))
+                                println!("Claimed lock on issue {}", format_issue_id(issue_id));
                             }
                             Ok(crate::shared_writer::LockClaimResult::AlreadyHeld) => {}
                             Ok(crate::shared_writer::LockClaimResult::Contended {
                                 winner_agent_id,
                             }) => {
-                                eprintln!(
-                                    "Warning: Lock on {} won by '{}'",
+                                bail!(
+                                    "Lock on {} was claimed by '{}' before we could acquire it. \
+                                     Use 'crosslink locks steal {}' to override.",
                                     format_issue_id(issue_id),
-                                    winner_agent_id
-                                )
+                                    winner_agent_id,
+                                    issue_id
+                                );
                             }
                             Err(e) => {
-                                eprintln!("Warning: Could not auto-claim lock: {}", e)
+                                bail!(
+                                    "Failed to claim lock on {}: {}",
+                                    format_issue_id(issue_id),
+                                    e
+                                );
                             }
                         }
                     }
                 } else {
                     match sync.claim_lock(&agent, issue_id, None, false) {
                         Ok(true) => {
-                            println!("Auto-claimed lock on issue {}", format_issue_id(issue_id))
+                            println!("Claimed lock on issue {}", format_issue_id(issue_id));
                         }
-                        Ok(false) => {}
-                        Err(e) => eprintln!("Warning: Could not auto-claim lock: {}", e),
+                        Ok(false) => {} // Already held by self
+                        Err(e) => {
+                            bail!(
+                                "Failed to claim lock on {}: {}",
+                                format_issue_id(issue_id),
+                                e
+                            );
+                        }
                     }
                 }
             }
         }
     }
 
+    // Only reached if lock claim succeeded (or lock system not configured)
     db.set_session_issue(session.id, issue_id)?;
     println!(
         "Now working on: {} {}",
