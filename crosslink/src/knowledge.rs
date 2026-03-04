@@ -23,6 +23,8 @@ pub struct KnowledgeManager {
     cache_dir: PathBuf,
     /// The repo root (parent of .crosslink).
     repo_root: PathBuf,
+    /// Git remote name for the knowledge branch (from config, defaults to "origin").
+    remote: String,
 }
 
 /// Parsed YAML frontmatter from a knowledge page.
@@ -144,11 +146,13 @@ impl KnowledgeManager {
             resolve_main_repo_root(&local_repo_root).unwrap_or_else(|| local_repo_root.clone());
 
         let cache_dir = repo_root.join(".crosslink").join(KNOWLEDGE_CACHE_DIR);
+        let remote = crate::sync::read_tracker_remote(crosslink_dir);
 
         Ok(KnowledgeManager {
             crosslink_dir: crosslink_dir.to_path_buf(),
             cache_dir,
             repo_root,
+            remote,
         })
     }
 
@@ -169,13 +173,13 @@ impl KnowledgeManager {
 
         // Check if remote branch exists
         let has_remote = self
-            .git_in_repo(&["ls-remote", "--heads", "origin", KNOWLEDGE_BRANCH])
+            .git_in_repo(&["ls-remote", "--heads", &self.remote, KNOWLEDGE_BRANCH])
             .map(|o| !String::from_utf8_lossy(&o.stdout).trim().is_empty())
             .unwrap_or(false);
 
         if has_remote {
             // Fetch the remote branch
-            self.git_in_repo(&["fetch", "origin", KNOWLEDGE_BRANCH])?;
+            self.git_in_repo(&["fetch", &self.remote, KNOWLEDGE_BRANCH])?;
 
             // Check if a local branch already exists
             let has_local = self
@@ -186,13 +190,14 @@ impl KnowledgeManager {
                 self.git_in_repo(&["worktree", "add", &self.cache_path_str(), KNOWLEDGE_BRANCH])?;
             } else {
                 // Create local branch tracking remote
+                let remote_ref = format!("{}/{}", self.remote, KNOWLEDGE_BRANCH);
                 self.git_in_repo(&[
                     "worktree",
                     "add",
                     "-b",
                     KNOWLEDGE_BRANCH,
                     &self.cache_path_str(),
-                    &format!("origin/{}", KNOWLEDGE_BRANCH),
+                    &remote_ref,
                 ])?;
             }
         } else {
@@ -240,7 +245,7 @@ impl KnowledgeManager {
     /// conflicts by keeping both versions. Returns the list of slugs that had
     /// conflicts resolved.
     pub fn sync(&self) -> Result<SyncOutcome> {
-        let fetch_result = self.git_in_cache(&["fetch", "origin", KNOWLEDGE_BRANCH]);
+        let fetch_result = self.git_in_cache(&["fetch", &self.remote, KNOWLEDGE_BRANCH]);
         if let Err(e) = &fetch_result {
             let err_str = e.to_string();
             if err_str.contains("Could not resolve host")
@@ -255,7 +260,7 @@ impl KnowledgeManager {
         }
 
         // Check for unpushed local commits. If any exist, rebase to preserve them.
-        let remote_ref = format!("origin/{}", KNOWLEDGE_BRANCH);
+        let remote_ref = format!("{}/{}", self.remote, KNOWLEDGE_BRANCH);
         let log_result = self.git_in_cache(&["log", &format!("{}..HEAD", remote_ref), "--oneline"]);
         if let Ok(output) = &log_result {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -297,7 +302,7 @@ impl KnowledgeManager {
     /// If the push is rejected (non-fast-forward), attempts a pull --rebase.
     /// If that rebase produces conflicts, falls back to "accept both" resolution.
     pub fn push(&self) -> Result<SyncOutcome> {
-        let push_result = self.git_in_cache(&["push", "origin", KNOWLEDGE_BRANCH]);
+        let push_result = self.git_in_cache(&["push", &self.remote, KNOWLEDGE_BRANCH]);
         if let Err(e) = &push_result {
             let err_str = e.to_string();
             if err_str.contains("Could not resolve host")
@@ -306,18 +311,18 @@ impl KnowledgeManager {
                 return Ok(SyncOutcome::default());
             }
             if err_str.contains("rejected") || err_str.contains("non-fast-forward") {
-                let remote_ref = format!("origin/{}", KNOWLEDGE_BRANCH);
+                let remote_ref = format!("{}/{}", self.remote, KNOWLEDGE_BRANCH);
                 // Fetch latest
-                let _ = self.git_in_cache(&["fetch", "origin", KNOWLEDGE_BRANCH]);
+                let _ = self.git_in_cache(&["fetch", &self.remote, KNOWLEDGE_BRANCH]);
                 // Try rebase
                 let rebase_result = self.git_in_cache(&["rebase", &remote_ref]);
                 if rebase_result.is_err() {
                     // Rebase failed — try accept-both fallback
                     let outcome = self.handle_rebase_conflict(&remote_ref)?;
-                    let _ = self.git_in_cache(&["push", "origin", KNOWLEDGE_BRANCH]);
+                    let _ = self.git_in_cache(&["push", &self.remote, KNOWLEDGE_BRANCH]);
                     return Ok(outcome);
                 }
-                let _ = self.git_in_cache(&["push", "origin", KNOWLEDGE_BRANCH]);
+                let _ = self.git_in_cache(&["push", &self.remote, KNOWLEDGE_BRANCH]);
                 return Ok(SyncOutcome::default());
             }
             push_result?;

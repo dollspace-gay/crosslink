@@ -196,7 +196,8 @@ pub fn to_shared(crosslink_dir: &Path, db: &Database) -> Result<()> {
     git_in_dir(&cache_dir, &["commit", "-m", &commit_msg])?;
 
     // Best-effort push
-    match git_in_dir(&cache_dir, &["push", "origin", crate::sync::HUB_BRANCH]) {
+    let remote = crate::sync::read_tracker_remote(crosslink_dir);
+    match git_in_dir(&cache_dir, &["push", &remote, crate::sync::HUB_BRANCH]) {
         Ok(_) => println!("Pushed to remote."),
         Err(e) => {
             let err = e.to_string();

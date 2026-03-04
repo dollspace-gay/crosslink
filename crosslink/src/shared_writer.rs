@@ -262,7 +262,8 @@ impl SharedWriter {
             commit_result?;
 
             // Push
-            let push_result = self.git_in_cache(&["push", "origin", crate::sync::HUB_BRANCH]);
+            let remote = self.sync.remote();
+            let push_result = self.git_in_cache(&["push", remote, crate::sync::HUB_BRANCH]);
             match push_result {
                 Ok(_) => return Ok(PushOutcome::Pushed),
                 Err(e) => {
@@ -285,7 +286,7 @@ impl SharedWriter {
                             self.git_in_cache(&[
                                 "pull",
                                 "--rebase",
-                                "origin",
+                                remote,
                                 crate::sync::HUB_BRANCH,
                             ])?;
                             continue;
@@ -1245,7 +1246,7 @@ impl SharedWriter {
                 eprintln!("Warning: failed to commit rewritten references: {}", e);
             }
             // Best-effort push
-            let _ = self.git_in_cache(&["push", "origin", crate::sync::HUB_BRANCH]);
+            let _ = self.git_in_cache(&["push", self.sync.remote(), crate::sync::HUB_BRANCH]);
         }
 
         // 2. Rewrite session notes in SQLite
@@ -1570,7 +1571,8 @@ impl SharedWriter {
             }
 
             // Push
-            let push_result = self.git_in_cache(&["push", "origin", crate::sync::HUB_BRANCH]);
+            let remote = self.sync.remote();
+            let push_result = self.git_in_cache(&["push", remote, crate::sync::HUB_BRANCH]);
             match push_result {
                 Ok(_) => return Ok(PushOutcome::Pushed),
                 Err(e) => {
@@ -1594,7 +1596,7 @@ impl SharedWriter {
                             self.git_in_cache(&[
                                 "pull",
                                 "--rebase",
-                                "origin",
+                                remote,
                                 crate::sync::HUB_BRANCH,
                             ])?;
                             continue;

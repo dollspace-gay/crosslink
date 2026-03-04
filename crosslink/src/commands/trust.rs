@@ -96,7 +96,11 @@ pub fn approve(crosslink_dir: &Path, agent_id: &str) -> Result<()> {
     std::fs::write(&approval_path, serde_json::to_string_pretty(&approval)?)?;
 
     // Commit and push
-    commit_trust_change(cache, &format!("trust: approve agent '{}'", agent_id))?;
+    commit_trust_change(
+        cache,
+        crosslink_dir,
+        &format!("trust: approve agent '{}'", agent_id),
+    )?;
 
     if let Some(fp) = driver_fp {
         println!(
@@ -141,7 +145,11 @@ pub fn revoke(crosslink_dir: &Path, agent_id: &str) -> Result<()> {
     let approval_path = approvals_dir.join(format!("{}.json", agent_id));
     std::fs::write(&approval_path, serde_json::to_string_pretty(&revocation)?)?;
 
-    commit_trust_change(cache, &format!("trust: revoke agent '{}'", agent_id))?;
+    commit_trust_change(
+        cache,
+        crosslink_dir,
+        &format!("trust: revoke agent '{}'", agent_id),
+    )?;
 
     println!("Revoked trust for agent '{}'", agent_id);
     Ok(())
@@ -264,7 +272,7 @@ pub fn check(crosslink_dir: &Path, agent_id: &str) -> Result<()> {
 }
 
 /// Stage trust files, commit, and push (best-effort).
-fn commit_trust_change(cache_dir: &Path, message: &str) -> Result<()> {
+fn commit_trust_change(cache_dir: &Path, crosslink_dir: &Path, message: &str) -> Result<()> {
     let git = |args: &[&str]| -> Result<()> {
         let output = std::process::Command::new("git")
             .current_dir(cache_dir)
@@ -283,9 +291,10 @@ fn commit_trust_change(cache_dir: &Path, message: &str) -> Result<()> {
     git(&["commit", "-m", message])?;
 
     // Best-effort push
+    let remote = crate::sync::read_tracker_remote(crosslink_dir);
     let _ = std::process::Command::new("git")
         .current_dir(cache_dir)
-        .args(["push", "origin", crate::sync::HUB_BRANCH])
+        .args(["push", &remote, crate::sync::HUB_BRANCH])
         .output();
 
     Ok(())
@@ -310,6 +319,7 @@ pub fn publish_agent_key(crosslink_dir: &Path, agent_id: &str, public_key: &str)
 
     commit_trust_change(
         cache,
+        crosslink_dir,
         &format!("trust: publish key for agent '{}'", agent_id),
     )?;
 

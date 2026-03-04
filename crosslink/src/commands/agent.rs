@@ -268,9 +268,10 @@ pub fn bootstrap(
     ])?;
 
     // Best-effort push
+    let remote = crate::sync::read_tracker_remote(&crosslink_dir);
     let _ = Command::new("git")
         .current_dir(cache)
-        .args(["push", "origin", crate::sync::HUB_BRANCH])
+        .args(["push", &remote, crate::sync::HUB_BRANCH])
         .output();
 
     // Step 8: Configure signing

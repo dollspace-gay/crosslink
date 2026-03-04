@@ -26,6 +26,21 @@ pub use crate::signing::SignatureVerification;
 /// Deprecated alias — use `SignatureVerification` instead.
 pub type GpgVerification = SignatureVerification;
 
+/// Read the configured tracker remote name from `.crosslink/hook-config.json`.
+///
+/// Returns the value of `tracker_remote` if set, otherwise `"origin"`.
+pub fn read_tracker_remote(crosslink_dir: &Path) -> String {
+    let config_path = crosslink_dir.join("hook-config.json");
+    std::fs::read_to_string(&config_path)
+        .ok()
+        .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
+        .and_then(|v| {
+            v.get("tracker_remote")
+                .and_then(|r| r.as_str().map(|s| s.to_string()))
+        })
+        .unwrap_or_else(|| "origin".to_string())
+}
+
 /// Manages synchronization with the `crosslink/hub` coordination branch.
 ///
 /// Uses a git worktree at `.crosslink/.hub-cache/` to avoid disturbing
@@ -37,6 +52,8 @@ pub struct SyncManager {
     cache_dir: PathBuf,
     /// The repo root (parent of .crosslink).
     repo_root: PathBuf,
+    /// Git remote name for the hub branch (from config, defaults to "origin").
+    remote: String,
 }
 
 impl SyncManager {
@@ -57,11 +74,13 @@ impl SyncManager {
             resolve_main_repo_root(&local_repo_root).unwrap_or_else(|| local_repo_root.clone());
 
         let cache_dir = repo_root.join(".crosslink").join(HUB_CACHE_DIR);
+        let remote = read_tracker_remote(crosslink_dir);
 
         Ok(SyncManager {
             crosslink_dir: crosslink_dir.to_path_buf(),
             cache_dir,
             repo_root,
+            remote,
         })
     }
 
@@ -75,7 +94,7 @@ impl SyncManager {
         let has_old_local_cache = old_cache.exists();
 
         let has_old_remote = self
-            .git_in_repo(&["ls-remote", "--heads", "origin", OLD_BRANCH])
+            .git_in_repo(&["ls-remote", "--heads", &self.remote, OLD_BRANCH])
             .map(|o| !String::from_utf8_lossy(&o.stdout).trim().is_empty())
             .unwrap_or(false);
 
@@ -113,17 +132,21 @@ impl SyncManager {
             self.git_in_repo(&["branch", "-m", OLD_BRANCH, HUB_BRANCH])?;
         } else if !has_old_local_branch && has_old_remote && !has_new_local {
             // Fetch old remote and create new local branch from it
-            self.git_in_repo(&["fetch", "origin", OLD_BRANCH])?;
-            self.git_in_repo(&["branch", HUB_BRANCH, &format!("origin/{}", OLD_BRANCH)])?;
+            self.git_in_repo(&["fetch", &self.remote, OLD_BRANCH])?;
+            self.git_in_repo(&[
+                "branch",
+                HUB_BRANCH,
+                &format!("{}/{}", self.remote, OLD_BRANCH),
+            ])?;
         }
 
         // 3. Push new branch to remote (best-effort)
         let has_new_remote = self
-            .git_in_repo(&["ls-remote", "--heads", "origin", HUB_BRANCH])
+            .git_in_repo(&["ls-remote", "--heads", &self.remote, HUB_BRANCH])
             .map(|o| !String::from_utf8_lossy(&o.stdout).trim().is_empty())
             .unwrap_or(false);
         if !has_new_remote {
-            if let Err(e) = self.git_in_repo(&["push", "-u", "origin", HUB_BRANCH]) {
+            if let Err(e) = self.git_in_repo(&["push", "-u", &self.remote, HUB_BRANCH]) {
                 eprintln!(
                     "Warning: migration push failed, changes saved locally only: {}",
                     e
@@ -133,7 +156,7 @@ impl SyncManager {
 
         // 4. Delete old remote branch (best-effort)
         if has_old_remote {
-            if let Err(e) = self.git_in_repo(&["push", "origin", "--delete", OLD_BRANCH]) {
+            if let Err(e) = self.git_in_repo(&["push", &self.remote, "--delete", OLD_BRANCH]) {
                 eprintln!(
                     "Warning: failed to delete old remote branch '{}': {}",
                     OLD_BRANCH, e
@@ -210,13 +233,13 @@ impl SyncManager {
 
         // Check if remote branch exists
         let has_remote = self
-            .git_in_repo(&["ls-remote", "--heads", "origin", HUB_BRANCH])
+            .git_in_repo(&["ls-remote", "--heads", &self.remote, HUB_BRANCH])
             .map(|o| !String::from_utf8_lossy(&o.stdout).trim().is_empty())
             .unwrap_or(false);
 
         if has_remote {
             // Fetch the remote branch
-            self.git_in_repo(&["fetch", "origin", HUB_BRANCH])?;
+            self.git_in_repo(&["fetch", &self.remote, HUB_BRANCH])?;
 
             // Check if a local branch already exists
             let has_local = self
@@ -227,13 +250,14 @@ impl SyncManager {
                 self.git_in_repo(&["worktree", "add", &self.cache_path_str(), HUB_BRANCH])?;
             } else {
                 // Create local branch tracking remote
+                let remote_ref = format!("{}/{}", self.remote, HUB_BRANCH);
                 self.git_in_repo(&[
                     "worktree",
                     "add",
                     "-b",
                     HUB_BRANCH,
                     &self.cache_path_str(),
-                    &format!("origin/{}", HUB_BRANCH),
+                    &remote_ref,
                 ])?;
             }
         } else {
@@ -307,7 +331,7 @@ impl SyncManager {
     /// Fetch the latest state from remote and reset the cache to match.
     pub fn fetch(&self) -> Result<()> {
         // Try fetching from remote. If no remote is configured, this is a no-op.
-        let fetch_result = self.git_in_cache(&["fetch", "origin", HUB_BRANCH]);
+        let fetch_result = self.git_in_cache(&["fetch", &self.remote, HUB_BRANCH]);
         if let Err(e) = &fetch_result {
             let err_str = e.to_string();
             // If there's no remote or no network, don't fail — just use local state
@@ -325,7 +349,7 @@ impl SyncManager {
 
         // Check for unpushed local commits (e.g. offline-created issues).
         // If any exist, rebase instead of reset --hard to preserve them.
-        let remote_ref = format!("origin/{}", HUB_BRANCH);
+        let remote_ref = format!("{}/{}", self.remote, HUB_BRANCH);
         let log_result = self.git_in_cache(&["log", &format!("{}..HEAD", remote_ref), "--oneline"]);
         if let Ok(output) = &log_result {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -638,7 +662,7 @@ impl SyncManager {
         }
 
         // Push (best-effort — may fail if offline or conflicts)
-        let push_result = self.git_in_cache(&["push", "origin", HUB_BRANCH]);
+        let push_result = self.git_in_cache(&["push", &self.remote, HUB_BRANCH]);
         if let Err(e) = &push_result {
             let err_str = e.to_string();
             if err_str.contains("Could not resolve host")
@@ -650,8 +674,8 @@ impl SyncManager {
             // If push is rejected (conflict), clean dirty state and try pull+push once
             if err_str.contains("rejected") || err_str.contains("non-fast-forward") {
                 let _ = self.clean_dirty_state();
-                let _ = self.git_in_cache(&["pull", "--rebase", "origin", HUB_BRANCH]);
-                if let Err(retry_err) = self.git_in_cache(&["push", "origin", HUB_BRANCH]) {
+                let _ = self.git_in_cache(&["pull", "--rebase", &self.remote, HUB_BRANCH]);
+                if let Err(retry_err) = self.git_in_cache(&["push", &self.remote, HUB_BRANCH]) {
                     eprintln!(
                         "Warning: heartbeat push failed after retry (conflict), changes saved locally only: {}",
                         retry_err
@@ -916,7 +940,7 @@ impl SyncManager {
                     let err_str = e.to_string();
                     if err_str.contains("Push failed after") && attempt < 2 {
                         // Push conflict — pull latest and re-check lock ownership
-                        let _ = self.git_in_cache(&["pull", "--rebase", "origin", HUB_BRANCH]);
+                        let _ = self.git_in_cache(&["pull", "--rebase", &self.remote, HUB_BRANCH]);
                         continue;
                     }
                     return Err(e);
@@ -977,7 +1001,7 @@ impl SyncManager {
 
         // Push with retry
         for attempt in 0..3 {
-            let push_result = self.git_in_cache(&["push", "origin", HUB_BRANCH]);
+            let push_result = self.git_in_cache(&["push", &self.remote, HUB_BRANCH]);
             match push_result {
                 Ok(_) => return Ok(()),
                 Err(e) => {
@@ -989,7 +1013,8 @@ impl SyncManager {
                     }
                     if err_str.contains("rejected") || err_str.contains("non-fast-forward") {
                         if attempt < 2 {
-                            let _ = self.git_in_cache(&["pull", "--rebase", "origin", HUB_BRANCH]);
+                            let _ =
+                                self.git_in_cache(&["pull", "--rebase", &self.remote, HUB_BRANCH]);
                             continue;
                         }
                         bail!("Push failed after 3 retries for locks.json");
@@ -999,6 +1024,11 @@ impl SyncManager {
             }
         }
         Ok(())
+    }
+
+    /// Get the configured git remote name for the hub branch.
+    pub fn remote(&self) -> &str {
+        &self.remote
     }
 
     /// Check if the cache directory is initialized.
@@ -1036,7 +1066,7 @@ impl SyncManager {
 
         // Push with retry on rebase conflict
         for attempt in 0..3 {
-            let push_result = self.git_in_cache(&["push", "origin", HUB_BRANCH]);
+            let push_result = self.git_in_cache(&["push", &self.remote, HUB_BRANCH]);
             match push_result {
                 Ok(_) => return Ok(true),
                 Err(e) => {
@@ -1048,7 +1078,8 @@ impl SyncManager {
                     }
                     if err_str.contains("rejected") || err_str.contains("non-fast-forward") {
                         if attempt < 2 {
-                            let _ = self.git_in_cache(&["pull", "--rebase", "origin", HUB_BRANCH]);
+                            let _ =
+                                self.git_in_cache(&["pull", "--rebase", &self.remote, HUB_BRANCH]);
                             continue;
                         }
                         bail!("Push failed after 3 retries for agent dir {}", agent_id);
