@@ -272,20 +272,25 @@ pub fn check(crosslink_dir: &Path, agent_id: &str) -> Result<()> {
 }
 
 /// Stage trust files, commit, and push (best-effort).
-fn commit_trust_change(cache_dir: &Path, message: &str) -> Result<()> {
-    commit_trust_change_impl(cache_dir, message, false)
+fn commit_trust_change(cache_dir: &Path, crosslink_dir: &Path, message: &str) -> Result<()> {
+    commit_trust_change_impl(cache_dir, crosslink_dir, message, false)
 }
 
 /// Stage trust files, commit without signing, and push (best-effort).
 ///
 /// Used for key publishing during agent init bootstrap, where signing
 /// is not yet configured and would cause a chicken-and-egg failure.
-fn commit_trust_change_unsigned(cache_dir: &Path, message: &str) -> Result<()> {
-    commit_trust_change_impl(cache_dir, message, true)
+fn commit_trust_change_unsigned(cache_dir: &Path, crosslink_dir: &Path, message: &str) -> Result<()> {
+    commit_trust_change_impl(cache_dir, crosslink_dir, message, true)
 }
 
 /// Shared implementation for trust change commits.
-fn commit_trust_change_impl(cache_dir: &Path, message: &str, unsigned: bool) -> Result<()> {
+fn commit_trust_change_impl(
+    cache_dir: &Path,
+    crosslink_dir: &Path,
+    message: &str,
+    unsigned: bool,
+) -> Result<()> {
     let git = |args: &[&str]| -> Result<()> {
         let output = std::process::Command::new("git")
             .current_dir(cache_dir)
