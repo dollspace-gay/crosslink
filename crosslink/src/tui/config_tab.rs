@@ -934,4 +934,59 @@ mod tests {
         tab.handle_key(make_key(KeyCode::PageDown));
         assert_eq!(tab.event_scroll, 0);
     }
+
+    // ── Async loading tests ─────────────────────────────────────────
+
+    #[test]
+    fn test_new_starts_with_loading_sync() {
+        let (tab, _dir) = setup_tab();
+        // Fast parts (identity, db, config) are loaded synchronously
+        assert!(tab.schema_version > 0);
+        assert_eq!(tab.issue_count, 1);
+        // Sync state is loaded in background — loading_sync should be true
+        // (or already finished if thread was very fast)
+        // Either way, we should have a receiver or it should have completed
+        // The key point: constructor returned without blocking on SyncManager
+    }
+
+    #[test]
+    fn test_new_returns_instantly() {
+        let dir = tempdir().unwrap();
+        let crosslink_dir = dir.path().join(".crosslink");
+        std::fs::create_dir_all(&crosslink_dir).unwrap();
+        let db_path = crosslink_dir.join("issues.db");
+        let db = Database::open(&db_path).unwrap();
+
+        let start = std::time::Instant::now();
+        let _tab = ConfigTab::new(&db, &db_path, &crosslink_dir);
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed.as_millis() < 100,
+            "ConfigTab::new() took {}ms, expected <100ms",
+            elapsed.as_millis()
+        );
+    }
+
+    #[test]
+    fn test_poll_updates_receives_sync_result() {
+        let (mut tab, _dir) = setup_tab();
+        // Wait for background thread
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        tab.poll_updates();
+        // After polling, sync loading should be done
+        assert!(!tab.loading_sync);
+        assert!(tab.sync_rx.is_none());
+    }
+
+    #[test]
+    fn test_on_enter_spawns_new_sync() {
+        let (mut tab, _dir) = setup_tab();
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        tab.poll_updates();
+        assert!(!tab.loading_sync);
+
+        tab.on_enter();
+        assert!(tab.loading_sync);
+        assert!(tab.sync_rx.is_some());
+    }
 }

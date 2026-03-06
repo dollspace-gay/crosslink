@@ -1187,4 +1187,75 @@ mod tests {
         tab.handle_key(make_key(KeyCode::Char('k')));
         tab.handle_key(make_key(KeyCode::Enter));
     }
+
+    // ── Async loading tests ─────────────────────────────────────────
+
+    #[test]
+    fn test_new_starts_with_loading_state() {
+        let dir = tempfile::tempdir().unwrap();
+        let tab = AgentsTab::new(dir.path());
+        // Should be loading (background thread spawned) and have a receiver
+        assert!(tab.loading);
+        assert!(tab.load_rx.is_some());
+        // Data should be empty initially (not loaded yet synchronously)
+        assert!(tab.agents.is_empty());
+        assert!(tab.lock_rows.is_empty());
+    }
+
+    #[test]
+    fn test_new_returns_instantly() {
+        let dir = tempfile::tempdir().unwrap();
+        let start = std::time::Instant::now();
+        let _tab = AgentsTab::new(dir.path());
+        let elapsed = start.elapsed();
+        // Constructor should return in under 100ms (no blocking I/O)
+        assert!(
+            elapsed.as_millis() < 100,
+            "AgentsTab::new() took {}ms, expected <100ms",
+            elapsed.as_millis()
+        );
+    }
+
+    #[test]
+    fn test_poll_updates_receives_result() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut tab = AgentsTab::new(dir.path());
+        assert!(tab.loading);
+
+        // Wait for background thread to complete (should be fast with no hub)
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
+        tab.poll_updates();
+        // After polling, loading should be false and receiver consumed
+        assert!(!tab.loading);
+        assert!(tab.load_rx.is_none());
+    }
+
+    #[test]
+    fn test_render_shows_loading_indicator() {
+        let dir = tempfile::tempdir().unwrap();
+        let tab = AgentsTab::new(dir.path());
+        // Render immediately before background thread completes
+        let backend = ratatui::backend::TestBackend::new(100, 30);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        // Should not panic — renders "Loading agents..." or error state
+        terminal
+            .draw(|frame| tab.render(frame, frame.area()))
+            .unwrap();
+    }
+
+    #[test]
+    fn test_on_enter_spawns_new_background_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut tab = AgentsTab::new(dir.path());
+        // Wait for first load to complete
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        tab.poll_updates();
+        assert!(!tab.loading);
+
+        // on_enter should spawn a new background load
+        tab.on_enter();
+        assert!(tab.loading);
+        assert!(tab.load_rx.is_some());
+    }
 }
