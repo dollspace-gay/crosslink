@@ -3,9 +3,10 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Row, Table, Wrap},
+    widgets::{Block, Borders, Paragraph, Row, Table, TableState, Wrap},
     Frame,
 };
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
 use super::{Tab, TabAction};
@@ -81,6 +82,12 @@ pub struct AgentsTab {
     status_msg: String,
     /// Error message if data load failed.
     error_msg: Option<String>,
+    /// TableState for agents view scroll-to-follow.
+    agents_table_state: RefCell<TableState>,
+    /// TableState for locks view scroll-to-follow.
+    locks_table_state: RefCell<TableState>,
+    /// TableState for trust view scroll-to-follow.
+    trust_table_state: RefCell<TableState>,
 }
 
 impl AgentsTab {
@@ -98,6 +105,9 @@ impl AgentsTab {
             detail_scroll: 0,
             status_msg: String::new(),
             error_msg: None,
+            agents_table_state: RefCell::new(TableState::default()),
+            locks_table_state: RefCell::new(TableState::default()),
+            trust_table_state: RefCell::new(TableState::default()),
         };
         tab.refresh();
         tab
@@ -483,11 +493,8 @@ impl AgentsTab {
             let rows: Vec<Row> = self
                 .agents
                 .iter()
-                .enumerate()
-                .map(|(i, agent)| {
-                    let style = if i == self.selected {
-                        Style::default().bg(HIGHLIGHT_BG)
-                    } else if agent.is_stale {
+                .map(|agent| {
+                    let style = if agent.is_stale {
                         Style::default().fg(Color::Red)
                     } else {
                         Style::default()
@@ -529,9 +536,12 @@ impl AgentsTab {
                 ],
             )
             .header(header_row)
-            .block(Block::default().borders(Borders::NONE));
+            .block(Block::default().borders(Borders::NONE))
+            .row_highlight_style(Style::default().bg(HIGHLIGHT_BG));
 
-            frame.render_widget(table, chunks[1]);
+            let mut state = self.agents_table_state.borrow_mut();
+            state.select(Some(self.selected));
+            frame.render_stateful_widget(table, chunks[1], &mut state);
         }
 
         // Context keys
@@ -597,11 +607,8 @@ impl AgentsTab {
             let rows: Vec<Row> = self
                 .lock_rows
                 .iter()
-                .enumerate()
-                .map(|(i, lock)| {
-                    let style = if i == self.lock_selected {
-                        Style::default().bg(HIGHLIGHT_BG)
-                    } else if lock.is_stale {
+                .map(|lock| {
+                    let style = if lock.is_stale {
                         Style::default().fg(Color::Red)
                     } else {
                         Style::default()
@@ -635,9 +642,12 @@ impl AgentsTab {
                 ],
             )
             .header(header_row)
-            .block(Block::default().borders(Borders::NONE));
+            .block(Block::default().borders(Borders::NONE))
+            .row_highlight_style(Style::default().bg(HIGHLIGHT_BG));
 
-            frame.render_widget(table, chunks[1]);
+            let mut state = self.locks_table_state.borrow_mut();
+            state.select(Some(self.lock_selected));
+            frame.render_stateful_widget(table, chunks[1], &mut state);
         }
 
         // Context keys
@@ -698,14 +708,7 @@ impl AgentsTab {
             let rows: Vec<Row> = self
                 .trust_entries
                 .iter()
-                .enumerate()
-                .map(|(i, entry)| {
-                    let style = if i == self.trust_selected {
-                        Style::default().bg(HIGHLIGHT_BG)
-                    } else {
-                        Style::default()
-                    };
-
+                .map(|entry| {
                     // Extract key type from public key (e.g. "ssh-ed25519 AAAA...")
                     let key_type = entry
                         .public_key
@@ -720,7 +723,6 @@ impl AgentsTab {
                         key_type.to_string(),
                         truncate_str(approved, 30),
                     ])
-                    .style(style)
                 })
                 .collect();
 
@@ -733,9 +735,12 @@ impl AgentsTab {
                 ],
             )
             .header(header_row)
-            .block(Block::default().borders(Borders::NONE));
+            .block(Block::default().borders(Borders::NONE))
+            .row_highlight_style(Style::default().bg(HIGHLIGHT_BG));
 
-            frame.render_widget(table, chunks[1]);
+            let mut state = self.trust_table_state.borrow_mut();
+            state.select(Some(self.trust_selected));
+            frame.render_stateful_widget(table, chunks[1], &mut state);
         }
 
         // Context keys
