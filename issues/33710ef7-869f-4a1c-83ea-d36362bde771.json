@@ -6,5 +6,8 @@
   "priority": "high",
   "created_by": "driver--fix-kickoff-agent-key-not-being-published-after-creation",
   "created_at": "2026-03-08T18:52:54.060234Z",
-  "updated_at": "2026-03-08T18:52:54.060234Z"
+  "updated_at": "2026-03-08T18:52:55.975902Z",
+  "labels": [
+    "bug"
+  ]
 }
