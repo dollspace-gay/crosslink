@@ -6,7 +6,7 @@
   "priority": "high",
   "created_by": "driver--comprehensive-readme-and-quarto-docs-src-documentation",
   "created_at": "2026-03-09T00:50:28.333994Z",
-  "updated_at": "2026-03-09T01:06:01.928022Z",
+  "updated_at": "2026-03-09T19:38:28.272077Z",
   "labels": [
     "enhancement"
   ],
@@ -24,6 +24,13 @@
       "content": "Decision: Created 4 new guide pages (swarm.qmd, knowledge.qmd, tui.qmd, container-agents.qmd) as standalone guides rather than expanding existing pages -- each feature is distinct enough to warrant its own page. Updated _quarto.yml, index.qmd, commands.qmd, multi-agent.qmd, hooks.qmd, hook-config.qmd, quickstart.qmd, and README.md with cross-references and expanded content.",
       "created_at": "2026-03-09T01:06:01.928022Z",
       "kind": "decision"
+    },
+    {
+      "id": 240,
+      "author": "driver--comprehensive-readme-and-quarto-docs-src-documentation",
+      "content": "Session auto-ended (stale after 1128 minutes). No handoff notes provided.",
+      "created_at": "2026-03-09T19:38:28.272076Z",
+      "kind": "handoff"
     }
   ]
 }
