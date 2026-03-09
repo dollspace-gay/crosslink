@@ -511,24 +511,32 @@ impl KnowledgeManager {
         std::fs::remove_file(&path).context("Failed to delete page")
     }
 
-    /// Search knowledge page content for a query string (case-insensitive).
+    /// Search knowledge page content using word-level fuzzy matching.
     ///
-    /// Returns matches with surrounding context lines. Each contiguous group
-    /// of matching lines within a file produces one `SearchMatch`.
+    /// Tokenizes the query into words and matches lines containing any query
+    /// term (case-insensitive). Results are ranked by the number of distinct
+    /// query terms matched within each page — pages matching more terms appear
+    /// first. Within a page, contiguous matching lines are grouped with
+    /// surrounding context.
     pub fn search_content(&self, query: &str, context: usize) -> Result<Vec<SearchMatch>> {
-        let mut results = Vec::new();
-
         if !self.cache_dir.exists() {
-            return Ok(results);
+            return Ok(Vec::new());
         }
 
         let query_lower = query.to_lowercase();
+        let terms: Vec<&str> = query_lower.split_whitespace().collect();
+        if terms.is_empty() {
+            return Ok(Vec::new());
+        }
 
         let mut entries: Vec<_> = std::fs::read_dir(&self.cache_dir)?
             .filter_map(|e| e.ok())
             .filter(|e| e.path().extension().map(|ext| ext == "md").unwrap_or(false))
             .collect();
         entries.sort_by_key(|e| e.file_name());
+
+        // Collect (term_match_count, matches) per file for ranking
+        let mut scored_results: Vec<(usize, Vec<SearchMatch>)> = Vec::new();
 
         for entry in entries {
             let path = entry.path();
@@ -539,17 +547,31 @@ impl KnowledgeManager {
                 .to_string();
             let content = std::fs::read_to_string(&path)?;
             let lines: Vec<&str> = content.lines().collect();
+            let content_lower = content.to_lowercase();
 
-            // Find all matching line indices
+            // Count how many distinct query terms appear anywhere in this page
+            let term_hits = terms
+                .iter()
+                .filter(|term| content_lower.contains(**term))
+                .count();
+
+            if term_hits == 0 {
+                continue;
+            }
+
+            // Find lines matching any query term
             let matching_indices: Vec<usize> = lines
                 .iter()
                 .enumerate()
-                .filter(|(_, line)| line.to_lowercase().contains(&query_lower))
+                .filter(|(_, line)| {
+                    let line_lower = line.to_lowercase();
+                    terms.iter().any(|term| line_lower.contains(term))
+                })
                 .map(|(i, _)| i)
                 .collect();
 
-            // Group matches that overlap with context into contiguous groups
             let groups = group_matches(&matching_indices, context);
+            let mut file_matches = Vec::new();
 
             for group in groups {
                 let first_match = group[0];
@@ -561,15 +583,25 @@ impl KnowledgeManager {
                     .map(|i| (i + 1, lines[i].to_string()))
                     .collect();
 
-                results.push(SearchMatch {
+                file_matches.push(SearchMatch {
                     slug: slug.clone(),
                     line_number: first_match + 1,
                     context_lines,
                 });
             }
+
+            if !file_matches.is_empty() {
+                scored_results.push((term_hits, file_matches));
+            }
         }
 
-        Ok(results)
+        // Sort by term hit count descending (pages matching more terms first)
+        scored_results.sort_by(|a, b| b.0.cmp(&a.0));
+
+        Ok(scored_results
+            .into_iter()
+            .flat_map(|(_, matches)| matches)
+            .collect())
     }
 
     /// Search knowledge pages by source URL domain.
@@ -1379,7 +1411,7 @@ updated: 2026-01-01
             setup_search_manager(&[("rust-testing", page_a), ("ci-setup", page_b)]);
 
         let results = manager.search_content("property testing", 0).unwrap();
-        assert_eq!(results.len(), 2);
+        assert!(results.len() >= 2, "Should match in both files");
 
         let slugs: Vec<&str> = results.iter().map(|r| r.slug.as_str()).collect();
         assert!(slugs.contains(&"ci-setup"));
@@ -1425,6 +1457,42 @@ updated: 2026-01-01
         let manager = KnowledgeManager::new(&crosslink_dir).unwrap();
         let results = manager.search_content("anything", 0).unwrap();
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_search_content_word_level_matching() {
+        // "modular architecture" should match a page containing both words non-adjacently
+        let page = "---\ntitle: Modular Tabular Ingestion\ntags: []\nsources: []\ncontributors: []\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n\n# Modular Tabular Ingestion — Architecture Overview\n\nThe system uses a modular design.\n";
+        let (_dir, manager) = setup_search_manager(&[("modular-ingestion", page)]);
+
+        let results = manager.search_content("modular architecture", 0).unwrap();
+        assert!(!results.is_empty(), "Should match on individual words");
+        assert_eq!(results[0].slug, "modular-ingestion");
+    }
+
+    #[test]
+    fn test_search_content_ranks_by_term_hits() {
+        // Page A matches both terms, Page B matches only one
+        let page_a = "---\ntitle: Full Match\ntags: []\nsources: []\ncontributors: []\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n\nRust async patterns for concurrency.\n";
+        let page_b = "---\ntitle: Partial Match\ntags: []\nsources: []\ncontributors: []\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n\nJava concurrency utilities.\n";
+        let (_dir, manager) =
+            setup_search_manager(&[("full-match", page_a), ("partial-match", page_b)]);
+
+        let results = manager.search_content("rust concurrency", 0).unwrap();
+        assert_eq!(results.len(), 2);
+        // Page matching both terms should come first
+        assert_eq!(results[0].slug, "full-match");
+        assert_eq!(results[1].slug, "partial-match");
+    }
+
+    #[test]
+    fn test_search_content_single_word_still_works() {
+        let page = "---\ntitle: Test\ntags: []\nsources: []\ncontributors: []\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n\nProptest is a property testing framework.\n";
+        let (_dir, manager) = setup_search_manager(&[("proptest", page)]);
+
+        let results = manager.search_content("proptest", 0).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].slug, "proptest");
     }
 
     #[test]
