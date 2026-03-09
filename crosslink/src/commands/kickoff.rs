@@ -1098,6 +1098,34 @@ fn init_worktree_agent(worktree_dir: &Path, crosslink_dir: &Path, slug: &str) ->
                 true, // no-key: inherit parent's key
                 false,
             );
+
+            // Copy parent's SSH key info into the new agent config and publish
+            // the key under the new agent ID so `crosslink trust approve` can find it.
+            if let Some(parent_config) = AgentConfig::load(crosslink_dir)? {
+                if let Some(ref public_key) = parent_config.ssh_public_key {
+                    if let Ok(Some(mut child_config)) = AgentConfig::load(&wt_crosslink) {
+                        child_config.ssh_key_path = parent_config.ssh_key_path.clone();
+                        child_config.ssh_fingerprint = parent_config.ssh_fingerprint.clone();
+                        child_config.ssh_public_key = Some(public_key.clone());
+
+                        let agent_json = wt_crosslink.join("agent.json");
+                        if let Ok(json) = serde_json::to_string_pretty(&child_config) {
+                            let _ = std::fs::write(&agent_json, json);
+                        }
+
+                        // Publish the parent's public key under the new agent ID
+                        if let Err(e) =
+                            super::trust::publish_agent_key(&wt_crosslink, &agent_id, public_key)
+                        {
+                            eprintln!(
+                                "Warning: Could not publish key for agent '{}': {}",
+                                agent_id, e
+                            );
+                            eprintln!("Key will be auto-published on next `crosslink sync`.");
+                        }
+                    }
+                }
+            }
         }
     }
 
