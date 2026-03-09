@@ -6,7 +6,7 @@
   "priority": "high",
   "created_by": "driver--comprehensive-readme-and-quarto-docs-src-documentation",
   "created_at": "2026-03-09T00:50:28.333994Z",
-  "updated_at": "2026-03-09T19:39:04.669334Z",
+  "updated_at": "2026-03-09T20:01:09.678011Z",
   "labels": [
     "enhancement"
   ],
@@ -44,6 +44,13 @@
       "author": "driver--comprehensive-readme-and-quarto-docs-src-documentation",
       "content": "Result: Comprehensive documentation overhaul complete. Created 4 new Quarto guide pages (swarm.qmd, knowledge.qmd, tui.qmd, container-agents.qmd). Updated _quarto.yml navbar/sidebar with all new pages + kickoff-report reference. Updated index.qmd with 4 new feature cards. Expanded commands.qmd with kickoff, swarm, container, TUI, and context command sections. Updated multi-agent.qmd with SSH signing and cross-references. Updated hooks.qmd with drift detection, intervention tracking, and context verification. Updated hook-config.qmd with 8 new config field docs. Updated quickstart.qmd and README.md with links to all new guides.",
       "created_at": "2026-03-09T19:39:04.669334Z",
+      "kind": "result"
+    },
+    {
+      "id": 243,
+      "author": "driver--comprehensive-readme-and-quarto-docs-src-documentation",
+      "content": "Committed: docs: add comprehensive Quarto guides for swarm, knowledge, TUI, and container agents | Files: 12 files changed, 852 insertions(+), 8 deletions(-)",
+      "created_at": "2026-03-09T20:01:09.678010Z",
       "kind": "result"
     }
   ]
