@@ -53,12 +53,12 @@ def load_rule_file(rules_dir, filename, rules_local_dir=None):
 def load_all_rules(crosslink_dir):
     """Load all rule files from .crosslink/rules/, with .crosslink/rules.local/ overrides."""
     if not crosslink_dir:
-        return {}, "", ""
+        return {}, "", "", ""
 
     rules_dir = os.path.join(crosslink_dir, 'rules')
     rules_local_dir = os.path.join(crosslink_dir, 'rules.local')
     if not os.path.isdir(rules_dir) and not os.path.isdir(rules_local_dir):
-        return {}, "", ""
+        return {}, "", "", ""
 
     # Make rules_local_dir None if it doesn't exist, so load_rule_file skips it
     if not os.path.isdir(rules_local_dir):
@@ -69,6 +69,9 @@ def load_all_rules(crosslink_dir):
 
     # Load project rules
     project_rules = load_rule_file(rules_dir, 'project.md', rules_local_dir)
+
+    # Load knowledge rules
+    knowledge_rules = load_rule_file(rules_dir, 'knowledge.md', rules_local_dir)
 
     # Load language-specific rules
     language_rules = {}
@@ -116,7 +119,7 @@ def load_all_rules(crosslink_dir):
         except OSError:
             pass
 
-    return language_rules, global_rules, project_rules
+    return language_rules, global_rules, project_rules, knowledge_rules
 
 
 # Detect language from common file extensions in the working directory
@@ -400,7 +403,7 @@ def get_dependencies(max_deps=30):
     return ""
 
 
-def build_reminder(languages, project_tree, dependencies, language_rules, global_rules, project_rules, tracking_mode="strict", crosslink_dir=None):
+def build_reminder(languages, project_tree, dependencies, language_rules, global_rules, project_rules, tracking_mode="strict", crosslink_dir=None, knowledge_rules=""):
     """Build the full reminder context."""
     lang_section = get_language_section(languages, language_rules)
     lang_list = ", ".join(languages) if languages else "this project"
@@ -503,11 +506,16 @@ Use `crosslink session work <id>` to mark what you're working on.
     if project_rules:
         project_section = f"\n### Project-Specific Rules\n{project_rules}\n"
 
+    # Build knowledge section (from .crosslink/rules/knowledge.md)
+    knowledge_section = ""
+    if knowledge_rules:
+        knowledge_section = f"\n{knowledge_rules}\n"
+
     reminder = f"""<crosslink-behavioral-guard>
 ## Code Quality Requirements
 
 You are working on a {lang_list} project. Follow these requirements strictly:
-{tree_section}{deps_section}{global_section}{tracking_section}{lang_section}{project_section}
+{tree_section}{deps_section}{global_section}{tracking_section}{lang_section}{project_section}{knowledge_section}
 </crosslink-behavioral-guard>"""
 
     return reminder
@@ -646,7 +654,7 @@ def main():
         save_guard_state(crosslink_dir, state)
         sys.exit(0)
 
-    language_rules, global_rules, project_rules = load_all_rules(crosslink_dir)
+    language_rules, global_rules, project_rules, knowledge_rules = load_all_rules(crosslink_dir)
 
     # Detect languages in the project
     languages = detect_languages()
@@ -658,7 +666,7 @@ def main():
     dependencies = get_dependencies()
 
     # Output the full reminder
-    print(build_reminder(languages, project_tree, dependencies, language_rules, global_rules, project_rules, tracking_mode, crosslink_dir))
+    print(build_reminder(languages, project_tree, dependencies, language_rules, global_rules, project_rules, tracking_mode, crosslink_dir, knowledge_rules))
 
     # Mark that we've sent the full guard this session
     mark_full_guard_sent(crosslink_dir)
