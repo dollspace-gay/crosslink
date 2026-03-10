@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Row, Table, TableState, Wrap},
     Frame,
 };
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -50,6 +50,8 @@ pub struct KnowledgeTab {
     reader_slug: Option<String>,
     /// Scroll offset for the reader view.
     reader_scroll: u16,
+    /// Maximum scroll offset computed during render (content lines − viewport height).
+    reader_max_scroll: Cell<u16>,
     /// Status message.
     status_msg: String,
     /// Error message if data load failed.
@@ -74,6 +76,7 @@ impl KnowledgeTab {
             reader_frontmatter: None,
             reader_slug: None,
             reader_scroll: 0,
+            reader_max_scroll: Cell::new(0),
             status_msg: String::new(),
             error_msg: None,
             list_table_state: RefCell::new(TableState::default()),
@@ -272,7 +275,8 @@ impl KnowledgeTab {
                 TabAction::Consumed
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                self.reader_scroll = self.reader_scroll.saturating_add(1);
+                let max = self.reader_max_scroll.get();
+                self.reader_scroll = self.reader_scroll.saturating_add(1).min(max);
                 TabAction::Consumed
             }
             KeyCode::Up | KeyCode::Char('k') => {
@@ -280,7 +284,8 @@ impl KnowledgeTab {
                 TabAction::Consumed
             }
             KeyCode::PageDown => {
-                self.reader_scroll = self.reader_scroll.saturating_add(10);
+                let max = self.reader_max_scroll.get();
+                self.reader_scroll = self.reader_scroll.saturating_add(10).min(max);
                 TabAction::Consumed
             }
             KeyCode::PageUp => {
@@ -288,7 +293,7 @@ impl KnowledgeTab {
                 TabAction::Consumed
             }
             KeyCode::Char('G') => {
-                self.reader_scroll = u16::MAX;
+                self.reader_scroll = self.reader_max_scroll.get();
                 TabAction::Consumed
             }
             KeyCode::Home => {
@@ -574,10 +579,17 @@ impl KnowledgeTab {
             .constraints([Constraint::Min(0), Constraint::Length(1)])
             .split(area);
 
+        // Clamp scroll so the user can't scroll past content.
+        let content_height = lines.len() as u16;
+        let viewport_height = chunks[0].height;
+        let max_scroll = content_height.saturating_sub(viewport_height);
+        self.reader_max_scroll.set(max_scroll);
+        let clamped_scroll = self.reader_scroll.min(max_scroll);
+
         let paragraph = Paragraph::new(lines)
             .block(Block::default().borders(Borders::NONE))
             .wrap(Wrap { trim: false })
-            .scroll((self.reader_scroll, 0));
+            .scroll((clamped_scroll, 0));
         frame.render_widget(paragraph, chunks[0]);
 
         let keys = Line::from(vec![
@@ -1182,6 +1194,8 @@ mod tests {
         let mut tab = make_tab_with_pages();
         tab.view_mode = ViewMode::Reader;
         tab.reader_content = Some("content".to_string());
+        // Simulate a render having computed a max scroll value.
+        tab.reader_max_scroll.set(100);
 
         tab.handle_reader_key(make_key(KeyCode::Char('j')));
         assert_eq!(tab.reader_scroll, 1);
@@ -1198,11 +1212,31 @@ mod tests {
         tab.handle_reader_key(make_key(KeyCode::PageUp));
         assert_eq!(tab.reader_scroll, 1);
 
+        // G jumps to max scroll, not u16::MAX
         tab.handle_reader_key(make_key(KeyCode::Char('G')));
-        assert_eq!(tab.reader_scroll, u16::MAX);
+        assert_eq!(tab.reader_scroll, 100);
 
         tab.handle_reader_key(make_key(KeyCode::Home));
         assert_eq!(tab.reader_scroll, 0);
+    }
+
+    #[test]
+    fn test_reader_scroll_clamps_at_bottom() {
+        let mut tab = make_tab_with_pages();
+        tab.view_mode = ViewMode::Reader;
+        tab.reader_content = Some("short".to_string());
+        tab.reader_max_scroll.set(5);
+
+        // Scrolling past max is clamped
+        for _ in 0..20 {
+            tab.handle_reader_key(make_key(KeyCode::Char('j')));
+        }
+        assert_eq!(tab.reader_scroll, 5);
+
+        // PageDown also clamped
+        tab.reader_scroll = 0;
+        tab.handle_reader_key(make_key(KeyCode::PageDown));
+        assert_eq!(tab.reader_scroll, 5);
     }
 
     #[test]
