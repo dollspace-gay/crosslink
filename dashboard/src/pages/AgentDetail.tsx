@@ -94,7 +94,7 @@ export function AgentDetail() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <h1 className="text-xl font-bold font-mono truncate flex-1">{agent.id}</h1>
+        <h1 className="text-xl font-bold font-mono truncate flex-1">{agent.agent_id}</h1>
         <Badge variant={statusVariant(agent.status)}>{agent.status}</Badge>
       </div>
 

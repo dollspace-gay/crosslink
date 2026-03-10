@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { SessionPanel } from "@/components/SessionPanel";
 
 interface NavItem {
   label: string;
@@ -84,6 +85,11 @@ export function Sidebar() {
           ))}
         </nav>
       </ScrollArea>
+
+      {/* Session status widget */}
+      <div className="border-t border-sidebar-border">
+        <SessionPanel />
+      </div>
 
       {/* Footer */}
       <div className="border-t border-sidebar-border px-4 py-3">

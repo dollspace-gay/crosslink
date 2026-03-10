@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LabelManager } from "@/components/LabelManager";
+import { DependencyEditor } from "@/components/DependencyEditor";
 import { formatDateTime, formatRelativeTime } from "@/lib/utils";
 import type { IssueDetail as IssueDetailType } from "@/lib/types";
 
@@ -68,13 +70,10 @@ export function IssueDetail() {
             {issue.status}
           </Badge>
           <Badge variant="outline">{issue.priority}</Badge>
-          {issue.labels.map((l) => (
-            <Badge key={l} variant="secondary">{l}</Badge>
-          ))}
           <span className="text-xs text-muted-foreground">
             Updated {formatRelativeTime(issue.updated_at)}
           </span>
-          <Button size="sm" variant="outline" onClick={handleToggle}>
+          <Button size="sm" variant="outline" onClick={() => void handleToggle()}>
             {issue.status === "open" ? "Close" : "Reopen"}
           </Button>
         </div>
@@ -88,33 +87,30 @@ export function IssueDetail() {
         </Card>
       )}
 
-      {(issue.blockers.length > 0 || issue.blocking.length > 0) && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Dependencies</CardTitle></CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {issue.blockers.length > 0 && (
-              <div>
-                <span className="text-muted-foreground">Blocked by: </span>
-                {issue.blockers.map((bid) => (
-                  <Link key={bid} to={`/issues/${bid}`} className="text-blue-400 hover:underline mr-2">
-                    #{bid}
-                  </Link>
-                ))}
-              </div>
-            )}
-            {issue.blocking.length > 0 && (
-              <div>
-                <span className="text-muted-foreground">Blocking: </span>
-                {issue.blocking.map((bid) => (
-                  <Link key={bid} to={`/issues/${bid}`} className="text-blue-400 hover:underline mr-2">
-                    #{bid}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {/* Labels — inline management */}
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Labels</CardTitle></CardHeader>
+        <CardContent>
+          <LabelManager
+            issueId={numId}
+            labels={issue.labels}
+            onChange={() => void fetchDetail(numId)}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Dependencies — inline management */}
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Dependencies</CardTitle></CardHeader>
+        <CardContent>
+          <DependencyEditor
+            issueId={numId}
+            blockers={issue.blockers}
+            blocking={issue.blocking}
+            onChange={() => void fetchDetail(numId)}
+          />
+        </CardContent>
+      </Card>
 
       {issue.subissues.length > 0 && (
         <Card>
@@ -151,7 +147,7 @@ export function IssueDetail() {
             </CardContent>
           </Card>
         ))}
-        <form onSubmit={handleComment} className="flex gap-2">
+        <form onSubmit={(e) => void handleComment(e)} className="flex gap-2">
           <Input
             placeholder="Add a comment…"
             value={newComment}

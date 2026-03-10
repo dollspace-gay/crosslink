@@ -289,36 +289,6 @@ export interface AgentLockEntry {
   stale: boolean;
 }
 
-/**
- * Agent summary — returned by GET /api/v1/agents.
- * Used throughout the frontend (list view, stores, WebSocket updates).
- */
-export interface Agent {
-  id: string;
-  machine_id: string;
-  description: string | null;
-  status: AgentStatus;
-  last_heartbeat: AgentHeartbeat | null;
-  active_issue_id: number | null;
-  branch: string | null;
-  worktree_path: string | null;
-  tmux_session: string | null;
-  locks: AgentLockEntry[];
-}
-
-/**
- * Full agent detail — returned by GET /api/v1/agents/:id.
- * Extends Agent with heartbeat history and kickoff data.
- */
-export interface AgentDetailResponse extends Agent {
-  /** ISO timestamps of all heartbeats in the last 24h, oldest first. */
-  heartbeat_history: string[];
-  /** Content of the agent's .kickoff-status file, if present. */
-  kickoff_status: string | null;
-  /** Full kickoff report markdown, if available. */
-  kickoff_report: string | null;
-}
-
 /** API-contract-level lock entry (mirrors Rust LockEntry). */
 export interface LockEntry {
   issue_id: number;
@@ -474,6 +444,30 @@ export interface ExecutionStatus {
 
 /** Alias: AgentSummary is the canonical agent list item type */
 export type Agent = AgentSummary;
+
+/**
+ * Full agent detail returned by GET /api/v1/agents/:id.
+ * Richer than AgentSummary — includes full heartbeat object, lock entries,
+ * tmux session, and kickoff report fields needed by the detail page.
+ */
+export interface AgentDetailResponse {
+  agent_id: string;
+  machine_id: string;
+  description: string | null;
+  status: AgentStatus;
+  /** Latest heartbeat as a rich object (null if no heartbeat recorded). */
+  last_heartbeat: AgentHeartbeat | null;
+  active_issue_id: number | null;
+  branch: string | null;
+  worktree_path: string | null;
+  tmux_session: string | null;
+  /** Full lock entries for the held-locks display. */
+  locks: AgentLockEntry[];
+  /** ISO timestamps of heartbeats in the last 24h, oldest first. */
+  heartbeat_history: string[];
+  kickoff_status: string | null;
+  kickoff_report: string | null;
+}
 /** Alias: ConfigResponse is the canonical config type */
 export type Config = ConfigResponse;
 /** Alias: LockEntry is the canonical lock type */
@@ -560,12 +554,3 @@ export interface OkResponse {
   ok: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Convenience aliases (used by client.ts and page components)
-// ---------------------------------------------------------------------------
-
-/** Alias: use ConfigResponse as Config throughout the frontend. */
-export type Config = ConfigResponse;
-
-/** Alias: use SyncStatusResponse as SyncStatus throughout the frontend. */
-export type SyncStatus = SyncStatusResponse;
