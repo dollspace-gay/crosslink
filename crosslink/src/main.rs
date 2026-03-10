@@ -15,6 +15,8 @@ mod knowledge;
 mod lock_check;
 mod locks;
 mod models;
+#[allow(dead_code)]
+mod orchestrator;
 mod server;
 #[allow(dead_code)]
 mod shared_writer;
