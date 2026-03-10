@@ -7,7 +7,7 @@
   "parent_uuid": "078e82a2-3f55-4d6b-94da-00ae2b7c1504",
   "created_by": "maxine--plan-050",
   "created_at": "2026-03-10T22:41:01.398062Z",
-  "updated_at": "2026-03-10T23:50:43.572373Z",
+  "updated_at": "2026-03-10T23:50:51.054363Z",
   "comments": [
     {
       "id": 252,
@@ -22,6 +22,13 @@
       "content": "Plan: Add --replace-section and --append-to-section flags to knowledge edit command. Section parser splits body by markdown headings (^#{1,6} ), tracks heading levels. replace_section_content replaces everything between heading and next same-or-higher-level heading. append_to_section_content appends before next heading. Clap argument group enforces mutual exclusivity with --append. Both require --content.",
       "created_at": "2026-03-10T23:50:43.572372Z",
       "kind": "plan"
+    },
+    {
+      "id": 265,
+      "author": "maxine--knowledge-edit",
+      "content": "Decision: Used simple line-by-line section parser rather than an external markdown crate. Heading matching supports both '## Architecture' and 'Architecture' query forms. Subsections are included in the parent section range (replaced/appended along with it). Added #[allow(clippy::too_many_arguments)] on edit() rather than introducing a params struct — keeps the change minimal.",
+      "created_at": "2026-03-10T23:50:51.054362Z",
+      "kind": "decision"
     }
   ]
 }
