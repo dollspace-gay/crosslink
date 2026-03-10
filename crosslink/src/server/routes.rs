@@ -3,6 +3,7 @@ use axum::{routing::get, Router};
 use crate::server::{
     handlers::{
         agents::{get_agent, get_agent_status, list_agents, list_locks, list_stale_locks},
+        config::{get_config, update_config},
         health::health,
         issues::{
             add_blocker, add_comment, add_label, close_issue, create_issue, create_subissue,
@@ -17,6 +18,7 @@ use crate::server::{
         },
         search::global_search,
         sessions::{end_session, get_current_session, start_session, work_on_issue},
+        sync::{sync_fetch, sync_push, sync_status},
     },
     state::AppState,
     ws::ws_handler,
@@ -76,7 +78,13 @@ pub fn build_router(state: AppState, dashboard_dir: Option<std::path::PathBuf>) 
         )
         .route("/knowledge/{slug}", get(get_knowledge_page))
         // Unified search
-        .route("/search", get(global_search));
+        .route("/search", get(global_search))
+        // Sync
+        .route("/sync/status", get(sync_status))
+        .route("/sync/fetch", post(sync_fetch))
+        .route("/sync/push", post(sync_push))
+        // Config
+        .route("/config", get(get_config).patch(update_config));
 
     let mut app = Router::new()
         .nest("/api/v1", api)
