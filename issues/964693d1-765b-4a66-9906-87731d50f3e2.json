@@ -7,13 +7,20 @@
   "parent_uuid": "078e82a2-3f55-4d6b-94da-00ae2b7c1504",
   "created_by": "maxine--plan-050",
   "created_at": "2026-03-10T22:41:01.398062Z",
-  "updated_at": "2026-03-10T22:41:02.806482Z",
+  "updated_at": "2026-03-10T23:50:43.572373Z",
   "comments": [
     {
       "id": 252,
       "author": "maxine--plan-050",
       "content": "Covers REQ-1, AC-1 through AC-3. Needs: section parser (~80 lines), two new clap flags (~30 lines), edit logic (~100 lines), tests (~150 lines). No existing section parsing in knowledge.rs — must be built from scratch. Key risk: mutual exclusivity with existing --append flag requires clap argument group.",
       "created_at": "2026-03-10T22:41:02.806482Z",
+      "kind": "plan"
+    },
+    {
+      "id": 264,
+      "author": "maxine--knowledge-edit",
+      "content": "Plan: Add --replace-section and --append-to-section flags to knowledge edit command. Section parser splits body by markdown headings (^#{1,6} ), tracks heading levels. replace_section_content replaces everything between heading and next same-or-higher-level heading. append_to_section_content appends before next heading. Clap argument group enforces mutual exclusivity with --append. Both require --content.",
+      "created_at": "2026-03-10T23:50:43.572372Z",
       "kind": "plan"
     }
   ]
