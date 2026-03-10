@@ -1,11 +1,11 @@
 {
   "version": 1,
   "locks": {
-    "154": {
-      "agent_id": "driver--add-platform-specific-remediation-hints-to-preflight",
+    "153": {
+      "agent_id": "driver--fix-kickoff-agent-key-not-being-published-after-creation",
       "branch": null,
-      "claimed_at": "2026-03-08T19:19:34.610344Z",
-      "signed_by": "driver--add-platform-specific-remediation-hints-to-preflight"
+      "claimed_at": "2026-03-08T18:53:01.246664Z",
+      "signed_by": "driver--fix-kickoff-agent-key-not-being-published-after-creation"
     },
     "4": {
       "agent_id": "driver--comprehensive-readme-and-quarto-docs-src-documentation",
@@ -24,12 +24,6 @@
       "branch": null,
       "claimed_at": "2026-03-07T04:58:10.462069Z",
       "signed_by": "SHA256:k0PWejDto36xlyTpXwVGHDbRl7ZIvkCkaAU0ioOEhRU"
-    },
-    "153": {
-      "agent_id": "driver--fix-kickoff-agent-key-not-being-published-after-creation",
-      "branch": null,
-      "claimed_at": "2026-03-08T18:53:01.246664Z",
-      "signed_by": "driver--fix-kickoff-agent-key-not-being-published-after-creation"
     }
   },
   "settings": {
