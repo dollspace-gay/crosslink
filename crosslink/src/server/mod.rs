@@ -1,6 +1,7 @@
 pub mod handlers;
 pub mod routes;
 pub mod state;
+pub mod types;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
