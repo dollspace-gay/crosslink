@@ -14,6 +14,7 @@ import { Sync } from "@/pages/Sync";
 import { Config } from "@/pages/Config";
 import { Orchestrator } from "@/pages/Orchestrator";
 import { Execution } from "@/pages/Execution";
+import { CommandPalette } from "@/components/CommandPalette";
 import { wsClient } from "@/api/ws";
 import { useAgentsStore } from "@/stores/agents";
 import { useIssuesStore } from "@/stores/issues";
@@ -52,6 +53,7 @@ export function App() {
   return (
     <BrowserRouter>
       <WsListener />
+      <CommandPalette />
       <div className="flex h-screen overflow-hidden bg-background text-foreground">
         <Sidebar />
         <main className="flex-1 overflow-y-auto">

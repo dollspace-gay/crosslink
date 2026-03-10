@@ -3,11 +3,13 @@ import type {
   AgentDetailResponse,
   Comment,
   Config,
+  CreateKnowledgePageRequest,
   HealthResponse,
   Issue,
   IssueDetail,
   IssuePriority,
   KnowledgePage,
+  KnowledgeSearchMatch,
   Lock,
   MilestoneDetail,
   OrchestratorPlan,
@@ -150,10 +152,10 @@ export const milestones = {
 export const knowledge = {
   list: () => request<KnowledgePage[]>("/knowledge"),
   get: (slug: string) => request<KnowledgePage>(`/knowledge/${encodeURIComponent(slug)}`),
-  create: (data: Omit<KnowledgePage, "created_at" | "updated_at">) =>
+  create: (data: CreateKnowledgePageRequest) =>
     request<KnowledgePage>("/knowledge", { method: "POST", body: JSON.stringify(data) }),
   search: (q: string) =>
-    request<KnowledgePage[]>(`/knowledge/search?q=${encodeURIComponent(q)}`),
+    request<KnowledgeSearchMatch[]>(`/knowledge/search?q=${encodeURIComponent(q)}`),
 };
 
 // ── Agents ────────────────────────────────────────────────────────────────────
