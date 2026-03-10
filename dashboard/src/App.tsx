@@ -40,7 +40,7 @@ function WsListener() {
           invalidate(msg.issue_id);
           break;
         case "execution_progress":
-          applyProgress(msg.phase_id, msg.stage_id, msg.status);
+          applyProgress(msg.phase_id, msg.stage_id, msg.status, msg.agent_id);
           break;
         default:
           break;
