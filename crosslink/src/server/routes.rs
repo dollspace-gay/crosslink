@@ -1,4 +1,7 @@
-use axum::{routing::get, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 
 use crate::server::{
     handlers::{
@@ -9,6 +12,10 @@ use crate::server::{
             delete_issue, get_issue, list_blocked, list_comments, list_issues, list_ready,
             remove_blocker, remove_label, reopen_issue, update_issue,
         },
+        milestones::{
+            assign_milestone, close_milestone, create_milestone, get_milestone, list_milestones,
+        },
+        sessions::{end_session, get_current_session, start_session, work_on_issue},
     },
     state::AppState,
     ws::ws_handler,
@@ -49,7 +56,17 @@ pub fn build_router(state: AppState, dashboard_dir: Option<std::path::PathBuf>) 
         .route("/issues/{id}/labels/{label}", delete(remove_label))
         // Blockers / dependencies
         .route("/issues/{id}/block", post(add_blocker))
-        .route("/issues/{id}/block/{blocker_id}", delete(remove_blocker));
+        .route("/issues/{id}/block/{blocker_id}", delete(remove_blocker))
+        // Sessions
+        .route("/sessions/current", get(get_current_session))
+        .route("/sessions/start", post(start_session))
+        .route("/sessions/end", post(end_session))
+        .route("/sessions/work/{id}", post(work_on_issue))
+        // Milestones
+        .route("/milestones", get(list_milestones).post(create_milestone))
+        .route("/milestones/{id}", get(get_milestone))
+        .route("/milestones/{id}/assign", post(assign_milestone))
+        .route("/milestones/{id}/close", post(close_milestone));
 
     let mut app = Router::new()
         .nest("/api/v1", api)
