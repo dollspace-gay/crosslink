@@ -1,11 +1,9 @@
-use axum::{
-    routing::{get, post},
-    Router,
-};
+use axum::{routing::get, Router};
 
 use crate::server::{
     handlers::{
         agents::{get_agent, get_agent_status, list_agents, list_locks, list_stale_locks},
+        config::{get_config, update_config},
         health::health,
         issues::{
             add_blocker, add_comment, add_label, close_issue, create_issue, create_subissue,
@@ -16,6 +14,7 @@ use crate::server::{
             assign_milestone, close_milestone, create_milestone, get_milestone, list_milestones,
         },
         sessions::{end_session, get_current_session, start_session, work_on_issue},
+        sync::{sync_fetch, sync_push, sync_status},
     },
     state::AppState,
     ws::ws_handler,
@@ -66,7 +65,13 @@ pub fn build_router(state: AppState, dashboard_dir: Option<std::path::PathBuf>) 
         .route("/milestones", get(list_milestones).post(create_milestone))
         .route("/milestones/{id}", get(get_milestone))
         .route("/milestones/{id}/assign", post(assign_milestone))
-        .route("/milestones/{id}/close", post(close_milestone));
+        .route("/milestones/{id}/close", post(close_milestone))
+        // Sync
+        .route("/sync/status", get(sync_status))
+        .route("/sync/fetch", post(sync_fetch))
+        .route("/sync/push", post(sync_push))
+        // Config
+        .route("/config", get(get_config).patch(update_config));
 
     let mut app = Router::new()
         .nest("/api/v1", api)
