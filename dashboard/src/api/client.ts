@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentDetailResponse,
   Comment,
   Config,
   HealthResponse,
@@ -159,7 +160,7 @@ export const knowledge = {
 
 export const agents = {
   list: () => request<Agent[]>("/agents"),
-  get: (id: string) => request<Agent>(`/agents/${encodeURIComponent(id)}`),
+  get: (id: string) => request<AgentDetailResponse>(`/agents/${encodeURIComponent(id)}`),
   getStatus: (id: string) =>
     request<{ status: string; report?: string }>(`/agents/${encodeURIComponent(id)}/status`),
 };

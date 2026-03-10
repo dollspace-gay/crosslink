@@ -277,8 +277,67 @@ export interface KnowledgeSearchMatch {
 // Agents and monitoring
 // ---------------------------------------------------------------------------
 
-export type AgentStatus = "active" | "idle" | "stale" | "unknown";
+export type AgentStatus = "running" | "active" | "idle" | "stale" | "done" | "failed" | "unknown";
 
+/** Heartbeat record attached to an agent (object form used by the frontend). */
+export interface AgentHeartbeat {
+  agent_id: string;
+  timestamp: string; // ISO 8601
+  issue_id: number | null;
+  session_id: number | null;
+  message: string | null;
+}
+
+/** Lock entry as returned inside an agent detail response. */
+export interface AgentLockEntry {
+  issue_id: number;
+  claimed_at: string; // ISO 8601
+  age_seconds: number;
+  stale: boolean;
+}
+
+/**
+ * Agent summary — returned by GET /api/v1/agents.
+ * Used throughout the frontend (list view, stores, WebSocket updates).
+ */
+export interface Agent {
+  id: string;
+  machine_id: string;
+  description: string | null;
+  status: AgentStatus;
+  last_heartbeat: AgentHeartbeat | null;
+  active_issue_id: number | null;
+  branch: string | null;
+  worktree_path: string | null;
+  tmux_session: string | null;
+  locks: AgentLockEntry[];
+}
+
+/**
+ * Full agent detail — returned by GET /api/v1/agents/:id.
+ * Extends Agent with heartbeat history and kickoff data.
+ */
+export interface AgentDetailResponse extends Agent {
+  /** ISO timestamps of all heartbeats in the last 24h, oldest first. */
+  heartbeat_history: string[];
+  /** Content of the agent's .kickoff-status file, if present. */
+  kickoff_status: string | null;
+  /** Full kickoff report markdown, if available. */
+  kickoff_report: string | null;
+}
+
+/** API-contract-level lock entry (mirrors Rust LockEntry). */
+export interface LockEntry {
+  issue_id: number;
+  agent_id: string;
+  branch: string | null;
+  claimed_at: string;
+  signed_by: string;
+  age_seconds: number;
+  is_stale: boolean;
+}
+
+/** API-contract-level agent summary (mirrors Rust AgentSummary). */
 export interface AgentSummary {
   agent_id: string;
   machine_id: string;
@@ -291,19 +350,10 @@ export interface AgentSummary {
   locks: number[];
 }
 
-export interface AgentDetail extends AgentSummary {
+/** API-contract-level agent detail (mirrors Rust AgentDetail). */
+export interface AgentDetailContract extends AgentSummary {
   heartbeat_history: string[];
   kickoff_status: string | null;
-}
-
-export interface LockEntry {
-  issue_id: number;
-  agent_id: string;
-  branch: string | null;
-  claimed_at: string;
-  signed_by: string;
-  age_seconds: number;
-  is_stale: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -493,3 +543,13 @@ export interface ApiError {
 export interface OkResponse {
   ok: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Convenience aliases (used by client.ts and page components)
+// ---------------------------------------------------------------------------
+
+/** Alias: use ConfigResponse as Config throughout the frontend. */
+export type Config = ConfigResponse;
+
+/** Alias: use SyncStatusResponse as SyncStatus throughout the frontend. */
+export type SyncStatus = SyncStatusResponse;
