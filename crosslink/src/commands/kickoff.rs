@@ -1250,11 +1250,7 @@ fn read_watchdog_config(crosslink_dir: &Path) -> WatchdogConfig {
 
 /// Build the watchdog shell script that monitors heartbeat staleness and
 /// nudges idle agents by sending "continue" via tmux send-keys.
-fn build_watchdog_script(
-    session_name: &str,
-    worktree_dir: &Path,
-    cfg: &WatchdogConfig,
-) -> String {
+fn build_watchdog_script(session_name: &str, worktree_dir: &Path, cfg: &WatchdogConfig) -> String {
     // Use portable stat command — try GNU stat first, fall back to BSD
     format!(
         r#"NUDGES=0
@@ -1287,11 +1283,7 @@ done
 
 /// Spawn a background watchdog process that monitors the agent's heartbeat
 /// and sends "continue" to the tmux session if the agent goes idle.
-fn spawn_watchdog(
-    session_name: &str,
-    worktree_dir: &Path,
-    cfg: &WatchdogConfig,
-) -> Result<()> {
+fn spawn_watchdog(session_name: &str, worktree_dir: &Path, cfg: &WatchdogConfig) -> Result<()> {
     let script = build_watchdog_script(session_name, worktree_dir, cfg);
 
     Command::new("bash")
