@@ -1096,12 +1096,18 @@ enum KnowledgeCommands {
     Edit {
         /// Page slug
         slug: String,
-        /// Append content to the page
-        #[arg(long)]
+        /// Append content to the page (mutually exclusive with section flags)
+        #[arg(long, group = "content_mode")]
         append: Option<String>,
         /// Replace page content entirely
         #[arg(long)]
         content: Option<String>,
+        /// Replace the content of a specific markdown section (requires --content)
+        #[arg(long, value_name = "HEADING", group = "content_mode")]
+        replace_section: Option<String>,
+        /// Append to a specific markdown section (requires --content)
+        #[arg(long, value_name = "HEADING", group = "content_mode")]
+        append_to_section: Option<String>,
         /// Add tags (repeatable)
         #[arg(long)]
         tag: Vec<String>,
