@@ -24,6 +24,12 @@
       "branch": null,
       "claimed_at": "2026-03-10T22:45:07.172281Z",
       "signed_by": "SHA256:1zTuPASnfyIT82GbzQyd7/lFzUpR7tLM/gybRTmMTKQ"
+    },
+    "174": {
+      "agent_id": "maxine--basel--gh-issues-299-and-301",
+      "branch": null,
+      "claimed_at": "2026-03-10T23:49:39.867177Z",
+      "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A"
     }
   },
   "settings": {
