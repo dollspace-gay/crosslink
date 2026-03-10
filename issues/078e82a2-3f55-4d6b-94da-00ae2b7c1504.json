@@ -7,5 +7,8 @@
   "priority": "high",
   "created_by": "maxine--plan-050",
   "created_at": "2026-03-10T22:40:51.715069Z",
-  "updated_at": "2026-03-10T22:40:51.715069Z"
+  "updated_at": "2026-03-10T22:40:53.371510Z",
+  "labels": [
+    "feature"
+  ]
 }
