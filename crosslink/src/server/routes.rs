@@ -16,7 +16,9 @@ use crate::server::{
         milestones::{
             assign_milestone, close_milestone, create_milestone, get_milestone, list_milestones,
         },
-        orchestrator::decompose,
+        orchestrator::{
+            decompose_handler, execute, get_plan, get_status, pause, retry_stage, skip_stage,
+        },
         search::global_search,
         sessions::{end_session, get_current_session, start_session, work_on_issue},
         sync::{sync_fetch, sync_push, sync_status},
@@ -90,8 +92,14 @@ pub fn build_router(state: AppState, dashboard_dir: Option<std::path::PathBuf>) 
         // Token usage — static path first to avoid conflict with future /{id}
         .route("/usage/summary", get(usage_summary))
         .route("/usage", get(list_usage).post(create_usage))
-        // Orchestrator
-        .route("/orchestrator/decompose", post(decompose));
+        // Orchestrator — static paths first
+        .route("/orchestrator/plan", get(get_plan))
+        .route("/orchestrator/status", get(get_status))
+        .route("/orchestrator/decompose", post(decompose_handler))
+        .route("/orchestrator/execute", post(execute))
+        .route("/orchestrator/pause", post(pause))
+        .route("/orchestrator/stages/{id}/retry", post(retry_stage))
+        .route("/orchestrator/stages/{id}/skip", post(skip_stage));
 
     let mut app = Router::new()
         .nest("/api/v1", api)

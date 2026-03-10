@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useOrchestratorStore } from "@/stores/orchestrator";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DagGraph } from "@/components/DagGraph";
 import { GanttChart } from "@/components/GanttChart";

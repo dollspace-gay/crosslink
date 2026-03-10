@@ -15,7 +15,9 @@ import { Config } from "@/pages/Config";
 import { Orchestrator } from "@/pages/Orchestrator";
 import { Execution } from "@/pages/Execution";
 import { CommandPalette } from "@/components/CommandPalette";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { Usage } from "@/pages/Usage";
+import { Appearance } from "@/pages/Appearance";
 import { wsClient } from "@/api/ws";
 import { useAgentsStore } from "@/stores/agents";
 import { useIssuesStore } from "@/stores/issues";
@@ -59,6 +61,7 @@ export function App() {
   return (
     <BrowserRouter>
       <WsListener />
+      <ThemeProvider />
       <CommandPalette />
       <div className="flex h-screen overflow-hidden bg-background text-foreground">
         <Sidebar />
@@ -78,6 +81,7 @@ export function App() {
             <Route path="/orchestrator" element={<Orchestrator />} />
             <Route path="/execution" element={<Execution />} />
             <Route path="/usage" element={<Usage />} />
+            <Route path="/appearance" element={<Appearance />} />
           </Routes>
         </main>
       </div>

@@ -11,6 +11,7 @@ import {
   Activity,
   RefreshCw,
   BarChart3,
+  Palette,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -39,6 +40,7 @@ const SECONDARY_NAV: NavItem[] = [
   { label: "Orchestrator", to: "/orchestrator", icon: Layers },
   { label: "Execution", to: "/execution", icon: GitFork },
   { label: "Config", to: "/config", icon: Settings },
+  { label: "Appearance", to: "/appearance", icon: Palette },
 ];
 
 function NavItem({ item }: { item: NavItem }) {
