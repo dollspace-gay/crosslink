@@ -2,11 +2,12 @@
   "uuid": "3f4a4ee4-44d3-43ee-9d3d-2c16bd628ed5",
   "display_id": 91,
   "title": "Check status of all feature agents",
-  "status": "open",
+  "status": "closed",
   "priority": "low",
   "created_by": "maxine-at-forecast--noether--ci-cd-restructure",
   "created_at": "2026-03-02T09:25:28.301266Z",
-  "updated_at": "2026-03-02T09:25:29.982823Z",
+  "updated_at": "2026-03-10T03:19:05.364437Z",
+  "closed_at": "2026-03-10T03:19:05.364437Z",
   "labels": [
     "ops"
   ]
