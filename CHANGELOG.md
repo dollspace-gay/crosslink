@@ -6,6 +6,104 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-03-10
+
+### Added
+
+#### Swarm Orchestration (`crosslink swarm`)
+- `crosslink swarm init/status/resume` commands for multi-agent swarm lifecycle (Phase 1, [GH-233])
+- `crosslink swarm launch/gate/checkpoint` commands for coordinated agent execution (Phase 2, [GH-233])
+- Swarm budget estimation and throttling (Phase 3, [GH-233])
+- Swarm multi-window planning (Phase 4, [GH-233])
+
+#### Mission Control
+- `crosslink mission-control` command for monitoring active agents in a unified dashboard
+
+#### Agent Hooks & Liveness
+- Agent-aware hooks with git flag bypass fix ([GH-164], [GH-226])
+- Hook-based heartbeats for kickoff agent liveness detection
+- Custom sandbox wrapper support for agent isolation (alternative to Docker)
+
+#### Kickoff & Preflight
+- Unified preflight check with macOS `gtimeout` support for kickoff command
+- Platform-specific remediation hints for preflight dependency checks ([CL-154])
+
+#### TUI Improvements
+- Async data loading for TUI agents and config tabs ([GH-254])
+- Table scroll-to-follow across all tabs ([GH-240])
+
+#### Knowledge & Search
+- Word-level fuzzy matching for knowledge search
+
+#### CI
+- Tiered smoke tests for CI pipeline ([GH-242])
+- Restrict fuzz tests to release branches and PRs targeting main
+
+### Fixed
+- Mission-control pane liveness and auto-attach robustness
+- Load `knowledge.md` rules into Claude prompt via `prompt-guard.py`
+- Publish parent SSH key under kickoff agent ID after creation
+- Degrade gracefully when `gpg.ssh.allowedSignersFile` is not configured
+- Replace `unwrap()` calls with proper error handling for strict clippy compliance
+- Restore deleted tests and update preflight test signatures
+- Swarm coherence fixes across all 4 phases ([GH-233])
+- Skip headings inside code fences in design doc parser ([GH-248])
+- Simplify drift reminder to fixed 3-turn interval
+- Pre-flight check for required external commands in kickoff
+
+### Changed
+- README updated with multi-agent orchestration, swarm, kickoff, knowledge, TUI, and hooks features
+
+## [0.3.0] - 2026-03-05
+
+### Added
+
+#### Kickoff Command
+- `crosslink kickoff` CLI command with local and container agent execution
+- Design document parser and `--doc` flag for kickoff
+- `kickoff plan` subcommand for read-only gap analysis
+- Spec validation loop for kickoff agents
+- Structured machine-readable build reports for kickoff agents
+- Dry-run integration tests and additional `build_prompt` unit tests
+
+#### Knowledge Integration
+- Knowledge integration with structured queries, bulk import, MCP server, and auto-inject
+- `--from-doc` flag for `knowledge add` to import from design documents
+
+#### Skills
+- `/maintain` skill for codebase maintenance
+- `/design` skill for interactive design document authoring
+
+#### Locking & Coordination
+- Configurable auto-steal for stale locks
+- Visible warnings when hub sync push falls back to local-only ([CL-4])
+- Configurable git remote for hub/knowledge branches
+- `rules.local/` directory for gitignored local rule overrides
+
+#### CI & Testing
+- Harden CI/CD and expand fuzz testing coverage (T1-T5)
+- Clock skew detection using git commit timestamps as witness
+- Restrict proptest job to release branches and PRs to main to reduce CI minutes
+- VHS tape files and screenshot scripts for docs visuals
+- Unit tests for shared writer lock claim, release, and contention ([CL-1])
+
+#### Code Quality
+- Extract pure functions from kickoff module for testability ([CL-125])
+- Extract monolithic dispatch from `main.rs` into module-level `run()` functions
+
+### Fixed
+- Resolve agent signing chicken-and-egg during init by deferring key publish and using unsigned bootstrap commits
+- Read V2 heartbeats in agents tab and refresh data on tab focus
+- Bail on contended lock claims in `session work` to close timing race
+- Skip worktree agent init in dry-run mode
+- Skip tmux/claude prerequisite checks in dry-run mode
+- Propagate `.claude/hooks` into hub cache worktree on init
+- Deduplicate hub cache issues during hydration and harden INSERT
+- Prevent hub cache dirty state from creating vicious sync loop
+- Milestone add/remove not persisting to coordination branch
+- Use `--worktree` scope for agent signing config in linked worktrees
+- Harden VS Code extension security (E1-E3)
+
 ## [0.2.0] - 2026-03-03
 
 First stable release. Promotes all changes from v0.1.3-beta.1 plus major new features.
