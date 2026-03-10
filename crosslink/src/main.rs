@@ -73,6 +73,334 @@ enum Commands {
         defaults: bool,
     },
 
+    /// Issue lifecycle commands (create, show, list, close, ...)
+    Issue {
+        #[command(subcommand)]
+        action: IssueCommands,
+    },
+
+    /// Time tracking (start, stop, show)
+    Timer {
+        #[command(subcommand)]
+        action: TimerCommands,
+    },
+
+    /// Export issues to JSON or markdown
+    Export {
+        /// Output file path (defaults to stdout)
+        #[arg(short, long)]
+        output: Option<String>,
+        /// Format (json, markdown)
+        #[arg(short, long, default_value = "json")]
+        format: String,
+    },
+
+    /// Import issues from JSON file
+    Import {
+        /// Input file path
+        input: String,
+    },
+
+    /// Archive management
+    Archive {
+        #[command(subcommand)]
+        action: ArchiveCommands,
+    },
+
+    /// Milestone management
+    Milestone {
+        #[command(subcommand)]
+        action: MilestoneCommands,
+    },
+
+    /// Session management
+    Session {
+        #[command(subcommand)]
+        action: SessionCommands,
+    },
+
+    /// Daemon management
+    Daemon {
+        #[command(subcommand)]
+        action: DaemonCommands,
+    },
+
+    /// Code clone detection via cpitd
+    Cpitd {
+        #[command(subcommand)]
+        action: CpitdCommands,
+    },
+
+    /// Agent identity management
+    Agent {
+        #[command(subcommand)]
+        action: AgentCommands,
+    },
+
+    /// Manage signing trust (approve/revoke agent keys)
+    Trust {
+        #[command(subcommand)]
+        action: TrustCommands,
+    },
+
+    /// View and manage issue locks
+    Locks {
+        #[command(subcommand)]
+        action: LocksCommands,
+    },
+
+    /// Push a heartbeat for the current agent (used by hooks)
+    #[command(hide = true)]
+    Heartbeat,
+
+    /// Sync locks and issue state from remote
+    Sync,
+
+    /// Schema migration (to-shared, from-shared, rename-branch)
+    Migrate {
+        #[command(subcommand)]
+        action: MigrateCommands,
+    },
+
+    /// View and modify repo-level configuration
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommands,
+    },
+
+    /// Measure and check context injection overhead
+    Context {
+        #[command(subcommand)]
+        command: ContextCommands,
+    },
+
+    /// Manage crosslink workflow configuration
+    Workflow {
+        #[command(subcommand)]
+        command: WorkflowCommands,
+    },
+
+    /// Manage house style syncing
+    Style {
+        #[command(subcommand)]
+        command: StyleCommands,
+    },
+
+    /// Manage shared knowledge pages
+    Knowledge {
+        #[command(subcommand)]
+        command: KnowledgeCommands,
+    },
+
+    /// Data integrity checks and repair
+    Integrity {
+        #[command(subcommand)]
+        action: Option<IntegrityCommands>,
+    },
+
+    /// Run event compaction manually
+    Compact {
+        /// Force compaction even if lease is held by another agent
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// Launch an agent to implement a feature (local process or container)
+    Kickoff {
+        #[command(subcommand)]
+        action: KickoffCommands,
+    },
+    /// Multi-agent swarm coordination (plan, status, resume)
+    Swarm {
+        #[command(subcommand)]
+        action: SwarmCommands,
+    },
+    /// Interactive terminal dashboard (read-only)
+    Tui,
+    /// Mission control: tmux dashboard showing all active agents
+    #[command(alias = "mission-control")]
+    Mc {
+        /// Panel layout: tiled, even-horizontal, even-vertical
+        #[arg(long, default_value = "tiled")]
+        layout: String,
+    },
+    /// Manage container-based agent execution
+    Container {
+        #[command(subcommand)]
+        action: ContainerCommands,
+    },
+
+    // === Hidden top-level shortcuts (delegate to `issue <verb>`) ===
+
+    /// Create a new issue (shortcut for `issue create`)
+    #[command(hide = true)]
+    Create {
+        /// Issue title
+        title: String,
+        /// Issue description
+        #[arg(short, long)]
+        description: Option<String>,
+        /// Priority (low, medium, high, critical)
+        #[arg(short, long, default_value = "medium")]
+        priority: String,
+        /// Template (bug, feature, refactor, research)
+        #[arg(short, long)]
+        template: Option<String>,
+        /// Add labels to the issue
+        #[arg(short, long)]
+        label: Vec<String>,
+        /// Set as current session work item
+        #[arg(short, long)]
+        work: bool,
+        /// Skip compaction after creation (batch mode -- display ID assigned later)
+        #[arg(long)]
+        defer_id: bool,
+        /// Parent issue ID (creates a subissue)
+        #[arg(long, value_parser = parse_issue_id_clap)]
+        parent: Option<i64>,
+    },
+
+    /// Quick-create an issue (shortcut for `issue quick`)
+    #[command(hide = true)]
+    Quick {
+        /// Issue title
+        title: String,
+        /// Issue description
+        #[arg(short, long)]
+        description: Option<String>,
+        /// Priority (low, medium, high, critical)
+        #[arg(short, long, default_value = "medium")]
+        priority: String,
+        /// Template (bug, feature, refactor, research)
+        #[arg(short, long)]
+        template: Option<String>,
+        /// Add labels to the issue
+        #[arg(short, long)]
+        label: Vec<String>,
+        /// Parent issue ID (creates a subissue)
+        #[arg(long, value_parser = parse_issue_id_clap)]
+        parent: Option<i64>,
+    },
+
+    /// List issues (shortcut for `issue list`)
+    #[command(hide = true)]
+    List {
+        /// Filter by status (open, closed, all)
+        #[arg(short, long, default_value = "open")]
+        status: String,
+        /// Filter by label
+        #[arg(short, long)]
+        label: Option<String>,
+        /// Filter by priority
+        #[arg(short, long)]
+        priority: Option<String>,
+    },
+
+    /// Show issue details (shortcut for `issue show`)
+    #[command(hide = true)]
+    Show {
+        /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
+        id: i64,
+    },
+
+    /// Close an issue (shortcut for `issue close`)
+    #[command(hide = true)]
+    Close {
+        /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
+        id: i64,
+        /// Skip changelog entry
+        #[arg(long)]
+        no_changelog: bool,
+    },
+
+    // === Hidden aliases for common agent mistakes ===
+
+    /// Alias for `issue create`
+    #[command(hide = true)]
+    New {
+        /// Issue title
+        title: String,
+        /// Issue description
+        #[arg(short, long)]
+        description: Option<String>,
+        /// Priority (low, medium, high, critical)
+        #[arg(short, long, default_value = "medium")]
+        priority: String,
+        /// Template (bug, feature, refactor, research)
+        #[arg(short, long)]
+        template: Option<String>,
+        /// Add labels to the issue
+        #[arg(short, long)]
+        label: Vec<String>,
+        /// Set as current session work item
+        #[arg(short, long)]
+        work: bool,
+        /// Parent issue ID (creates a subissue)
+        #[arg(long, value_parser = parse_issue_id_clap)]
+        parent: Option<i64>,
+    },
+
+    /// Alias for `issue list`
+    #[command(hide = true)]
+    Issues {
+        #[command(subcommand)]
+        action: Option<IssuesAliasCommands>,
+    },
+
+    /// Alias for `issue create --parent`
+    #[command(hide = true)]
+    Subissue {
+        /// Parent issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
+        parent: i64,
+        /// Subissue title
+        title: String,
+        /// Subissue description
+        #[arg(short, long)]
+        description: Option<String>,
+        /// Priority (low, medium, high, critical)
+        #[arg(short, long, default_value = "medium")]
+        priority: String,
+        /// Add labels to the subissue
+        #[arg(short, long)]
+        label: Vec<String>,
+        /// Set as current session work item
+        #[arg(short, long)]
+        work: bool,
+    },
+
+    /// Alias for `timer start`
+    #[command(hide = true, name = "start")]
+    TimerStart {
+        /// Issue ID
+        #[arg(value_parser = parse_issue_id_clap)]
+        id: i64,
+    },
+
+    /// Alias for `timer stop`
+    #[command(hide = true, name = "stop")]
+    TimerStop,
+
+    // === Hidden migration aliases ===
+
+    /// Alias for `migrate to-shared`
+    #[command(hide = true, name = "migrate-to-shared")]
+    MigrateToShared,
+
+    /// Alias for `migrate from-shared`
+    #[command(hide = true, name = "migrate-from-shared")]
+    MigrateFromShared,
+
+    /// Alias for `migrate rename-branch`
+    #[command(hide = true, name = "migrate-rename-branch")]
+    MigrateRenameBranch,
+}
+
+/// Issue lifecycle subcommands
+#[derive(Subcommand)]
+enum IssueCommands {
     /// Create a new issue
     Create {
         /// Issue title
@@ -95,6 +423,9 @@ enum Commands {
         /// Skip compaction after creation (batch mode -- display ID assigned later)
         #[arg(long)]
         defer_id: bool,
+        /// Parent issue ID (creates a subissue)
+        #[arg(long, value_parser = parse_issue_id_clap)]
+        parent: Option<i64>,
     },
 
     /// Quick-create an issue and start working on it (create + label + session work)
@@ -113,27 +444,9 @@ enum Commands {
         /// Add labels to the issue
         #[arg(short, long)]
         label: Vec<String>,
-    },
-
-    /// Create a subissue under a parent issue
-    Subissue {
-        /// Parent issue ID
-        #[arg(value_parser = parse_issue_id_clap)]
-        parent: i64,
-        /// Subissue title
-        title: String,
-        /// Subissue description
-        #[arg(short, long)]
-        description: Option<String>,
-        /// Priority (low, medium, high, critical)
-        #[arg(short, long, default_value = "medium")]
-        priority: String,
-        /// Add labels to the subissue
-        #[arg(short, long)]
-        label: Vec<String>,
-        /// Set as current session work item
-        #[arg(short, long)]
-        work: bool,
+        /// Parent issue ID (creates a subissue)
+        #[arg(long, value_parser = parse_issue_id_clap)]
+        parent: Option<i64>,
     },
 
     /// List issues
@@ -326,167 +639,50 @@ enum Commands {
         status: String,
     },
 
+    /// Mark tests as run (resets test reminder)
+    Tested,
+}
+
+/// Timer subcommands
+#[derive(Subcommand)]
+enum TimerCommands {
     /// Start a timer for an issue
     Start {
         /// Issue ID
         #[arg(value_parser = parse_issue_id_clap)]
         id: i64,
     },
-
     /// Stop the current timer
     Stop,
-
     /// Show current timer status
-    Timer,
+    Show,
+}
 
-    /// Mark tests as run (resets test reminder)
-    Tested,
-
-    /// Export issues to JSON or markdown
-    Export {
-        /// Output file path (defaults to stdout)
-        #[arg(short, long)]
-        output: Option<String>,
-        /// Format (json, markdown)
-        #[arg(short, long, default_value = "json")]
-        format: String,
-    },
-
-    /// Import issues from JSON file
-    Import {
-        /// Input file path
-        input: String,
-    },
-
-    /// Archive management
-    Archive {
-        #[command(subcommand)]
-        action: ArchiveCommands,
-    },
-
-    /// Milestone management
-    Milestone {
-        #[command(subcommand)]
-        action: MilestoneCommands,
-    },
-
-    /// Session management
-    Session {
-        #[command(subcommand)]
-        action: SessionCommands,
-    },
-
-    /// Daemon management
-    Daemon {
-        #[command(subcommand)]
-        action: DaemonCommands,
-    },
-
-    /// Code clone detection via cpitd
-    Cpitd {
-        #[command(subcommand)]
-        action: CpitdCommands,
-    },
-
-    /// Agent identity management
-    Agent {
-        #[command(subcommand)]
-        action: AgentCommands,
-    },
-
-    /// Manage signing trust (approve/revoke agent keys)
-    Trust {
-        #[command(subcommand)]
-        action: TrustCommands,
-    },
-
-    /// View and manage issue locks
-    Locks {
-        #[command(subcommand)]
-        action: LocksCommands,
-    },
-
-    /// Push a heartbeat for the current agent (used by hooks)
-    Heartbeat,
-
-    /// Sync locks and issue state from remote
-    Sync,
-
+/// Migration subcommands
+#[derive(Subcommand)]
+enum MigrateCommands {
     /// Migrate local SQLite issues to shared coordination branch
-    MigrateToShared,
-
+    ToShared,
     /// Import shared issues from coordination branch into local SQLite
-    MigrateFromShared,
-
+    FromShared,
     /// Rename coordination branch from crosslink/locks to crosslink/hub
-    MigrateRenameBranch,
+    RenameBranch,
+}
 
-    /// View and modify repo-level configuration
-    Config {
-        #[command(subcommand)]
-        command: ConfigCommands,
-    },
-
-    /// Measure and check context injection overhead
-    Context {
-        #[command(subcommand)]
-        command: ContextCommands,
-    },
-
-    /// Manage crosslink workflow configuration
-    Workflow {
-        #[command(subcommand)]
-        command: WorkflowCommands,
-    },
-
-    /// Manage house style syncing
-    Style {
-        #[command(subcommand)]
-        command: StyleCommands,
-    },
-
-    /// Manage shared knowledge pages
-    Knowledge {
-        #[command(subcommand)]
-        command: KnowledgeCommands,
-    },
-
-    /// Data integrity checks and repair
-    Integrity {
-        #[command(subcommand)]
-        action: Option<IntegrityCommands>,
-    },
-
-    /// Run event compaction manually
-    Compact {
-        /// Force compaction even if lease is held by another agent
-        #[arg(long)]
-        force: bool,
-    },
-
-    /// Launch an agent to implement a feature (local process or container)
-    Kickoff {
-        #[command(subcommand)]
-        action: KickoffCommands,
-    },
-    /// Multi-agent swarm coordination (plan, status, resume)
-    Swarm {
-        #[command(subcommand)]
-        action: SwarmCommands,
-    },
-    /// Interactive terminal dashboard (read-only)
-    Tui,
-    /// Mission control: tmux dashboard showing all active agents
-    #[command(alias = "mission-control")]
-    Mc {
-        /// Panel layout: tiled, even-horizontal, even-vertical
-        #[arg(long, default_value = "tiled")]
-        layout: String,
-    },
-    /// Manage container-based agent execution
-    Container {
-        #[command(subcommand)]
-        action: ContainerCommands,
+/// Helper enum for `crosslink issues <subcommand>` alias
+#[derive(Subcommand)]
+enum IssuesAliasCommands {
+    /// Alias for `issue list`
+    List {
+        /// Filter by status (open, closed, all)
+        #[arg(short, long, default_value = "open")]
+        status: String,
+        /// Filter by label
+        #[arg(short, long)]
+        label: Option<String>,
+        /// Filter by priority
+        #[arg(short, long)]
+        priority: Option<String>,
     },
 }
 
@@ -674,7 +870,7 @@ enum CpitdCommands {
         #[arg(long)]
         ignore: Vec<String>,
         /// Show what would be created without creating issues
-        #[arg(long)]
+        #[arg(long = "dry-run")]
         dry_run: bool,
     },
     /// Show open clone issues
@@ -834,7 +1030,7 @@ enum StyleCommands {
     /// Sync: pull latest from the house style source
     Sync {
         /// Show what would change without writing
-        #[arg(long)]
+        #[arg(long = "dry-run")]
         dry_run: bool,
     },
     /// Diff: show what's drifted from house style
@@ -922,7 +1118,7 @@ enum KnowledgeCommands {
         #[arg(long)]
         overwrite: bool,
         /// Preview imports without writing
-        #[arg(long)]
+        #[arg(long = "dry-run")]
         dry_run: bool,
     },
     /// Search knowledge page content
@@ -1000,7 +1196,7 @@ enum KickoffCommands {
         #[arg(long, default_value = "1h")]
         timeout: String,
         /// Print the agent prompt without launching
-        #[arg(long)]
+        #[arg(long = "dry-run")]
         dry_run: bool,
         /// Branch to use (auto-creates feature branch if omitted)
         #[arg(long)]
@@ -1044,7 +1240,7 @@ enum KickoffCommands {
         #[arg(long, default_value = "30m")]
         timeout: String,
         /// Print the analysis prompt without launching
-        #[arg(long)]
+        #[arg(long = "dry-run")]
         dry_run: bool,
     },
     /// Display a gap report from a previous plan analysis
@@ -1246,6 +1442,315 @@ fn parse_issue_id(s: &str) -> Result<i64> {
     }
 }
 
+/// Emit a hint to stderr (suppressed in quiet mode).
+fn hint(quiet: bool, msg: &str) {
+    if !quiet {
+        eprintln!("hint: {}", msg);
+    }
+}
+
+/// Dispatch an IssueCommands variant.
+fn dispatch_issue(action: IssueCommands, quiet: bool, json: bool) -> Result<()> {
+    match action {
+        IssueCommands::Create {
+            title,
+            description,
+            priority,
+            template,
+            label,
+            work,
+            defer_id,
+            parent,
+        } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            if let Some(parent_id) = parent {
+                let opts = commands::create::CreateOpts {
+                    labels: &label,
+                    work,
+                    quiet,
+                    crosslink_dir: Some(&crosslink_dir),
+                    defer_id: false,
+                };
+                commands::create::run_subissue(
+                    &db,
+                    writer.as_ref(),
+                    parent_id,
+                    &title,
+                    description.as_deref(),
+                    &priority,
+                    &opts,
+                )
+            } else {
+                let opts = commands::create::CreateOpts {
+                    labels: &label,
+                    work,
+                    quiet,
+                    crosslink_dir: Some(&crosslink_dir),
+                    defer_id,
+                };
+                commands::create::run(
+                    &db,
+                    writer.as_ref(),
+                    &title,
+                    description.as_deref(),
+                    &priority,
+                    template.as_deref(),
+                    &opts,
+                )
+            }
+        }
+
+        IssueCommands::Quick {
+            title,
+            description,
+            priority,
+            template,
+            label,
+            parent,
+        } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            if let Some(parent_id) = parent {
+                let opts = commands::create::CreateOpts {
+                    labels: &label,
+                    work: true,
+                    quiet,
+                    crosslink_dir: Some(&crosslink_dir),
+                    defer_id: false,
+                };
+                commands::create::run_subissue(
+                    &db,
+                    writer.as_ref(),
+                    parent_id,
+                    &title,
+                    description.as_deref(),
+                    &priority,
+                    &opts,
+                )
+            } else {
+                let opts = commands::create::CreateOpts {
+                    labels: &label,
+                    work: true,
+                    quiet,
+                    crosslink_dir: Some(&crosslink_dir),
+                    defer_id: false,
+                };
+                commands::create::run(
+                    &db,
+                    writer.as_ref(),
+                    &title,
+                    description.as_deref(),
+                    &priority,
+                    template.as_deref(),
+                    &opts,
+                )
+            }
+        }
+
+        IssueCommands::List {
+            status,
+            label,
+            priority,
+        } => {
+            let db = get_db()?;
+            if json {
+                commands::list::run_json(&db, Some(&status), label.as_deref(), priority.as_deref())
+            } else {
+                commands::list::run(&db, Some(&status), label.as_deref(), priority.as_deref())
+            }
+        }
+
+        IssueCommands::Search { query } => {
+            let db = get_db()?;
+            if json {
+                commands::search::run_json(&db, &query)
+            } else {
+                commands::search::run(&db, &query)
+            }
+        }
+
+        IssueCommands::Show { id } => {
+            let db = get_db()?;
+            if json {
+                commands::show::run_json(&db, id)
+            } else {
+                commands::show::run(&db, id)
+            }
+        }
+
+        IssueCommands::Update {
+            id,
+            title,
+            description,
+            priority,
+        } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            commands::update::run(
+                &db,
+                writer.as_ref(),
+                id,
+                title.as_deref(),
+                description.as_deref(),
+                priority.as_deref(),
+            )
+        }
+
+        IssueCommands::Close { id, no_changelog } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            if quiet {
+                commands::status::close_quiet(
+                    &db,
+                    writer.as_ref(),
+                    id,
+                    !no_changelog,
+                    &crosslink_dir,
+                )
+            } else {
+                commands::status::close(&db, writer.as_ref(), id, !no_changelog, &crosslink_dir)
+            }
+        }
+
+        IssueCommands::CloseAll {
+            label,
+            priority,
+            no_changelog,
+        } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            commands::status::close_all(
+                &db,
+                writer.as_ref(),
+                label.as_deref(),
+                priority.as_deref(),
+                !no_changelog,
+                &crosslink_dir,
+            )
+        }
+
+        IssueCommands::Reopen { id } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            commands::status::reopen(&db, writer.as_ref(), id)
+        }
+
+        IssueCommands::Delete { id, force } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            commands::delete::run(&db, writer.as_ref(), id, force)
+        }
+
+        IssueCommands::Comment { id, text, kind } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            commands::comment::run(&db, writer.as_ref(), id, &text, &kind)
+        }
+
+        IssueCommands::Intervene {
+            id,
+            description,
+            trigger,
+            context,
+        } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            commands::intervene::run(
+                &db,
+                writer.as_ref(),
+                id,
+                &description,
+                &trigger,
+                context.as_deref(),
+                &crosslink_dir,
+            )
+        }
+
+        IssueCommands::Label { id, label } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            commands::label::add(&db, writer.as_ref(), id, &label)
+        }
+
+        IssueCommands::Unlabel { id, label } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            commands::label::remove(&db, writer.as_ref(), id, &label)
+        }
+
+        IssueCommands::Block { id, blocker } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            commands::deps::block(&db, writer.as_ref(), id, blocker)
+        }
+
+        IssueCommands::Unblock { id, blocker } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            commands::deps::unblock(&db, writer.as_ref(), id, blocker)
+        }
+
+        IssueCommands::Blocked => {
+            let db = get_db()?;
+            commands::deps::list_blocked(&db)
+        }
+
+        IssueCommands::Ready => {
+            let db = get_db()?;
+            commands::deps::list_ready(&db)
+        }
+
+        IssueCommands::Relate { id, related } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            commands::relate::add(&db, writer.as_ref(), id, related)
+        }
+
+        IssueCommands::Unrelate { id, related } => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
+            commands::relate::remove(&db, writer.as_ref(), id, related)
+        }
+
+        IssueCommands::Related { id } => {
+            let db = get_db()?;
+            commands::relate::list(&db, id)
+        }
+
+        IssueCommands::Next => {
+            let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            commands::next::run(&db, &crosslink_dir)
+        }
+
+        IssueCommands::Tree { status } => {
+            let db = get_db()?;
+            commands::tree::run(&db, Some(&status))
+        }
+
+        IssueCommands::Tested => {
+            let crosslink_dir = find_crosslink_dir()?;
+            commands::tested::run(&crosslink_dir)
+        }
+    }
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -1272,6 +1777,38 @@ fn main() -> Result<()> {
             commands::init::run(&cwd, &opts)
         }
 
+        // === Canonical grouped commands ===
+
+        Commands::Issue { action } => dispatch_issue(action, cli.quiet, cli.json),
+
+        Commands::Timer { action } => {
+            let db = get_db()?;
+            match action {
+                TimerCommands::Start { id } => commands::timer::start(&db, id),
+                TimerCommands::Stop => commands::timer::stop(&db),
+                TimerCommands::Show => commands::timer::status(&db),
+            }
+        }
+
+        Commands::Migrate { action } => match action {
+            MigrateCommands::ToShared => {
+                let crosslink_dir = find_crosslink_dir()?;
+                let db = get_db()?;
+                commands::migrate::to_shared(&crosslink_dir, &db)
+            }
+            MigrateCommands::FromShared => {
+                let crosslink_dir = find_crosslink_dir()?;
+                let db = get_db()?;
+                commands::migrate::from_shared(&crosslink_dir, &db)
+            }
+            MigrateCommands::RenameBranch => {
+                let crosslink_dir = find_crosslink_dir()?;
+                commands::migrate::rename_branch(&crosslink_dir)
+            }
+        },
+
+        // === Hidden top-level shortcuts ===
+
         Commands::Create {
             title,
             description,
@@ -1280,25 +1817,21 @@ fn main() -> Result<()> {
             label,
             work,
             defer_id,
+            parent,
         } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            let opts = commands::create::CreateOpts {
-                labels: &label,
-                work,
-                quiet: cli.quiet,
-                crosslink_dir: Some(&crosslink_dir),
-                defer_id,
-            };
-            commands::create::run(
-                &db,
-                writer.as_ref(),
-                &title,
-                description.as_deref(),
-                &priority,
-                template.as_deref(),
-                &opts,
+            dispatch_issue(
+                IssueCommands::Create {
+                    title,
+                    description,
+                    priority,
+                    template,
+                    label,
+                    work,
+                    defer_id,
+                    parent,
+                },
+                cli.quiet,
+                cli.json,
             )
         }
 
@@ -1308,26 +1841,107 @@ fn main() -> Result<()> {
             priority,
             template,
             label,
+            parent,
         } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            let opts = commands::create::CreateOpts {
-                labels: &label,
-                work: true,
-                quiet: cli.quiet,
-                crosslink_dir: Some(&crosslink_dir),
-                defer_id: false,
-            };
-            commands::create::run(
-                &db,
-                writer.as_ref(),
-                &title,
-                description.as_deref(),
-                &priority,
-                template.as_deref(),
-                &opts,
+            dispatch_issue(
+                IssueCommands::Quick {
+                    title,
+                    description,
+                    priority,
+                    template,
+                    label,
+                    parent,
+                },
+                cli.quiet,
+                cli.json,
             )
+        }
+
+        Commands::List {
+            status,
+            label,
+            priority,
+        } => {
+            dispatch_issue(
+                IssueCommands::List {
+                    status,
+                    label,
+                    priority,
+                },
+                cli.quiet,
+                cli.json,
+            )
+        }
+
+        Commands::Show { id } => {
+            dispatch_issue(IssueCommands::Show { id }, cli.quiet, cli.json)
+        }
+
+        Commands::Close { id, no_changelog } => {
+            dispatch_issue(
+                IssueCommands::Close { id, no_changelog },
+                cli.quiet,
+                cli.json,
+            )
+        }
+
+        // === Hidden aliases (emit hints) ===
+
+        Commands::New {
+            title,
+            description,
+            priority,
+            template,
+            label,
+            work,
+            parent,
+        } => {
+            hint(cli.quiet, "did you mean 'crosslink issue create'? Using that.");
+            dispatch_issue(
+                IssueCommands::Create {
+                    title,
+                    description,
+                    priority,
+                    template,
+                    label,
+                    work,
+                    defer_id: false,
+                    parent,
+                },
+                cli.quiet,
+                cli.json,
+            )
+        }
+
+        Commands::Issues { action } => {
+            if let Some(IssuesAliasCommands::List {
+                status,
+                label,
+                priority,
+            }) = action
+            {
+                hint(cli.quiet, "did you mean 'crosslink issue list'? Using that.");
+                dispatch_issue(
+                    IssueCommands::List {
+                        status,
+                        label,
+                        priority,
+                    },
+                    cli.quiet,
+                    cli.json,
+                )
+            } else {
+                hint(cli.quiet, "did you mean 'crosslink issue list'? Using that.");
+                dispatch_issue(
+                    IssueCommands::List {
+                        status: "open".to_string(),
+                        label: None,
+                        priority: None,
+                    },
+                    cli.quiet,
+                    cli.json,
+                )
+            }
         }
 
         Commands::Subissue {
@@ -1338,240 +1952,76 @@ fn main() -> Result<()> {
             label,
             work,
         } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            let opts = commands::create::CreateOpts {
-                labels: &label,
-                work,
-                quiet: cli.quiet,
-                crosslink_dir: Some(&crosslink_dir),
-                defer_id: false,
-            };
-            commands::create::run_subissue(
-                &db,
-                writer.as_ref(),
-                parent,
-                &title,
-                description.as_deref(),
-                &priority,
-                &opts,
+            hint(
+                cli.quiet,
+                "did you mean 'crosslink issue create --parent'? Using that.",
+            );
+            dispatch_issue(
+                IssueCommands::Create {
+                    title,
+                    description,
+                    priority,
+                    template: None,
+                    label,
+                    work,
+                    defer_id: false,
+                    parent: Some(parent),
+                },
+                cli.quiet,
+                cli.json,
             )
         }
 
-        Commands::List {
-            status,
-            label,
-            priority,
-        } => {
-            let db = get_db()?;
-            if cli.json {
-                commands::list::run_json(&db, Some(&status), label.as_deref(), priority.as_deref())
-            } else {
-                commands::list::run(&db, Some(&status), label.as_deref(), priority.as_deref())
-            }
-        }
-
-        Commands::Search { query } => {
-            let db = get_db()?;
-            if cli.json {
-                commands::search::run_json(&db, &query)
-            } else {
-                commands::search::run(&db, &query)
-            }
-        }
-
-        Commands::Show { id } => {
-            let db = get_db()?;
-            if cli.json {
-                commands::show::run_json(&db, id)
-            } else {
-                commands::show::run(&db, id)
-            }
-        }
-
-        Commands::Update {
-            id,
-            title,
-            description,
-            priority,
-        } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            commands::update::run(
-                &db,
-                writer.as_ref(),
-                id,
-                title.as_deref(),
-                description.as_deref(),
-                priority.as_deref(),
-            )
-        }
-
-        Commands::Close { id, no_changelog } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            if cli.quiet {
-                commands::status::close_quiet(
-                    &db,
-                    writer.as_ref(),
-                    id,
-                    !no_changelog,
-                    &crosslink_dir,
-                )
-            } else {
-                commands::status::close(&db, writer.as_ref(), id, !no_changelog, &crosslink_dir)
-            }
-        }
-
-        Commands::CloseAll {
-            label,
-            priority,
-            no_changelog,
-        } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            commands::status::close_all(
-                &db,
-                writer.as_ref(),
-                label.as_deref(),
-                priority.as_deref(),
-                !no_changelog,
-                &crosslink_dir,
-            )
-        }
-
-        Commands::Reopen { id } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            commands::status::reopen(&db, writer.as_ref(), id)
-        }
-
-        Commands::Delete { id, force } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            commands::delete::run(&db, writer.as_ref(), id, force)
-        }
-
-        Commands::Comment { id, text, kind } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            commands::comment::run(&db, writer.as_ref(), id, &text, &kind)
-        }
-
-        Commands::Intervene {
-            id,
-            description,
-            trigger,
-            context,
-        } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            commands::intervene::run(
-                &db,
-                writer.as_ref(),
-                id,
-                &description,
-                &trigger,
-                context.as_deref(),
-                &crosslink_dir,
-            )
-        }
-
-        Commands::Label { id, label } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            commands::label::add(&db, writer.as_ref(), id, &label)
-        }
-
-        Commands::Unlabel { id, label } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            commands::label::remove(&db, writer.as_ref(), id, &label)
-        }
-
-        Commands::Block { id, blocker } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            commands::deps::block(&db, writer.as_ref(), id, blocker)
-        }
-
-        Commands::Unblock { id, blocker } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            commands::deps::unblock(&db, writer.as_ref(), id, blocker)
-        }
-
-        Commands::Blocked => {
-            let db = get_db()?;
-            commands::deps::list_blocked(&db)
-        }
-
-        Commands::Ready => {
-            let db = get_db()?;
-            commands::deps::list_ready(&db)
-        }
-
-        Commands::Relate { id, related } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            commands::relate::add(&db, writer.as_ref(), id, related)
-        }
-
-        Commands::Unrelate { id, related } => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            let writer = get_writer(&crosslink_dir);
-            commands::relate::remove(&db, writer.as_ref(), id, related)
-        }
-
-        Commands::Related { id } => {
-            let db = get_db()?;
-            commands::relate::list(&db, id)
-        }
-
-        Commands::Next => {
-            let db = get_db()?;
-            let crosslink_dir = find_crosslink_dir()?;
-            commands::next::run(&db, &crosslink_dir)
-        }
-
-        Commands::Tree { status } => {
-            let db = get_db()?;
-            commands::tree::run(&db, Some(&status))
-        }
-
-        Commands::Start { id } => {
+        Commands::TimerStart { id } => {
+            hint(
+                cli.quiet,
+                "did you mean 'crosslink timer start'? Using that.",
+            );
             let db = get_db()?;
             commands::timer::start(&db, id)
         }
 
-        Commands::Stop => {
+        Commands::TimerStop => {
+            hint(
+                cli.quiet,
+                "did you mean 'crosslink timer stop'? Using that.",
+            );
             let db = get_db()?;
             commands::timer::stop(&db)
         }
 
-        Commands::Timer => {
+        // === Hidden migration aliases ===
+
+        Commands::MigrateToShared => {
+            hint(
+                cli.quiet,
+                "did you mean 'crosslink migrate to-shared'? Using that.",
+            );
+            let crosslink_dir = find_crosslink_dir()?;
             let db = get_db()?;
-            commands::timer::status(&db)
+            commands::migrate::to_shared(&crosslink_dir, &db)
         }
 
-        Commands::Tested => {
+        Commands::MigrateFromShared => {
+            hint(
+                cli.quiet,
+                "did you mean 'crosslink migrate from-shared'? Using that.",
+            );
             let crosslink_dir = find_crosslink_dir()?;
-            commands::tested::run(&crosslink_dir)
+            let db = get_db()?;
+            commands::migrate::from_shared(&crosslink_dir, &db)
         }
+
+        Commands::MigrateRenameBranch => {
+            hint(
+                cli.quiet,
+                "did you mean 'crosslink migrate rename-branch'? Using that.",
+            );
+            let crosslink_dir = find_crosslink_dir()?;
+            commands::migrate::rename_branch(&crosslink_dir)
+        }
+
+        // === Remaining top-level commands (unchanged) ===
 
         Commands::Export { output, format } => {
             let db = get_db()?;
@@ -1651,7 +2101,6 @@ fn main() -> Result<()> {
                 Some(agent) => {
                     let sync = crate::sync::SyncManager::new(&crosslink_dir)?;
                     let _ = sync.init_cache();
-                    // Read active issue from session, if any
                     let db = get_db()?;
                     let active_issue = db
                         .get_current_session_for_agent(None)?
@@ -1659,10 +2108,7 @@ fn main() -> Result<()> {
                     sync.push_heartbeat(&agent, active_issue)?;
                     Ok(())
                 }
-                None => {
-                    // No agent config — not an agent context, silently succeed
-                    Ok(())
-                }
+                None => Ok(()),
             }
         }
 
@@ -1672,21 +2118,6 @@ fn main() -> Result<()> {
             commands::locks_cmd::sync_cmd(&crosslink_dir, &db)
         }
 
-        Commands::MigrateToShared => {
-            let crosslink_dir = find_crosslink_dir()?;
-            let db = get_db()?;
-            commands::migrate::to_shared(&crosslink_dir, &db)
-        }
-
-        Commands::MigrateFromShared => {
-            let crosslink_dir = find_crosslink_dir()?;
-            let db = get_db()?;
-            commands::migrate::from_shared(&crosslink_dir, &db)
-        }
-        Commands::MigrateRenameBranch => {
-            let crosslink_dir = find_crosslink_dir()?;
-            commands::migrate::rename_branch(&crosslink_dir)
-        }
         Commands::Integrity { action } => {
             let crosslink_dir = find_crosslink_dir()?;
             let db = get_db()?;
