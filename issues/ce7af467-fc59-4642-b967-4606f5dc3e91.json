@@ -6,7 +6,7 @@
   "priority": "high",
   "created_by": "maxine--plan-050",
   "created_at": "2026-03-10T22:31:18.498222Z",
-  "updated_at": "2026-03-10T22:31:31.421011Z",
+  "updated_at": "2026-03-10T22:39:09.209340Z",
   "labels": [
     "enhancement"
   ],
@@ -17,6 +17,13 @@
       "content": "Plan: Read-only gap analysis of v0.5.0 design spec against codebase. Exploring knowledge.rs edit command, kickoff.rs subcommands/prompt builder, TUI mod.rs/issues_tab/knowledge_tab, repo root structure, and main.rs CLI structure. Will produce .kickoff-plan.json with gaps, assumptions, subtasks, and conflicts.",
       "created_at": "2026-03-10T22:31:31.421010Z",
       "kind": "plan"
+    },
+    {
+      "id": 250,
+      "author": "maxine--plan-050",
+      "content": "Observation: Three PRs already merged on origin/develop: #294 (CLI restructure, REQ-9), #295 (kickoff agent init/sync, REQ-6), #296 (TUI view state + scroll clamping, REQ-4/REQ-5). These satisfy REQ-4, REQ-5, REQ-6, and REQ-9. Remaining: REQ-1 (knowledge section edits), REQ-2 (kickoff list), REQ-3 (TUI sync), REQ-7 (branch protection), REQ-8 (repo cleanup), REQ-10 (version bump).",
+      "created_at": "2026-03-10T22:39:09.209340Z",
+      "kind": "observation"
     }
   ]
 }
