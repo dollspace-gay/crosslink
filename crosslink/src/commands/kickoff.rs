@@ -17,6 +17,7 @@ pub fn dispatch(
     db: &Database,
     writer: Option<&SharedWriter>,
     quiet: bool,
+    json: bool,
 ) -> Result<()> {
     match command {
         KickoffCommands::Run {
@@ -87,11 +88,11 @@ pub fn dispatch(
         KickoffCommands::ShowPlan { agent } => show_plan(crosslink_dir, &agent),
         KickoffCommands::Report {
             agent,
-            json,
+            json: report_json,
             markdown,
             all,
         } => {
-            let format = if json {
+            let format = if report_json {
                 ReportFormat::Json
             } else if markdown {
                 ReportFormat::Markdown
@@ -106,6 +107,7 @@ pub fn dispatch(
                 report(crosslink_dir, &agent, format)
             }
         }
+        KickoffCommands::List { status } => list(crosslink_dir, &status, json, quiet),
     }
 }
 
@@ -2032,6 +2034,284 @@ pub fn status(crosslink_dir: &Path, agent: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Information about a discovered kickoff agent.
+#[derive(Debug, Serialize)]
+struct AgentInfo {
+    id: String,
+    issue: Option<String>,
+    status: String,
+    session: Option<String>,
+    worktree: String,
+    docker: Option<String>,
+}
+
+/// `crosslink kickoff list`
+///
+/// Enumerate all kickoff agents by scanning worktrees, tmux sessions, and Docker containers.
+pub fn list(crosslink_dir: &Path, status_filter: &str, json: bool, quiet: bool) -> Result<()> {
+    let root = crosslink_dir
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("Cannot determine repo root"))?;
+
+    let worktrees_dir = root.join(".worktrees");
+
+    let mut agents: Vec<AgentInfo> = Vec::new();
+
+    // --- Source 1: Worktree scan ---
+    if worktrees_dir.is_dir() {
+        for entry in std::fs::read_dir(&worktrees_dir)? {
+            let entry = entry?;
+            if !entry.file_type()?.is_dir() {
+                continue;
+            }
+            let dir_name = entry.file_name().to_string_lossy().to_string();
+            let wt_path = entry.path();
+
+            // Read .kickoff-status sentinel
+            let status_file = wt_path.join(".kickoff-status");
+            let agent_status = if status_file.exists() {
+                let raw = std::fs::read_to_string(&status_file)
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
+                normalize_status(&raw)
+            } else {
+                "running".to_string()
+            };
+
+            // Try to read issue from .kickoff-criteria.json or agent config
+            let issue = read_agent_issue(&wt_path, crosslink_dir);
+
+            // Derive agent ID from agent config if available
+            let agent_id = read_agent_id(&wt_path, crosslink_dir)
+                .unwrap_or_else(|| format!("driver--{}", dir_name));
+
+            // Check tmux session
+            let session_name = tmux_session_name(&dir_name);
+            let tmux_active = tmux_session_exists(&session_name);
+
+            // Reconcile status: if sentinel says running but tmux is gone, mark as stopped
+            let final_status = if agent_status == "running" && !tmux_active {
+                // Check if there's a docker container instead (handled below as overlay)
+                "stopped".to_string()
+            } else {
+                agent_status
+            };
+
+            agents.push(AgentInfo {
+                id: agent_id,
+                issue,
+                status: final_status,
+                session: if tmux_active {
+                    Some(session_name)
+                } else {
+                    None
+                },
+                worktree: wt_path.to_string_lossy().to_string(),
+                docker: None,
+            });
+        }
+    }
+
+    // --- Source 2: Docker containers ---
+    if command_available("docker") {
+        if let Ok(output) = Command::new("docker")
+            .args([
+                "ps",
+                "-a",
+                "--filter",
+                "label=crosslink-agent=true",
+                "--format",
+                "{{.Names}}\t{{.Status}}\t{{.Label \"crosslink-task\"}}",
+            ])
+            .output()
+        {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                for line in stdout.lines() {
+                    let parts: Vec<&str> = line.split('\t').collect();
+                    if parts.len() >= 2 {
+                        let container_name = parts[0];
+                        let container_status_raw = parts[1];
+                        let task_label = parts.get(2).unwrap_or(&"");
+
+                        // Try to match to an existing worktree agent
+                        let matched = agents.iter_mut().find(|a| {
+                            // Match by task label containing the worktree dir name
+                            if !task_label.is_empty() {
+                                a.worktree.contains(task_label)
+                            } else {
+                                // Match by container name containing the agent slug
+                                let slug = a.id.rsplit("--").next().unwrap_or(&a.id);
+                                container_name.contains(slug)
+                            }
+                        });
+
+                        if let Some(agent) = matched {
+                            agent.docker = Some(container_name.to_string());
+                            // If container is running, override status
+                            if container_status_raw.starts_with("Up") && agent.status == "stopped" {
+                                agent.status = "running".to_string();
+                            }
+                        } else {
+                            // Docker-only agent (no worktree found)
+                            let docker_status = if container_status_raw.starts_with("Up") {
+                                "running"
+                            } else if container_status_raw.contains("Exited (0)") {
+                                "done"
+                            } else {
+                                "failed"
+                            };
+                            agents.push(AgentInfo {
+                                id: container_name.to_string(),
+                                issue: if task_label.is_empty() {
+                                    None
+                                } else {
+                                    Some(task_label.to_string())
+                                },
+                                status: docker_status.to_string(),
+                                session: None,
+                                worktree: String::new(),
+                                docker: Some(container_name.to_string()),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // --- Filter by status ---
+    let filtered: Vec<&AgentInfo> = if status_filter == "all" {
+        agents.iter().collect()
+    } else {
+        agents
+            .iter()
+            .filter(|a| a.status == status_filter)
+            .collect()
+    };
+
+    // --- Output ---
+    if quiet {
+        for agent in &filtered {
+            println!("{}", agent.id);
+        }
+        return Ok(());
+    }
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&filtered)?);
+        return Ok(());
+    }
+
+    if filtered.is_empty() {
+        println!("No kickoff agents found.");
+        return Ok(());
+    }
+
+    // Table output
+    println!(
+        "{:<36} {:<8} {:<10} {:<24} WORKTREE",
+        "ID", "ISSUE", "STATUS", "SESSION"
+    );
+    for agent in &filtered {
+        let issue_display = agent.issue.as_deref().unwrap_or("-");
+        let session_display = agent.session.as_deref().unwrap_or("-");
+        let worktree_display = if agent.worktree.is_empty() {
+            "-"
+        } else {
+            // Show just the leaf directory name for brevity
+            std::path::Path::new(&agent.worktree)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(&agent.worktree)
+        };
+        // Append docker indicator if present
+        let status_display = if agent.docker.is_some() {
+            format!("{} 🐳", agent.status)
+        } else {
+            agent.status.clone()
+        };
+        println!(
+            "{:<36} {:<8} {:<10} {:<24} {}",
+            truncate_str(&agent.id, 35),
+            truncate_str(issue_display, 7),
+            status_display,
+            truncate_str(session_display, 23),
+            worktree_display
+        );
+    }
+
+    Ok(())
+}
+
+/// Normalize raw status file content to a canonical status string.
+fn normalize_status(raw: &str) -> String {
+    let lower = raw.to_lowercase();
+    if lower == "done" {
+        "done".to_string()
+    } else if lower.contains("fail") || lower.contains("error") {
+        "failed".to_string()
+    } else if lower.contains("running") || raw.is_empty() {
+        "running".to_string()
+    } else {
+        raw.to_string()
+    }
+}
+
+/// Read the agent ID from the worktree's .crosslink/agent.json.
+fn read_agent_id(wt_path: &Path, _crosslink_dir: &Path) -> Option<String> {
+    let agent_json = wt_path.join(".crosslink").join("agent.json");
+    if agent_json.exists() {
+        if let Ok(content) = std::fs::read_to_string(&agent_json) {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
+                return val
+                    .get("agent_id")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+            }
+        }
+    }
+    None
+}
+
+/// Try to read the associated issue from kickoff metadata.
+fn read_agent_issue(wt_path: &Path, _crosslink_dir: &Path) -> Option<String> {
+    // Try .kickoff-criteria.json first (has issue ID from kickoff)
+    let criteria_path = wt_path.join(".kickoff-criteria.json");
+    if criteria_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&criteria_path) {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
+                // The criteria file might have issue_id in extracted metadata
+                if let Some(id) = val.get("issue_id").and_then(|v| v.as_i64()) {
+                    return Some(format!("#{}", id));
+                }
+            }
+        }
+    }
+    // Try .crosslink/agent.json
+    let agent_json = wt_path.join(".crosslink").join("agent.json");
+    if agent_json.exists() {
+        if let Ok(content) = std::fs::read_to_string(&agent_json) {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
+                if let Some(id) = val.get("issue_id").and_then(|v| v.as_i64()) {
+                    return Some(format!("#{}", id));
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Truncate a string to `max` characters (char-boundary safe).
+fn truncate_str(s: &str, max: usize) -> String {
+    if s.chars().count() > max {
+        s.chars().take(max).collect()
+    } else {
+        s.to_string()
+    }
 }
 
 /// `crosslink kickoff logs <agent>`

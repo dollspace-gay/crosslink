@@ -1271,6 +1271,12 @@ enum KickoffCommands {
         #[arg(long)]
         all: bool,
     },
+    /// List all kickoff agents across worktrees, tmux, and Docker
+    List {
+        /// Filter by status: running, done, failed, all
+        #[arg(long, default_value = "all")]
+        status: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -2162,7 +2168,14 @@ fn main() -> Result<()> {
             let crosslink_dir = find_crosslink_dir()?;
             let db = get_db()?;
             let writer = get_writer(&crosslink_dir);
-            commands::kickoff::dispatch(action, &crosslink_dir, &db, writer.as_ref(), cli.quiet)
+            commands::kickoff::dispatch(
+                action,
+                &crosslink_dir,
+                &db,
+                writer.as_ref(),
+                cli.quiet,
+                cli.json,
+            )
         }
         Commands::Swarm { action } => {
             let crosslink_dir = find_crosslink_dir()?;
