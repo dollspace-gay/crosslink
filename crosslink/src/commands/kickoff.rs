@@ -156,6 +156,18 @@ pub struct CriteriaFile {
     pub criteria: Vec<Criterion>,
 }
 
+/// Metadata written at agent launch (`.kickoff-metadata.json`).
+///
+/// Records the timeout and start time so that `status` / `list` can detect
+/// agents that have exceeded their time budget.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KickoffMetadata {
+    /// ISO-8601 UTC timestamp of when the agent was launched.
+    pub started_at: String,
+    /// Timeout in seconds (matches `--timeout` flag).
+    pub timeout_secs: u64,
+}
+
 /// Options for `crosslink kickoff run`.
 pub struct KickoffOpts<'a> {
     pub description: &'a str,
@@ -713,6 +725,8 @@ Then:
 pub(crate) const KICKOFF_EXCLUDE_PATTERNS: &[&str] = &[
     "KICKOFF.md",
     ".kickoff-status",
+    ".kickoff-slug",
+    ".kickoff-metadata.json",
     "PLAN_KICKOFF.md",
     ".kickoff-plan.json",
     ".kickoff-criteria.json",
@@ -1700,6 +1714,9 @@ fn launch_container(
         "-d".to_string(),
         "--name".to_string(),
         container_name.clone(),
+        // Hard-kill the container after the timeout (grace period = 10s on top)
+        "--stop-timeout".to_string(),
+        format!("{}", timeout_secs),
         // Mount the worktree as workspace
         "-v".to_string(),
         format!("{}:/workspaces/repo", worktree_dir.to_string_lossy()),
@@ -1757,7 +1774,12 @@ pub fn run(
     };
 
     let root = repo_root()?;
-    let slug = slugify(opts.description);
+    let base_slug = slugify(opts.description);
+    let slug = if base_slug.is_empty() {
+        rand_hex_suffix()
+    } else {
+        format!("{}-{}", base_slug, rand_hex_suffix())
+    };
 
     // 2. Create or find the issue
     let issue_id = if let Some(id) = opts.issue {
@@ -1808,6 +1830,10 @@ pub fn run(
         create_worktree(&root, &slug, None)?
     };
 
+    // Write slug sentinel so other commands can identify this worktree
+    std::fs::write(worktree_dir.join(".kickoff-slug"), &slug)
+        .context("Failed to write .kickoff-slug sentinel")?;
+
     // 4. Detect project conventions
     let conventions = detect_conventions(&root);
 
@@ -1828,6 +1854,18 @@ pub fn run(
             std::fs::write(worktree_dir.join(".kickoff-criteria.json"), &json)
                 .context("Failed to write .kickoff-criteria.json")?;
         }
+    }
+
+    // 6c. Write launch metadata (timeout + start time) for status tracking
+    {
+        let metadata = KickoffMetadata {
+            started_at: chrono::Utc::now().to_rfc3339(),
+            timeout_secs: opts.timeout.as_secs(),
+        };
+        let json = serde_json::to_string_pretty(&metadata)
+            .context("Failed to serialize kickoff metadata")?;
+        std::fs::write(worktree_dir.join(".kickoff-metadata.json"), &json)
+            .context("Failed to write .kickoff-metadata.json")?;
     }
 
     // 7. Exclude kickoff files from git
@@ -1952,6 +1990,21 @@ fn rand_suffix() -> u32 {
     seed % 10000
 }
 
+/// Generate a 4-character hex suffix for worktree directory uniqueness.
+///
+/// Combines nanosecond timestamp with process ID to avoid collisions
+/// when two processes start in the same nanosecond window.
+fn rand_hex_suffix() -> String {
+    use std::time::SystemTime;
+    let nanos = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos();
+    let pid = std::process::id();
+    let mixed = nanos.wrapping_mul(31).wrapping_add(pid);
+    format!("{:04x}", mixed & 0xFFFF)
+}
+
 /// `crosslink kickoff status <agent>`
 pub fn status(crosslink_dir: &Path, agent: &str) -> Result<()> {
     // Check for .kickoff-status in any matching worktree
@@ -1980,7 +2033,7 @@ pub fn status(crosslink_dir: &Path, agent: &str) -> Result<()> {
                 if entry.file_type()?.is_dir() {
                     let name = entry.file_name();
                     let status_file = entry.path().join(".kickoff-status");
-                    let status = if status_file.exists() {
+                    let mut status = if status_file.exists() {
                         std::fs::read_to_string(&status_file)
                             .unwrap_or_default()
                             .trim()
@@ -1988,6 +2041,9 @@ pub fn status(crosslink_dir: &Path, agent: &str) -> Result<()> {
                     } else {
                         "running".to_string()
                     };
+                    if status == "running" && is_timed_out(&entry.path()) {
+                        status = "timed-out".to_string();
+                    }
                     println!("  {} — {}", name.to_string_lossy(), status);
                 }
             }
@@ -1999,7 +2055,7 @@ pub fn status(crosslink_dir: &Path, agent: &str) -> Result<()> {
 
     // Check .kickoff-status
     let status_file = worktree_dir.join(".kickoff-status");
-    let agent_status = if status_file.exists() {
+    let mut agent_status = if status_file.exists() {
         std::fs::read_to_string(&status_file)
             .unwrap_or_default()
             .trim()
@@ -2008,9 +2064,26 @@ pub fn status(crosslink_dir: &Path, agent: &str) -> Result<()> {
         "running (no status file yet)".to_string()
     };
 
+    // Check if the agent has exceeded its timeout
+    if agent_status.contains("running") && is_timed_out(&worktree_dir) {
+        agent_status = "timed-out".to_string();
+    }
+
     println!("Agent:     {}", agent);
     println!("Worktree:  {}", worktree_dir.display());
     println!("Status:    {}", agent_status);
+
+    // Show timeout metadata if available
+    if let Some(meta) = read_timeout_metadata(&worktree_dir) {
+        let hours = meta.timeout_secs / 3600;
+        let mins = (meta.timeout_secs % 3600) / 60;
+        if hours > 0 {
+            println!("Timeout:   {}h{}m", hours, mins);
+        } else {
+            println!("Timeout:   {}m", mins);
+        }
+        println!("Started:   {}", meta.started_at);
+    }
 
     // Check tmux session
     let session_name = tmux_session_name(wt_slug);
@@ -2109,8 +2182,10 @@ fn discover_agents(crosslink_dir: &Path) -> Result<Vec<AgentInfo>> {
             let session_name = tmux_session_name(&dir_name);
             let tmux_active = tmux_session_exists(&session_name);
 
-            // Reconcile status: if sentinel says running but tmux is gone, mark as stopped
-            let final_status = if agent_status == "running" && !tmux_active {
+            // Reconcile status: check timeout, then tmux liveness
+            let final_status = if agent_status == "running" && is_timed_out(&wt_path) {
+                "timed-out".to_string()
+            } else if agent_status == "running" && !tmux_active {
                 // Check if there's a docker container instead (handled below as overlay)
                 "stopped".to_string()
             } else {
@@ -2282,6 +2357,8 @@ fn classify_agent(agent: &AgentInfo) -> CleanupClass {
         "stopped" => CleanupClass::Stale,
         // "failed" agents are safe to clean up (they have a terminal sentinel)
         "failed" => CleanupClass::Done,
+        // "timed-out" agents exceeded their timeout budget — treat as stale
+        "timed-out" => CleanupClass::Stale,
         _ => CleanupClass::Stale,
     }
 }
@@ -2606,6 +2683,35 @@ fn normalize_status(raw: &str) -> String {
     } else {
         raw.to_string()
     }
+}
+
+/// Check if an agent has exceeded its timeout based on `.kickoff-metadata.json`.
+///
+/// Returns `true` if the metadata file exists, contains a valid start time and
+/// timeout, and the elapsed wall-clock time exceeds the configured timeout.
+fn is_timed_out(wt_path: &Path) -> bool {
+    let meta_path = wt_path.join(".kickoff-metadata.json");
+    let content = match std::fs::read_to_string(&meta_path) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    let meta: KickoffMetadata = match serde_json::from_str(&content) {
+        Ok(m) => m,
+        Err(_) => return false,
+    };
+    let started = match chrono::DateTime::parse_from_rfc3339(&meta.started_at) {
+        Ok(dt) => dt.with_timezone(&chrono::Utc),
+        Err(_) => return false,
+    };
+    let elapsed = chrono::Utc::now().signed_duration_since(started);
+    elapsed.num_seconds() > meta.timeout_secs as i64
+}
+
+/// Read the timeout metadata for display purposes.
+fn read_timeout_metadata(wt_path: &Path) -> Option<KickoffMetadata> {
+    let meta_path = wt_path.join(".kickoff-metadata.json");
+    let content = std::fs::read_to_string(&meta_path).ok()?;
+    serde_json::from_str(&content).ok()
 }
 
 /// Read the agent ID from the worktree's .crosslink/agent.json.
@@ -2961,7 +3067,7 @@ pub fn plan(crosslink_dir: &Path, db: &Database, opts: &PlanOpts) -> Result<()> 
     } else {
         slugify(&opts.doc.title)
     };
-    let slug = format!("plan-{}", title_slug);
+    let slug = format!("plan-{}-{}", title_slug, rand_hex_suffix());
 
     // 2. Create or find issue (optional for plan mode)
     let issue_id = if let Some(id) = opts.issue {
@@ -2975,6 +3081,10 @@ pub fn plan(crosslink_dir: &Path, db: &Database, opts: &PlanOpts) -> Result<()> 
 
     // 3. Create worktree
     let (worktree_dir, branch_name) = create_worktree(&root, &slug, None)?;
+
+    // Write slug sentinel so other commands can identify this worktree
+    std::fs::write(worktree_dir.join(".kickoff-slug"), &slug)
+        .context("Failed to write .kickoff-slug sentinel")?;
 
     // 4. Build prompt
     let prompt = build_plan_prompt(opts.doc, issue_id);
@@ -3942,6 +4052,8 @@ mod tests {
             vec![
                 "KICKOFF.md",
                 ".kickoff-status",
+                ".kickoff-slug",
+                ".kickoff-metadata.json",
                 "PLAN_KICKOFF.md",
                 ".kickoff-plan.json",
                 ".kickoff-criteria.json",
@@ -3954,6 +4066,7 @@ mod tests {
     fn test_missing_exclude_patterns_one_present() {
         let patterns = missing_exclude_patterns("KICKOFF.md\nsome-other-file\n");
         assert!(patterns.contains(&".kickoff-status"));
+        assert!(patterns.contains(&".kickoff-slug"));
         assert!(patterns.contains(&"PLAN_KICKOFF.md"));
         assert!(patterns.contains(&".kickoff-plan.json"));
         assert!(patterns.contains(&".kickoff-criteria.json"));
@@ -3964,7 +4077,7 @@ mod tests {
     #[test]
     fn test_missing_exclude_patterns_all_present() {
         let patterns = missing_exclude_patterns(
-            "KICKOFF.md\n.kickoff-status\nPLAN_KICKOFF.md\n.kickoff-plan.json\n.kickoff-criteria.json\n.kickoff-report.json\n",
+            "KICKOFF.md\n.kickoff-status\n.kickoff-slug\n.kickoff-metadata.json\nPLAN_KICKOFF.md\n.kickoff-plan.json\n.kickoff-criteria.json\n.kickoff-report.json\n",
         );
         assert!(patterns.is_empty());
     }
@@ -3972,7 +4085,7 @@ mod tests {
     #[test]
     fn test_missing_exclude_patterns_with_whitespace() {
         let patterns = missing_exclude_patterns(
-            "  KICKOFF.md  \n  .kickoff-status  \n  PLAN_KICKOFF.md  \n  .kickoff-plan.json  \n  .kickoff-criteria.json  \n  .kickoff-report.json  \n",
+            "  KICKOFF.md  \n  .kickoff-status  \n  .kickoff-slug  \n  .kickoff-metadata.json  \n  PLAN_KICKOFF.md  \n  .kickoff-plan.json  \n  .kickoff-criteria.json  \n  .kickoff-report.json  \n",
         );
         assert!(patterns.is_empty());
     }

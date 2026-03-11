@@ -27,6 +27,10 @@ pub struct CheckpointState {
     pub compaction_lease: Option<CompactionLease>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub unsigned_event_warnings: Vec<UnsignedEventWarning>,
+    /// Compaction watermark (last processed ordering key), written atomically
+    /// with the rest of the checkpoint state to prevent inconsistent recovery.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub watermark: Option<OrderingKey>,
 }
 
 impl Default for CheckpointState {
@@ -40,6 +44,7 @@ impl Default for CheckpointState {
             skew_warnings: Vec::new(),
             compaction_lease: None,
             unsigned_event_warnings: Vec::new(),
+            watermark: None,
         }
     }
 }
@@ -137,7 +142,17 @@ pub fn write_checkpoint(cache_dir: &Path, state: &CheckpointState) -> Result<()>
 }
 
 /// Read the compaction watermark (last processed ordering key).
+///
+/// Reads from the checkpoint state's embedded `watermark` field (atomic).
+/// Falls back to the legacy `watermark.json` file for migration.
 pub fn read_watermark(cache_dir: &Path) -> Result<Option<OrderingKey>> {
+    // Prefer the watermark embedded in checkpoint state (atomic with state).
+    let state = read_checkpoint(cache_dir)?;
+    if state.watermark.is_some() {
+        return Ok(state.watermark);
+    }
+
+    // Legacy fallback: separate watermark.json file.
     let path = checkpoint_dir(cache_dir).join(WATERMARK_FILE);
     if !path.exists() {
         return Ok(None);
@@ -149,13 +164,15 @@ pub fn read_watermark(cache_dir: &Path) -> Result<Option<OrderingKey>> {
     Ok(Some(key))
 }
 
-/// Write the compaction watermark.
+/// Write the compaction watermark atomically with the checkpoint state.
+///
+/// Reads the current checkpoint, sets the watermark, and writes both
+/// in a single atomic file operation. This prevents inconsistent state
+/// if a crash occurs between writes.
 pub fn write_watermark(cache_dir: &Path, key: &OrderingKey) -> Result<()> {
-    let dir = checkpoint_dir(cache_dir);
-    std::fs::create_dir_all(&dir)?;
-    let path = dir.join(WATERMARK_FILE);
-    let content = serde_json::to_string_pretty(key)?;
-    crate::utils::atomic_write(&path, content.as_bytes())
+    let mut state = read_checkpoint(cache_dir)?;
+    state.watermark = Some(key.clone());
+    write_checkpoint(cache_dir, &state)
 }
 
 #[cfg(test)]

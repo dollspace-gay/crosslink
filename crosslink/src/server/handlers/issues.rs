@@ -101,10 +101,7 @@ pub async fn list_issues(
     State(state): State<AppState>,
     Query(params): Query<IssueListQuery>,
 ) -> Result<Json<IssueListResponse>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     let issues = if let Some(ref search) = params.search {
         // Full-text search; apply remaining filters in-memory afterwards.
@@ -178,10 +175,7 @@ pub async fn create_issue(
     State(state): State<AppState>,
     Json(body): Json<CreateIssueRequest>,
 ) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     let id = if let Some(parent_id) = body.parent_id {
         db.create_subissue(
@@ -214,10 +208,7 @@ pub async fn create_issue(
 pub async fn list_blocked(
     State(state): State<AppState>,
 ) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     let issues = db
         .list_blocked_issues()
@@ -236,10 +227,7 @@ pub async fn list_blocked(
 pub async fn list_ready(
     State(state): State<AppState>,
 ) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     let issues = db
         .list_ready_issues()
@@ -258,10 +246,7 @@ pub async fn get_issue(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<IssueDetail>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     let issue = db
         .get_issue(id)
@@ -306,10 +291,7 @@ pub async fn update_issue(
     Path(id): Path<i64>,
     Json(body): Json<UpdateIssueRequest>,
 ) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     // Verify the issue exists first.
     db.get_issue(id)
@@ -347,10 +329,7 @@ pub async fn delete_issue(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<OkResponse>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     let deleted = db
         .delete_issue(id)
@@ -373,10 +352,7 @@ pub async fn close_issue(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     let closed = db
         .close_issue(id)
@@ -404,10 +380,7 @@ pub async fn reopen_issue(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     let reopened = db
         .reopen_issue(id)
@@ -436,10 +409,7 @@ pub async fn create_subissue(
     Path(parent_id): Path<i64>,
     Json(body): Json<CreateSubissueRequest>,
 ) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     // Verify parent exists.
     db.get_issue(parent_id)
@@ -474,10 +444,7 @@ pub async fn list_comments(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     // Return 404 when the issue itself doesn't exist.
     db.get_issue(id)
@@ -506,10 +473,7 @@ pub async fn add_comment(
     Path(id): Path<i64>,
     Json(body): Json<CreateCommentRequest>,
 ) -> Result<Json<Value>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     // Verify issue exists.
     db.get_issue(id)
@@ -554,10 +518,7 @@ pub async fn add_label(
     Path(id): Path<i64>,
     Json(body): Json<AddLabelRequest>,
 ) -> Result<Json<OkResponse>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     db.get_issue(id)
         .map_err(|e| internal_error("Failed to fetch issue", e))?
@@ -579,10 +540,7 @@ pub async fn remove_label(
     State(state): State<AppState>,
     Path((id, label)): Path<(i64, String)>,
 ) -> Result<Json<OkResponse>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     db.get_issue(id)
         .map_err(|e| internal_error("Failed to fetch issue", e))?
@@ -612,10 +570,7 @@ pub async fn add_blocker(
     Path(id): Path<i64>,
     Json(body): Json<AddBlockerRequest>,
 ) -> Result<Json<OkResponse>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     db.get_issue(id)
         .map_err(|e| internal_error("Failed to fetch issue", e))?
@@ -641,10 +596,7 @@ pub async fn remove_blocker(
     State(state): State<AppState>,
     Path((id, blocker_id)): Path<(i64, i64)>,
 ) -> Result<Json<OkResponse>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     db.get_issue(id)
         .map_err(|e| internal_error("Failed to fetch issue", e))?

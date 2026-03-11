@@ -9,6 +9,9 @@
 //! Each connected client runs its own task that reads from a
 //! `broadcast::Receiver` and forwards matching events as JSON text frames.
 //!
+//! Every outgoing message is wrapped in an envelope with a monotonically
+//! increasing `seq` field so clients can detect gaps caused by backpressure.
+//!
 //! Channel names map to event types:
 //! - `"agents"`    → `WsHeartbeatEvent`, `WsAgentStatusEvent`
 //! - `"issues"`    → `WsIssueUpdatedEvent`
@@ -20,6 +23,7 @@ use std::collections::HashSet;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
 use axum::response::IntoResponse;
+use serde::Serialize;
 use tokio::sync::broadcast;
 
 use crate::server::state::AppState;
@@ -61,6 +65,7 @@ impl WsEvent {
     }
 
     /// Serialize this event to a JSON string.
+    #[cfg(test)]
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         match self {
             WsEvent::Heartbeat(e) => serde_json::to_string(e),
@@ -70,6 +75,34 @@ impl WsEvent {
             WsEvent::ExecutionProgress(e) => serde_json::to_string(e),
         }
     }
+
+    /// Serialize this event to a `serde_json::Value` for embedding in a
+    /// `WsEnvelope`.
+    pub fn to_json_value(&self) -> Result<serde_json::Value, serde_json::Error> {
+        match self {
+            WsEvent::Heartbeat(e) => serde_json::to_value(e),
+            WsEvent::AgentStatus(e) => serde_json::to_value(e),
+            WsEvent::IssueUpdated(e) => serde_json::to_value(e),
+            WsEvent::LockChanged(e) => serde_json::to_value(e),
+            WsEvent::ExecutionProgress(e) => serde_json::to_value(e),
+        }
+    }
+}
+
+/// Envelope wrapping every outgoing WebSocket message.
+///
+/// The `seq` field is a per-connection monotonically increasing counter that
+/// starts at 1.  Clients can detect dropped messages by checking for gaps in
+/// the sequence.  When a gap occurs (broadcast buffer overflow), the server
+/// sends a synthetic message with `"type": "gap"` so the client knows to
+/// re-sync.
+#[derive(Debug, Clone, Serialize)]
+pub struct WsEnvelope {
+    /// Per-connection sequence number (starts at 1, never resets).
+    pub seq: u64,
+    /// The inner event payload (flattened into this object).
+    #[serde(flatten)]
+    pub data: serde_json::Value,
 }
 
 /// Create a new broadcast channel for WebSocket events.
@@ -95,10 +128,17 @@ pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> 
 /// 1. Client connects.
 /// 2. Client **may** send a `subscribe` message to restrict which channels it
 ///    receives.  If omitted, the client receives all channels.
-/// 3. Server forwards matching broadcast events as JSON text frames.
-/// 4. Loop ends when the client disconnects or the broadcast sender is dropped.
+/// 3. Server forwards matching broadcast events as JSON text frames, each
+///    wrapped in a `WsEnvelope` with a monotonically increasing `seq` field.
+/// 4. If the broadcast buffer overflows, the server sends a synthetic `gap`
+///    message with the number of dropped events so the client can re-sync.
+/// 5. Loop ends when the client disconnects or the broadcast sender is dropped.
 async fn handle_socket(mut socket: WebSocket, tx: broadcast::Sender<WsEvent>) {
     let mut rx = tx.subscribe();
+
+    // Per-connection sequence counter.  Starts at 1 so clients can use 0 as
+    // a sentinel for "no messages received yet".
+    let mut seq: u64 = 0;
 
     // None → client has not filtered; receives all channels.
     let mut subscribed: Option<HashSet<String>> = None;
@@ -135,16 +175,34 @@ async fn handle_socket(mut socket: WebSocket, tx: broadcast::Sender<WsEvent>) {
                             }
                         }
 
-                        if let Ok(json) = ev.to_json() {
-                            if socket.send(Message::Text(json.into())).await.is_err() {
-                                // Client disconnected mid-send.
-                                break;
+                        if let Ok(data) = ev.to_json_value() {
+                            seq += 1;
+                            let envelope = WsEnvelope { seq, data };
+                            if let Ok(json) = serde_json::to_string(&envelope) {
+                                if socket.send(Message::Text(json.into())).await.is_err() {
+                                    // Client disconnected mid-send.
+                                    break;
+                                }
                             }
                         }
                     }
                     // The broadcast buffer overflowed; some events were dropped
-                    // for this receiver.  Continue processing future events.
-                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    // for this receiver.  Send a gap notification so the client
+                    // knows to re-sync.
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        eprintln!("ws: client lagged, {n} events dropped");
+                        seq += 1;
+                        let gap = serde_json::json!({
+                            "seq": seq,
+                            "type": "gap",
+                            "dropped": n,
+                        });
+                        if let Ok(json) = serde_json::to_string(&gap) {
+                            if socket.send(Message::Text(json.into())).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
                     // The sender was dropped — the server is shutting down.
                     Err(broadcast::error::RecvError::Closed) => break,
                 }
@@ -204,6 +262,69 @@ mod tests {
         let json = ev.to_json().unwrap();
         assert!(json.contains("\"type\":\"agent_status\""));
         assert!(json.contains("\"status\":\"idle\""));
+    }
+
+    #[test]
+    fn test_ws_event_to_json_value_heartbeat() {
+        let ev = WsEvent::Heartbeat(WsHeartbeatEvent {
+            event_type: "heartbeat",
+            agent_id: "worker-1".to_string(),
+            timestamp: Utc::now(),
+            active_issue_id: Some(42),
+        });
+        let val = ev.to_json_value().unwrap();
+        assert_eq!(val["type"], "heartbeat");
+        assert_eq!(val["agent_id"], "worker-1");
+        assert_eq!(val["active_issue_id"], 42);
+    }
+
+    #[test]
+    fn test_ws_envelope_contains_seq_and_event_fields() {
+        let ev = WsEvent::AgentStatus(WsAgentStatusEvent {
+            event_type: "agent_status",
+            agent_id: "worker-1".to_string(),
+            status: AgentStatus::Active,
+        });
+        let data = ev.to_json_value().unwrap();
+        let envelope = WsEnvelope { seq: 7, data };
+        let json = serde_json::to_string(&envelope).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        // The envelope should have `seq` at the top level.
+        assert_eq!(parsed["seq"], 7);
+        // The inner event fields should be flattened into the top level.
+        assert_eq!(parsed["type"], "agent_status");
+        assert_eq!(parsed["agent_id"], "worker-1");
+        assert_eq!(parsed["status"], "active");
+    }
+
+    #[test]
+    fn test_ws_envelope_seq_increments() {
+        let ev = WsEvent::Heartbeat(WsHeartbeatEvent {
+            event_type: "heartbeat",
+            agent_id: "a1".to_string(),
+            timestamp: Utc::now(),
+            active_issue_id: None,
+        });
+
+        let data1 = ev.to_json_value().unwrap();
+        let env1 = WsEnvelope {
+            seq: 1,
+            data: data1,
+        };
+        let data2 = ev.to_json_value().unwrap();
+        let env2 = WsEnvelope {
+            seq: 2,
+            data: data2,
+        };
+
+        let j1: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&env1).unwrap()).unwrap();
+        let j2: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&env2).unwrap()).unwrap();
+
+        assert_eq!(j1["seq"], 1);
+        assert_eq!(j2["seq"], 2);
     }
 
     #[test]

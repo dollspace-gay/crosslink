@@ -9,6 +9,7 @@
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
 use std::cell::Cell;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -169,6 +170,43 @@ impl SharedWriter {
         &self.agent.agent_id
     }
 
+    /// Derive the `.crosslink/` directory from the cache path.
+    fn crosslink_dir(&self) -> &Path {
+        self.cache_dir.parent().unwrap_or(&self.cache_dir)
+    }
+
+    /// Path to the promoted-UUIDs tracking file (machine-local, not shared).
+    fn promoted_uuids_path(&self) -> PathBuf {
+        self.crosslink_dir().join(".promoted-uuids")
+    }
+
+    /// Read the set of UUIDs that have already been promoted.
+    fn read_promoted_uuids(&self) -> HashSet<Uuid> {
+        let path = self.promoted_uuids_path();
+        match std::fs::read_to_string(&path) {
+            Ok(content) => content
+                .lines()
+                .filter_map(|line| line.trim().parse::<Uuid>().ok())
+                .collect(),
+            Err(_) => HashSet::new(),
+        }
+    }
+
+    /// Append promoted UUIDs to the tracking file.
+    fn record_promoted_uuids(&self, uuids: &[Uuid]) -> Result<()> {
+        use std::io::Write;
+        let path = self.promoted_uuids_path();
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .with_context(|| format!("Failed to open promoted UUIDs file: {}", path.display()))?;
+        for uuid in uuids {
+            writeln!(file, "{}", uuid)?;
+        }
+        Ok(())
+    }
+
     /// Check the current hub layout version.
     fn layout_version(&self) -> u32 {
         let meta_dir = self.sync.cache_path().join("meta");
@@ -295,6 +333,8 @@ impl SharedWriter {
                     }
                     if err_str.contains("rejected") || err_str.contains("non-fast-forward") {
                         if attempt < MAX_RETRIES - 1 {
+                            // Bail if local has diverged too far — sign of a rebase loop
+                            self.check_divergence()?;
                             // Reset commit AND working directory — the prepare
                             // closure re-generates content on the next iteration,
                             // so losing working dir changes is safe.
@@ -1144,6 +1184,12 @@ impl SharedWriter {
         // Re-hydrate with new positive IDs
         hydrate_to_sqlite(&self.cache_dir, db)?;
 
+        // Record promoted UUIDs so they are never re-promoted (gh#313).
+        let promoted_uuids: Vec<Uuid> = offline_info.iter().map(|(uuid, _)| *uuid).collect();
+        if let Err(e) = self.record_promoted_uuids(&promoted_uuids) {
+            eprintln!("Warning: failed to record promoted UUIDs: {}", e);
+        }
+
         let start_id = first_id.get();
         let mapping: Vec<(i64, i64, String)> = offline_info
             .iter()
@@ -1324,19 +1370,28 @@ impl SharedWriter {
     /// Find all issue files in the cache with `display_id: null` created by this agent.
     ///
     /// Supports both v1 (`issues/{uuid}.json`) and v2 (`issues/{uuid}/issue.json`) layouts.
+    /// Skips issues whose UUIDs appear in the promoted-UUIDs tracking file to
+    /// prevent re-promotion loops (gh#313).
     fn find_offline_issues(&self) -> Result<Vec<IssueFile>> {
         let issues_dir = self.cache_dir.join("issues");
         let mut offline = Vec::new();
         if !issues_dir.exists() {
             return Ok(offline);
         }
+
+        // Load the set of already-promoted UUIDs so we never re-promote them.
+        let promoted = self.read_promoted_uuids();
+
         for entry in std::fs::read_dir(&issues_dir)? {
             let entry = entry?;
             let path = entry.path();
             // V1: issues/{uuid}.json (flat file)
             if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("json") {
                 if let Ok(issue) = read_issue_file(&path) {
-                    if issue.display_id.is_none() && issue.created_by == self.agent.agent_id {
+                    if issue.display_id.is_none()
+                        && issue.created_by == self.agent.agent_id
+                        && !promoted.contains(&issue.uuid)
+                    {
                         offline.push(issue);
                     }
                 }
@@ -1346,7 +1401,10 @@ impl SharedWriter {
                 let issue_file = path.join("issue.json");
                 if issue_file.exists() {
                     if let Ok(issue) = read_issue_file(&issue_file) {
-                        if issue.display_id.is_none() && issue.created_by == self.agent.agent_id {
+                        if issue.display_id.is_none()
+                            && issue.created_by == self.agent.agent_id
+                            && !promoted.contains(&issue.uuid)
+                        {
                             offline.push(issue);
                         }
                     }
@@ -1608,6 +1666,8 @@ impl SharedWriter {
                     // next iteration, so losing working dir changes is safe.
                     if err_str.contains("rejected") || err_str.contains("non-fast-forward") {
                         if attempt < MAX_RETRIES - 1 {
+                            // Bail if local has diverged too far — sign of a rebase loop
+                            self.check_divergence()?;
                             let _ = self.git_in_cache(&["reset", "--hard", "HEAD~1"]);
                             self.git_in_cache(&[
                                 "pull",
@@ -1768,6 +1828,12 @@ impl SharedWriter {
         let lock: crate::issue_file::LockFileV2 = serde_json::from_str(&content)
             .with_context(|| format!("Failed to parse lock file: {}", lock_path.display()))?;
         Ok(Some(lock))
+    }
+
+    /// Check if local has diverged too far from remote and bail if so.
+    /// Delegates to `SyncManager::check_divergence` via the shared `sync` field.
+    fn check_divergence(&self) -> Result<()> {
+        self.sync.check_divergence()
     }
 
     /// Run a git command in the cache worktree.
@@ -2286,9 +2352,7 @@ mod tests {
 
         #[test]
         fn test_prune_then_checkpoint_clear() {
-            use crate::checkpoint::{
-                write_checkpoint, write_watermark, CheckpointState, LockEntry,
-            };
+            use crate::checkpoint::{write_checkpoint, CheckpointState, LockEntry};
             use crate::events::{append_event, Event, EventEnvelope, OrderingKey};
             use chrono::Utc;
 
@@ -2322,10 +2386,10 @@ mod tests {
                 agent_id: "stale-agent".to_string(),
                 agent_seq: 1,
             };
-            write_watermark(cache, &watermark).unwrap();
 
-            // Compact to materialize
+            // Compact to materialize (watermark is embedded in checkpoint state)
             let mut state = CheckpointState::default();
+            state.watermark = Some(watermark);
             state.locks.insert(
                 5,
                 LockEntry {

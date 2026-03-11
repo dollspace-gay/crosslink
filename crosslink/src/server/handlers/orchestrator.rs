@@ -170,10 +170,7 @@ pub async fn execute(
         let plan = OrchestratorExecutor::load_plan(&state.crosslink_dir)
             .map_err(|e| not_found(format!("No plan found: {e}")))?;
 
-        let db = state
-            .db
-            .lock()
-            .map_err(|e| internal_error("DB lock poisoned", e))?;
+        let db = state.db();
 
         let mut executor = OrchestratorExecutor::init(&state.crosslink_dir, &db, &plan)
             .map_err(|e| internal_error("Failed to initialize execution", e))?;

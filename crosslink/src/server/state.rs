@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use tokio::sync::broadcast;
 
@@ -37,5 +37,15 @@ impl AppState {
             version: env!("CARGO_PKG_VERSION"),
             ws_tx,
         }
+    }
+
+    /// Acquire the database lock, recovering from mutex poisoning.
+    ///
+    /// `std::sync::Mutex` becomes permanently poisoned if a thread panics while
+    /// holding the guard.  Because the `Database` (backed by SQLite) is
+    /// transactional, a panic leaves the DB in a consistent state — so we can
+    /// safely recover by accepting the poisoned guard via `into_inner`.
+    pub fn db(&self) -> MutexGuard<'_, Database> {
+        self.db.lock().unwrap_or_else(|e| e.into_inner())
     }
 }

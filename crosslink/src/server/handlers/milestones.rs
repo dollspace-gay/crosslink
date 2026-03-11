@@ -78,10 +78,7 @@ pub async fn list_milestones(
     State(state): State<AppState>,
     axum::extract::Query(query): axum::extract::Query<MilestoneListQuery>,
 ) -> Result<Json<MilestoneListResponse>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     let milestones = db
         .list_milestones(query.status.as_deref())
@@ -106,10 +103,7 @@ pub async fn create_milestone(
     State(state): State<AppState>,
     Json(body): Json<CreateMilestoneRequest>,
 ) -> Result<Json<MilestoneDetail>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     let milestone_id = db
         .create_milestone(&body.name, body.description.as_deref())
@@ -136,10 +130,7 @@ pub async fn get_milestone(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<MilestoneDetail>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     let milestone = db
         .get_milestone(id)
@@ -160,10 +151,7 @@ pub async fn assign_milestone(
     Path(milestone_id): Path<i64>,
     Json(body): Json<AssignMilestoneRequest>,
 ) -> Result<Json<OkResponse>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     // Verify the milestone exists.
     db.get_milestone(milestone_id)
@@ -186,10 +174,7 @@ pub async fn close_milestone(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<OkResponse>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     // Verify the milestone exists first.
     db.get_milestone(id)

@@ -9,10 +9,14 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use anyhow::Result;
+use axum::extract::DefaultBodyLimit;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::db::Database;
 use state::AppState;
+
+/// Maximum allowed request body size (10 MB).
+const MAX_BODY_SIZE: usize = 10 * 1024 * 1024;
 
 /// Start the crosslink web server.
 ///
@@ -44,7 +48,9 @@ pub async fn run(
         .allow_methods(tower_http::cors::Any)
         .allow_headers(Any);
 
-    let app = routes::build_router(state, dashboard_dir).layer(cors);
+    let app = routes::build_router(state, dashboard_dir)
+        .layer(DefaultBodyLimit::max(MAX_BODY_SIZE))
+        .layer(cors);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     println!("crosslink serve: listening on http://{}", addr);

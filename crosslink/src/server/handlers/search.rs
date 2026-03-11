@@ -84,10 +84,7 @@ pub async fn global_search(
 
     // --- Search issues ---
     {
-        let db = state
-            .db
-            .lock()
-            .map_err(|e| internal_error("DB lock poisoned", e))?;
+        let db = state.db();
 
         let issues = db
             .search_issues(&query)

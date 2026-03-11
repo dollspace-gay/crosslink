@@ -63,10 +63,7 @@ pub async fn get_current_session(
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<SessionResponse>, (StatusCode, Json<ApiError>)> {
     let agent_id = params.get("agent_id").map(|s| s.as_str());
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     let session = db
         .get_current_session_for_agent(agent_id)
@@ -85,10 +82,7 @@ pub async fn start_session(
     State(state): State<AppState>,
     Json(body): Json<StartSessionRequest>,
 ) -> Result<Json<SessionResponse>, (StatusCode, Json<ApiError>)> {
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     let agent_id_ref = body.agent_id.as_deref();
     let session_id = db
@@ -117,10 +111,7 @@ pub async fn end_session(
     Json(body): Json<EndSessionRequest>,
 ) -> Result<Json<OkResponse>, (StatusCode, Json<ApiError>)> {
     let agent_id = params.get("agent_id").map(|s| s.as_str());
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     // Find the current active session so we know its ID.
     let session = db
@@ -152,10 +143,7 @@ pub async fn work_on_issue(
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<OkResponse>, (StatusCode, Json<ApiError>)> {
     let agent_id = params.get("agent_id").map(|s| s.as_str());
-    let db = state
-        .db
-        .lock()
-        .map_err(|e| internal_error("DB lock poisoned", e))?;
+    let db = state.db();
 
     // Verify the issue exists before updating the session.
     let issue_exists = db
