@@ -44,6 +44,7 @@ crosslink-enterprise/
 .crosslink/.cache/
 .crosslink/hook-config.local.json
 .crosslink/integrations/
+.crosslink/rules.local/
 
 # .crosslink/ — DO track these (project-level policy):
 #   .crosslink/hook-config.json   — shared team configuration

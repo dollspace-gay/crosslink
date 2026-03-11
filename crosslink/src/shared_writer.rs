@@ -122,11 +122,27 @@ pub struct SharedWriter {
 impl SharedWriter {
     /// Create a SharedWriter if multi-agent mode is configured.
     ///
-    /// Returns `None` if there is no `agent.json` (single-agent mode).
+    /// When `agent.json` exists, uses the configured identity with signing.
+    /// When no `agent.json` exists but the hub branch is available, creates
+    /// an anonymous writer that commits unsigned data to the coordination
+    /// branch. Returns `None` only if the hub branch cannot be initialized.
     pub fn new(crosslink_dir: &Path) -> Result<Option<Self>> {
         let agent = match AgentConfig::load(crosslink_dir)? {
             Some(a) => a,
-            None => return Ok(None),
+            None => {
+                // No agent configured — try anonymous hub writes if hub exists
+                let sync = SyncManager::new(crosslink_dir)?;
+                if !sync.is_initialized() {
+                    // Auto-initialize hub cache if the branch exists remotely
+                    if sync.init_cache().is_err() {
+                        return Ok(None);
+                    }
+                    if !sync.is_initialized() {
+                        return Ok(None);
+                    }
+                }
+                AgentConfig::anonymous(crosslink_dir)
+            }
         };
         let sync = SyncManager::new(crosslink_dir)?;
         if !sync.is_initialized() {
@@ -245,14 +261,14 @@ impl SharedWriter {
             let _ = self.git_in_cache(&["add", "issues/"]);
             let _ = self.git_in_cache(&["add", "locks/"]);
 
-            // Commit
+            // Commit (unsigned when no SSH key)
             let commit_msg = format!(
                 "{}: {} at {}",
                 self.agent.agent_id,
                 message,
                 Utc::now().format("%Y-%m-%dT%H:%M:%SZ")
             );
-            let commit_result = self.git_in_cache(&["commit", "-m", &commit_msg]);
+            let commit_result = self.git_commit_in_cache(&commit_msg);
             if let Err(ref e) = commit_result {
                 let err_str = e.to_string();
                 if err_str.contains("nothing to commit") || err_str.contains("no changes added") {
@@ -1554,14 +1570,14 @@ impl SharedWriter {
                 }
             }
 
-            // Commit
+            // Commit (unsigned when no SSH key)
             let commit_msg = format!(
                 "{}: {} at {}",
                 self.agent.agent_id,
                 message,
                 Utc::now().format("%Y-%m-%dT%H:%M:%SZ")
             );
-            let commit_result = self.git_in_cache(&["commit", "-m", &commit_msg]);
+            let commit_result = self.git_commit_in_cache(&commit_msg);
             if let Err(e) = &commit_result {
                 let err_str = e.to_string();
                 if err_str.contains("nothing to commit") || err_str.contains("no changes added") {
@@ -1764,6 +1780,26 @@ impl SharedWriter {
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             bail!("git {:?} in cache failed: {}", args, stderr);
+        }
+        Ok(output)
+    }
+
+    /// Run a git commit in the cache worktree, disabling signing when
+    /// the agent has no SSH key (anonymous/pre-init mode).
+    fn git_commit_in_cache(&self, message: &str) -> Result<std::process::Output> {
+        let has_key = self.agent.ssh_key_path.is_some();
+        let mut cmd = std::process::Command::new("git");
+        cmd.current_dir(&self.cache_dir);
+        if !has_key {
+            cmd.args(["-c", "commit.gpgsign=false"]);
+        }
+        cmd.args(["commit", "-m", message]);
+        let output = cmd
+            .output()
+            .with_context(|| "Failed to run git commit in cache".to_string())?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            bail!("git commit in cache failed: {}", stderr);
         }
         Ok(output)
     }

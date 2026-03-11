@@ -548,9 +548,12 @@ impl SyncManager {
                 .output()
                 .context("Failed to run git verify-commit")?;
 
+            let stdout = String::from_utf8_lossy(&verify.stdout);
             let stderr = String::from_utf8_lossy(&verify.stderr);
+            // Combine stdout+stderr: macOS ssh-keygen emits "Good" on stdout
+            let combined = format!("{}\n{}", stdout, stderr);
             let verification = if verify.status.success() {
-                let parsed = signing::parse_verify_output(&stderr);
+                let parsed = signing::parse_verify_output(&combined);
                 let principal = parsed.as_ref().and_then(|(p, _)| p.clone());
                 let fingerprint = parsed.map(|(_, f)| f);
                 SignatureVerification::Valid {
@@ -672,10 +675,13 @@ impl SyncManager {
             .output()
             .context("Failed to run git verify-commit")?;
 
+        let stdout = String::from_utf8_lossy(&verify.stdout);
         let stderr = String::from_utf8_lossy(&verify.stderr);
+        // Combine stdout+stderr: macOS ssh-keygen emits "Good" on stdout
+        let combined = format!("{}\n{}", stdout, stderr);
 
         if verify.status.success() {
-            let parsed = signing::parse_verify_output(&stderr);
+            let parsed = signing::parse_verify_output(&combined);
             let principal = parsed.as_ref().and_then(|(p, _)| p.clone());
             let fingerprint = parsed.map(|(_, f)| f);
             Ok(SignatureVerification::Valid {
