@@ -153,6 +153,11 @@ cargo clippy        # Lint
 cargo fmt           # Format
 ```
 
+See also:
+- [Architecture Overview](docs/ARCHITECTURE.md)
+- [ELI5 Explanation](docs/ELI5.md)
+- [API Documentation](docs/api.md)
+
 ## License
 
 MIT
