@@ -6,8 +6,17 @@
   "priority": "medium",
   "created_by": "anon-ab6221f8",
   "created_at": "2026-03-11T13:18:43.264437753Z",
-  "updated_at": "2026-03-11T13:18:49.707272300Z",
+  "updated_at": "2026-03-11T13:21:13.778866083Z",
   "labels": [
     "enhancement"
+  ],
+  "comments": [
+    {
+      "id": 272,
+      "author": "anon-ab6221f8",
+      "content": "Starting implementation of crosslink kickoff cleanup command (GH #298). Need to explore existing kickoff code, discovery logic, and plan the approach.",
+      "created_at": "2026-03-11T13:21:13.778865445Z",
+      "kind": "plan"
+    }
   ]
 }
