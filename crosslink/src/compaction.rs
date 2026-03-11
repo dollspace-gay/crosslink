@@ -63,10 +63,7 @@ impl CompactionLockGuard {
             let is_stale = age.num_seconds() > LEASE_DURATION_SECS * 2;
             let is_self = info.agent_id == agent_id;
 
-            if force && (is_stale || is_self) {
-                let _ = fs::remove_file(&path);
-                return Self::try_create(&path, agent_id).map(Some).or(Ok(None));
-            } else if is_stale {
+            if is_stale || (force && is_self) {
                 let _ = fs::remove_file(&path);
                 return Self::try_create(&path, agent_id).map(Some).or(Ok(None));
             }

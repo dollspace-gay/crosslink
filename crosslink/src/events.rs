@@ -235,6 +235,7 @@ pub fn append_event(log_path: &Path, envelope: &EventEnvelope) -> Result<()> {
     let bytes = codec.encode(envelope)?;
     let mut file = std::fs::OpenOptions::new()
         .create(true)
+        .truncate(false)
         .read(true)
         .write(true)
         .open(log_path)

@@ -1388,11 +1388,12 @@ impl SyncManager {
             bail!(
                 "Hub branch has diverged: {} local commits ahead of remote \
                  (threshold: {}). This likely indicates a rebase loop. \
-                 Resolve manually with: cd {} && git log --oneline {}..HEAD",
+                 Resolve manually with: cd {} && git log --oneline {}/{}..HEAD",
                 ahead,
                 MAX_DIVERGENCE,
                 self.cache_dir.display(),
-                format!("{}/{}", self.remote, HUB_BRANCH)
+                self.remote,
+                HUB_BRANCH
             );
         }
         Ok(())
