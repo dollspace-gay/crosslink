@@ -209,6 +209,48 @@ pub enum WindowFit {
 }
 
 // ---------------------------------------------------------------------------
+// Merge orchestration data model
+// ---------------------------------------------------------------------------
+
+/// Top-level merge plan, stored at `swarm/merge-plan.json` on the hub branch.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MergePlan {
+    pub target_branch: String,
+    pub agents: Vec<MergeSource>,
+    pub conflicts: Vec<FileConflict>,
+    pub merge_order: Vec<String>, // agent slugs in application order
+}
+
+/// A single agent's worktree as a merge source.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MergeSource {
+    pub agent_slug: String,
+    pub worktree_path: PathBuf,
+    pub changed_files: Vec<String>,
+    pub commit_count: usize,
+}
+
+/// A file conflict between multiple agents.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FileConflict {
+    pub file: String,
+    pub agents: Vec<String>,
+    pub conflict_type: ConflictType,
+}
+
+/// Classification of a file conflict.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ConflictType {
+    /// Multiple agents modified the same file but different regions
+    NonOverlapping,
+    /// Multiple agents modified overlapping regions
+    Overlapping,
+    /// One agent created, another modified
+    CreateModify,
+}
+
+// ---------------------------------------------------------------------------
 // Hub branch I/O helpers
 // ---------------------------------------------------------------------------
 
@@ -2517,6 +2559,531 @@ pub fn fix(
     }
 
     println!("\nPlan persisted to hub branch at swarm/fix-plan.json");
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// swarm merge
+// ---------------------------------------------------------------------------
+
+/// Discover agent worktrees that have commits beyond the base branch (develop).
+fn discover_worktrees(repo_root: &Path) -> Result<Vec<MergeSource>> {
+    let worktrees_dir = repo_root.join(".worktrees");
+    if !worktrees_dir.is_dir() {
+        return Ok(Vec::new());
+    }
+
+    let mut sources = Vec::new();
+    let mut entries: Vec<_> = std::fs::read_dir(&worktrees_dir)
+        .context("Failed to read .worktrees")?
+        .filter_map(|e| e.ok())
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+
+    for entry in entries {
+        let wt_path = entry.path();
+        if !wt_path.is_dir() {
+            continue;
+        }
+
+        let slug = entry.file_name().to_string_lossy().to_string();
+
+        // Get changed files relative to develop
+        let diff_output = std::process::Command::new("git")
+            .current_dir(&wt_path)
+            .args(["diff", "--name-only", "develop...HEAD"])
+            .output();
+
+        let changed_files = match diff_output {
+            Ok(output) if output.status.success() => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                stdout
+                    .lines()
+                    .filter(|l| !l.is_empty())
+                    .map(|l| l.to_string())
+                    .collect::<Vec<_>>()
+            }
+            _ => continue, // Skip worktrees where git diff fails
+        };
+
+        if changed_files.is_empty() {
+            continue;
+        }
+
+        // Count commits beyond develop
+        let log_output = std::process::Command::new("git")
+            .current_dir(&wt_path)
+            .args(["log", "--oneline", "develop..HEAD"])
+            .output();
+
+        let commit_count = match log_output {
+            Ok(output) if output.status.success() => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                stdout.lines().count()
+            }
+            _ => 0,
+        };
+
+        sources.push(MergeSource {
+            agent_slug: slug,
+            worktree_path: wt_path,
+            changed_files,
+            commit_count,
+        });
+    }
+
+    Ok(sources)
+}
+
+/// Extract line ranges modified by a diff for a specific file in a worktree.
+fn extract_diff_ranges(worktree: &Path, file: &str) -> Result<Vec<(usize, usize)>> {
+    let output = std::process::Command::new("git")
+        .current_dir(worktree)
+        .args(["diff", "develop...HEAD", "--", file])
+        .output()
+        .context("Failed to run git diff")?;
+
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut ranges = Vec::new();
+
+    for line in stdout.lines() {
+        // Parse unified diff hunk headers: @@ -start,count +start,count @@
+        if let Some(rest) = line.strip_prefix("@@ ") {
+            // Extract the +start,count part (new file ranges)
+            if let Some(plus_part) = rest.split(' ').find(|s| s.starts_with('+')) {
+                let nums = plus_part.trim_start_matches('+');
+                let parts: Vec<&str> = nums.split(',').collect();
+                if let Ok(start) = parts[0].parse::<usize>() {
+                    let count = if parts.len() > 1 {
+                        parts[1]
+                            .split_whitespace()
+                            .next()
+                            .and_then(|s| s.parse::<usize>().ok())
+                            .unwrap_or(1)
+                    } else {
+                        1
+                    };
+                    if count > 0 {
+                        ranges.push((start, start + count - 1));
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(ranges)
+}
+
+/// Check if two sets of line ranges overlap.
+fn ranges_overlap(a: &[(usize, usize)], b: &[(usize, usize)]) -> bool {
+    for &(a_start, a_end) in a {
+        for &(b_start, b_end) in b {
+            if a_start <= b_end && b_start <= a_end {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Detect file conflicts between multiple merge sources.
+fn detect_file_conflicts(sources: &[MergeSource]) -> Vec<FileConflict> {
+    // Build map: file → list of agent slugs that modified it
+    let mut file_agents: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
+
+    for source in sources {
+        for file in &source.changed_files {
+            file_agents
+                .entry(file.clone())
+                .or_default()
+                .push(source.agent_slug.clone());
+        }
+    }
+
+    let mut conflicts = Vec::new();
+
+    for (file, agents) in &file_agents {
+        if agents.len() < 2 {
+            continue;
+        }
+
+        // Build a lookup for worktree paths by agent slug
+        let slug_to_source: std::collections::HashMap<&str, &MergeSource> =
+            sources.iter().map(|s| (s.agent_slug.as_str(), s)).collect();
+
+        // Check if we can determine overlap by inspecting diff ranges
+        let mut all_ranges: Vec<(&str, Vec<(usize, usize)>)> = Vec::new();
+        let mut range_extraction_ok = true;
+
+        for agent_slug in agents {
+            if let Some(source) = slug_to_source.get(agent_slug.as_str()) {
+                match extract_diff_ranges(&source.worktree_path, file) {
+                    Ok(ranges) if !ranges.is_empty() => {
+                        all_ranges.push((agent_slug.as_str(), ranges));
+                    }
+                    Ok(_) => {
+                        // Empty ranges could mean the file was created or binary
+                        range_extraction_ok = false;
+                        break;
+                    }
+                    Err(_) => {
+                        range_extraction_ok = false;
+                        break;
+                    }
+                }
+            }
+        }
+
+        let conflict_type = if !range_extraction_ok {
+            // If we can't extract ranges, check if file is new in any worktree
+            ConflictType::CreateModify
+        } else {
+            // Check pairwise for overlapping ranges
+            let mut has_overlap = false;
+            'outer: for i in 0..all_ranges.len() {
+                for j in (i + 1)..all_ranges.len() {
+                    if ranges_overlap(&all_ranges[i].1, &all_ranges[j].1) {
+                        has_overlap = true;
+                        break 'outer;
+                    }
+                }
+            }
+            if has_overlap {
+                ConflictType::Overlapping
+            } else {
+                ConflictType::NonOverlapping
+            }
+        };
+
+        conflicts.push(FileConflict {
+            file: file.clone(),
+            agents: agents.clone(),
+            conflict_type,
+        });
+    }
+
+    conflicts
+}
+
+/// Compute merge order: non-conflicting agents first, then non-overlapping, then overlapping.
+fn compute_merge_order(sources: &[MergeSource], conflicts: &[FileConflict]) -> Vec<String> {
+    // Classify each agent's worst conflict level
+    let mut agent_worst: std::collections::BTreeMap<&str, u8> = std::collections::BTreeMap::new();
+
+    // Start all agents at level 0 (no conflicts)
+    for source in sources {
+        agent_worst.insert(&source.agent_slug, 0);
+    }
+
+    for conflict in conflicts {
+        let level = match conflict.conflict_type {
+            ConflictType::NonOverlapping => 1,
+            ConflictType::CreateModify => 2,
+            ConflictType::Overlapping => 3,
+        };
+        for agent in &conflict.agents {
+            if let Some(current) = agent_worst.get_mut(agent.as_str()) {
+                if level > *current {
+                    *current = level;
+                }
+            }
+        }
+    }
+
+    // Sort: lowest conflict level first, then alphabetically for stability
+    let mut order: Vec<(&str, u8)> = agent_worst.into_iter().collect();
+    order.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(b.0)));
+
+    order.iter().map(|(slug, _)| slug.to_string()).collect()
+}
+
+/// Orchestrate merging agent worktree changes into a single branch.
+pub fn merge(
+    crosslink_dir: &Path,
+    branch: &str,
+    dry_run: bool,
+    agents_filter: Option<&str>,
+) -> Result<()> {
+    let repo_root = crosslink_dir
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("Cannot determine repo root"))?;
+
+    // Discover agent worktrees with changes
+    let mut sources = discover_worktrees(repo_root)?;
+
+    if sources.is_empty() {
+        println!("No agent worktrees with changes found.");
+        return Ok(());
+    }
+
+    // Filter by agent slugs if --agents provided
+    if let Some(filter) = agents_filter {
+        let slugs: std::collections::HashSet<&str> = filter.split(',').map(|s| s.trim()).collect();
+        sources.retain(|s| slugs.contains(s.agent_slug.as_str()));
+        if sources.is_empty() {
+            bail!("No matching agent worktrees found for filter: {}", filter);
+        }
+    }
+
+    // Detect file conflicts
+    let conflicts = detect_file_conflicts(&sources);
+
+    // Compute merge order
+    let merge_order = compute_merge_order(&sources, &conflicts);
+
+    // Build the merge plan
+    let plan = MergePlan {
+        target_branch: branch.to_string(),
+        agents: sources.clone(),
+        conflicts: conflicts.clone(),
+        merge_order: merge_order.clone(),
+    };
+
+    // Print summary
+    println!("Merge Plan");
+    println!("==========");
+    println!("Target branch: {}", branch);
+    println!(
+        "Agents:        {} ({} total commits)",
+        sources.len(),
+        sources.iter().map(|s| s.commit_count).sum::<usize>()
+    );
+    println!();
+
+    // Agent details table
+    println!("Agent Worktrees:");
+    for source in &sources {
+        println!(
+            "  {} — {} file{}, {} commit{}",
+            source.agent_slug,
+            source.changed_files.len(),
+            if source.changed_files.len() == 1 {
+                ""
+            } else {
+                "s"
+            },
+            source.commit_count,
+            if source.commit_count == 1 { "" } else { "s" },
+        );
+    }
+    println!();
+
+    // Conflict analysis
+    if conflicts.is_empty() {
+        println!("Conflicts:     none detected");
+    } else {
+        println!(
+            "Conflicts:     {} file{}",
+            conflicts.len(),
+            if conflicts.len() == 1 { "" } else { "s" }
+        );
+        for conflict in &conflicts {
+            let type_label = match conflict.conflict_type {
+                ConflictType::NonOverlapping => "non-overlapping",
+                ConflictType::Overlapping => "OVERLAPPING",
+                ConflictType::CreateModify => "create/modify",
+            };
+            println!(
+                "  {} [{}] — agents: {}",
+                conflict.file,
+                type_label,
+                conflict.agents.join(", ")
+            );
+        }
+
+        let overlapping_count = conflicts
+            .iter()
+            .filter(|c| c.conflict_type == ConflictType::Overlapping)
+            .count();
+        if overlapping_count > 0 {
+            println!();
+            println!(
+                "WARNING: {} file{} with overlapping changes will need manual resolution.",
+                overlapping_count,
+                if overlapping_count == 1 { "" } else { "s" }
+            );
+        }
+    }
+    println!();
+
+    // Merge order
+    println!("Merge order:");
+    for (i, slug) in merge_order.iter().enumerate() {
+        println!("  {}. {}", i + 1, slug);
+    }
+    println!();
+
+    // Persist the plan to hub branch
+    let sync = SyncManager::new(crosslink_dir)?;
+    if sync.is_initialized() {
+        sync.fetch()?;
+        write_hub_json(&sync, "swarm/merge-plan.json", &plan)?;
+        commit_hub_files(
+            &sync,
+            &["swarm/merge-plan.json"],
+            &format!(
+                "swarm: merge plan for {} agents → {}",
+                sources.len(),
+                branch
+            ),
+        )?;
+        println!("Plan saved to hub branch (swarm/merge-plan.json).");
+    }
+
+    if dry_run {
+        println!("Dry run — no changes applied.");
+        return Ok(());
+    }
+
+    // Create the target branch from develop
+    let create_branch = std::process::Command::new("git")
+        .current_dir(repo_root)
+        .args(["checkout", "-b", branch, "develop"])
+        .output()
+        .context("Failed to create target branch")?;
+
+    if !create_branch.status.success() {
+        let stderr = String::from_utf8_lossy(&create_branch.stderr);
+        // If branch already exists, try to check it out
+        if stderr.contains("already exists") {
+            let checkout = std::process::Command::new("git")
+                .current_dir(repo_root)
+                .args(["checkout", branch])
+                .output()
+                .context("Failed to checkout existing target branch")?;
+            if !checkout.status.success() {
+                bail!(
+                    "Failed to checkout branch '{}': {}",
+                    branch,
+                    String::from_utf8_lossy(&checkout.stderr)
+                );
+            }
+            println!("Checked out existing branch '{}'.", branch);
+        } else {
+            bail!("Failed to create branch '{}': {}", branch, stderr);
+        }
+    } else {
+        println!("Created branch '{}' from develop.", branch);
+    }
+
+    // Apply each agent's diff in merge order
+    let slug_to_source: std::collections::HashMap<&str, &MergeSource> =
+        sources.iter().map(|s| (s.agent_slug.as_str(), s)).collect();
+
+    let mut applied = 0usize;
+    let mut failed = Vec::new();
+
+    for slug in &merge_order {
+        let source = match slug_to_source.get(slug.as_str()) {
+            Some(s) => s,
+            None => continue,
+        };
+
+        println!("Applying changes from '{}'...", slug);
+
+        // Generate the diff from the agent's worktree
+        let diff_output = std::process::Command::new("git")
+            .current_dir(&source.worktree_path)
+            .args(["diff", "develop...HEAD"])
+            .output()
+            .context("Failed to generate diff")?;
+
+        if !diff_output.status.success() {
+            eprintln!(
+                "  Failed to generate diff for '{}': {}",
+                slug,
+                String::from_utf8_lossy(&diff_output.stderr)
+            );
+            failed.push(slug.clone());
+            continue;
+        }
+
+        let diff_content = diff_output.stdout;
+        if diff_content.is_empty() {
+            println!("  No diff to apply for '{}'.", slug);
+            continue;
+        }
+
+        // Apply the diff using git apply
+        let mut apply_cmd = std::process::Command::new("git")
+            .current_dir(repo_root)
+            .args(["apply", "--3way", "--stat", "-"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .context("Failed to start git apply")?;
+
+        if let Some(mut stdin) = apply_cmd.stdin.take() {
+            use std::io::Write;
+            stdin.write_all(&diff_content)?;
+        }
+
+        let apply_result = apply_cmd.wait_with_output()?;
+
+        if !apply_result.status.success() {
+            let stderr = String::from_utf8_lossy(&apply_result.stderr);
+            eprintln!("  Failed to apply diff for '{}': {}", slug, stderr);
+            eprintln!("  This agent's changes need manual resolution.");
+            failed.push(slug.clone());
+
+            // Abort any partial apply
+            let _ = std::process::Command::new("git")
+                .current_dir(repo_root)
+                .args(["checkout", "."])
+                .output();
+            continue;
+        }
+
+        // Stage and commit the applied changes
+        let _ = std::process::Command::new("git")
+            .current_dir(repo_root)
+            .args(["add", "-A"])
+            .output()?;
+
+        let commit_msg = format!("merge: apply changes from agent '{}'", slug);
+        let commit_output = std::process::Command::new("git")
+            .current_dir(repo_root)
+            .args([
+                "commit",
+                "-m",
+                &commit_msg,
+                "--no-gpg-sign",
+                "--allow-empty",
+            ])
+            .output()?;
+
+        if commit_output.status.success() {
+            println!("  Applied and committed changes from '{}'.", slug);
+            applied += 1;
+        } else {
+            let stderr = String::from_utf8_lossy(&commit_output.stderr);
+            if stderr.contains("nothing to commit") {
+                println!("  No new changes from '{}' (already applied).", slug);
+            } else {
+                eprintln!("  Commit failed for '{}': {}", slug, stderr);
+                failed.push(slug.clone());
+            }
+        }
+    }
+
+    println!();
+    println!(
+        "Merge complete: {} applied, {} failed.",
+        applied,
+        failed.len()
+    );
+    if !failed.is_empty() {
+        println!("Failed agents: {}", failed.join(", "));
+        println!("These agents' changes need manual resolution.");
+    }
+
     Ok(())
 }
 
@@ -3512,6 +4079,28 @@ mod tests {
         assert_eq!(plan, parsed);
     }
 
+    // -----------------------------------------------------------------------
+    // Merge orchestration tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_merge_plan_serde_roundtrip() {
+        let plan = MergePlan {
+            target_branch: "swarm-combined".to_string(),
+            agents: vec![MergeSource {
+                agent_slug: "agent-a".to_string(),
+                worktree_path: PathBuf::from("/tmp/wt-a"),
+                changed_files: vec!["src/main.rs".to_string()],
+                commit_count: 3,
+            }],
+            conflicts: vec![],
+            merge_order: vec!["agent-a".to_string()],
+        };
+        let json = serde_json::to_string(&plan).unwrap();
+        let parsed: MergePlan = serde_json::from_str(&json).unwrap();
+        assert_eq!(plan, parsed);
+    }
+
     #[test]
     fn test_parse_issue_numbers_valid() {
         let nums = parse_issue_numbers("326,327,328").unwrap();
@@ -3540,5 +4129,238 @@ mod tests {
     fn test_fix_requires_issues_or_label() {
         let result = parse_issue_numbers("");
         assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // swarm merge tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_conflict_type_serde_roundtrip() {
+        let cases = vec![
+            (ConflictType::NonOverlapping, "\"non_overlapping\""),
+            (ConflictType::Overlapping, "\"overlapping\""),
+            (ConflictType::CreateModify, "\"create_modify\""),
+        ];
+        for (variant, expected_json) in cases {
+            let json = serde_json::to_string(&variant).unwrap();
+            assert_eq!(json, expected_json);
+            let parsed: ConflictType = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, variant);
+        }
+    }
+
+    #[test]
+    fn test_detect_file_conflicts_no_overlaps() {
+        let sources = vec![
+            MergeSource {
+                agent_slug: "agent-a".to_string(),
+                worktree_path: PathBuf::from("/tmp/wt-a"),
+                changed_files: vec!["src/foo.rs".to_string()],
+                commit_count: 1,
+            },
+            MergeSource {
+                agent_slug: "agent-b".to_string(),
+                worktree_path: PathBuf::from("/tmp/wt-b"),
+                changed_files: vec!["src/bar.rs".to_string()],
+                commit_count: 2,
+            },
+        ];
+        let conflicts = detect_file_conflicts(&sources);
+        assert!(conflicts.is_empty());
+    }
+
+    #[test]
+    fn test_detect_file_conflicts_shared_files() {
+        let sources = vec![
+            MergeSource {
+                agent_slug: "agent-a".to_string(),
+                worktree_path: PathBuf::from("/tmp/wt-a"),
+                changed_files: vec!["src/main.rs".to_string(), "src/lib.rs".to_string()],
+                commit_count: 1,
+            },
+            MergeSource {
+                agent_slug: "agent-b".to_string(),
+                worktree_path: PathBuf::from("/tmp/wt-b"),
+                changed_files: vec!["src/main.rs".to_string()],
+                commit_count: 1,
+            },
+            MergeSource {
+                agent_slug: "agent-c".to_string(),
+                worktree_path: PathBuf::from("/tmp/wt-c"),
+                changed_files: vec!["src/lib.rs".to_string(), "src/utils.rs".to_string()],
+                commit_count: 1,
+            },
+        ];
+        let conflicts = detect_file_conflicts(&sources);
+
+        // src/main.rs: agent-a + agent-b
+        // src/lib.rs: agent-a + agent-c
+        assert_eq!(conflicts.len(), 2);
+
+        let main_conflict = conflicts.iter().find(|c| c.file == "src/main.rs").unwrap();
+        assert_eq!(main_conflict.agents, vec!["agent-a", "agent-b"]);
+
+        let lib_conflict = conflicts.iter().find(|c| c.file == "src/lib.rs").unwrap();
+        assert_eq!(lib_conflict.agents, vec!["agent-a", "agent-c"]);
+    }
+
+    #[test]
+    fn test_compute_merge_order_non_conflicting_first() {
+        let sources = vec![
+            MergeSource {
+                agent_slug: "agent-a".to_string(),
+                worktree_path: PathBuf::from("/tmp/wt-a"),
+                changed_files: vec!["src/main.rs".to_string()],
+                commit_count: 1,
+            },
+            MergeSource {
+                agent_slug: "agent-b".to_string(),
+                worktree_path: PathBuf::from("/tmp/wt-b"),
+                changed_files: vec!["src/main.rs".to_string()],
+                commit_count: 1,
+            },
+            MergeSource {
+                agent_slug: "agent-c".to_string(),
+                worktree_path: PathBuf::from("/tmp/wt-c"),
+                changed_files: vec!["src/other.rs".to_string()],
+                commit_count: 1,
+            },
+        ];
+
+        let conflicts = vec![FileConflict {
+            file: "src/main.rs".to_string(),
+            agents: vec!["agent-a".to_string(), "agent-b".to_string()],
+            conflict_type: ConflictType::Overlapping,
+        }];
+
+        let order = compute_merge_order(&sources, &conflicts);
+
+        // agent-c has no conflicts, should be first
+        assert_eq!(order[0], "agent-c");
+        // agent-a and agent-b both have overlapping conflicts, sorted alphabetically
+        assert_eq!(order[1], "agent-a");
+        assert_eq!(order[2], "agent-b");
+    }
+
+    #[test]
+    fn test_compute_merge_order_is_deterministic() {
+        let sources = vec![
+            MergeSource {
+                agent_slug: "zebra".to_string(),
+                worktree_path: PathBuf::from("/tmp/wt-z"),
+                changed_files: vec!["a.rs".to_string()],
+                commit_count: 1,
+            },
+            MergeSource {
+                agent_slug: "alpha".to_string(),
+                worktree_path: PathBuf::from("/tmp/wt-a"),
+                changed_files: vec!["b.rs".to_string()],
+                commit_count: 1,
+            },
+            MergeSource {
+                agent_slug: "middle".to_string(),
+                worktree_path: PathBuf::from("/tmp/wt-m"),
+                changed_files: vec!["c.rs".to_string()],
+                commit_count: 1,
+            },
+        ];
+
+        let conflicts = vec![];
+
+        // Run multiple times to verify determinism
+        let order1 = compute_merge_order(&sources, &conflicts);
+        let order2 = compute_merge_order(&sources, &conflicts);
+        assert_eq!(order1, order2);
+        // All at same conflict level → alphabetical
+        assert_eq!(order1, vec!["alpha", "middle", "zebra"]);
+    }
+
+    #[test]
+    fn test_compute_merge_order_respects_conflict_levels() {
+        let sources = vec![
+            MergeSource {
+                agent_slug: "agent-overlap".to_string(),
+                worktree_path: PathBuf::from("/tmp/wt-1"),
+                changed_files: vec!["shared.rs".to_string()],
+                commit_count: 1,
+            },
+            MergeSource {
+                agent_slug: "agent-nonoverlap".to_string(),
+                worktree_path: PathBuf::from("/tmp/wt-2"),
+                changed_files: vec!["shared2.rs".to_string()],
+                commit_count: 1,
+            },
+            MergeSource {
+                agent_slug: "agent-clean".to_string(),
+                worktree_path: PathBuf::from("/tmp/wt-3"),
+                changed_files: vec!["unique.rs".to_string()],
+                commit_count: 1,
+            },
+        ];
+
+        let conflicts = vec![
+            FileConflict {
+                file: "shared.rs".to_string(),
+                agents: vec!["agent-overlap".to_string(), "agent-nonoverlap".to_string()],
+                conflict_type: ConflictType::Overlapping,
+            },
+            FileConflict {
+                file: "shared2.rs".to_string(),
+                agents: vec!["agent-nonoverlap".to_string(), "agent-clean".to_string()],
+                conflict_type: ConflictType::NonOverlapping,
+            },
+        ];
+
+        let order = compute_merge_order(&sources, &conflicts);
+        // agent-clean is involved in NonOverlapping only → level 1
+        // agent-nonoverlap has Overlapping → level 3
+        // agent-overlap has Overlapping → level 3
+        // Wait: agent-clean is in shared2.rs NonOverlapping conflict
+        // So: agent-clean → level 1, agent-nonoverlap → level 3, agent-overlap → level 3
+        assert_eq!(order[0], "agent-clean");
+        assert_eq!(order[1], "agent-nonoverlap");
+        assert_eq!(order[2], "agent-overlap");
+    }
+
+    #[test]
+    fn test_ranges_overlap() {
+        // Overlapping ranges
+        assert!(ranges_overlap(&[(1, 10)], &[(5, 15)]));
+        assert!(ranges_overlap(&[(5, 15)], &[(1, 10)]));
+        assert!(ranges_overlap(&[(1, 10)], &[(10, 20)]));
+
+        // Non-overlapping ranges
+        assert!(!ranges_overlap(&[(1, 5)], &[(6, 10)]));
+        assert!(!ranges_overlap(&[(10, 20)], &[(1, 5)]));
+
+        // Multiple ranges, some overlap
+        assert!(ranges_overlap(&[(1, 5), (20, 30)], &[(4, 6)]));
+        assert!(!ranges_overlap(&[(1, 5), (20, 30)], &[(6, 19)]));
+    }
+
+    #[test]
+    fn test_merge_source_serde_roundtrip() {
+        let source = MergeSource {
+            agent_slug: "my-agent".to_string(),
+            worktree_path: PathBuf::from("/home/user/.worktrees/my-agent"),
+            changed_files: vec!["src/main.rs".to_string(), "Cargo.toml".to_string()],
+            commit_count: 5,
+        };
+        let json = serde_json::to_string(&source).unwrap();
+        let parsed: MergeSource = serde_json::from_str(&json).unwrap();
+        assert_eq!(source, parsed);
+    }
+
+    #[test]
+    fn test_file_conflict_serde_roundtrip() {
+        let conflict = FileConflict {
+            file: "src/lib.rs".to_string(),
+            agents: vec!["agent-a".to_string(), "agent-b".to_string()],
+            conflict_type: ConflictType::NonOverlapping,
+        };
+        let json = serde_json::to_string(&conflict).unwrap();
+        let parsed: FileConflict = serde_json::from_str(&json).unwrap();
+        assert_eq!(conflict, parsed);
     }
 }

@@ -1450,6 +1450,18 @@ enum SwarmCommands {
         #[arg(long)]
         budget_aware: bool,
     },
+    /// Merge changes from completed agent worktrees into a single branch
+    Merge {
+        /// Target branch name for merged changes
+        #[arg(long, default_value = "swarm-combined")]
+        branch: String,
+        /// Only analyze conflicts, don't apply changes
+        #[arg(long)]
+        dry_run: bool,
+        /// Agent slugs to merge (default: all completed agents from current swarm)
+        #[arg(long, value_name = "SLUGS")]
+        agents: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -2347,6 +2359,11 @@ fn main() -> Result<()> {
                     max_agents,
                     budget_aware,
                 ),
+                SwarmCommands::Merge {
+                    branch,
+                    dry_run,
+                    agents,
+                } => commands::swarm::merge(&crosslink_dir, &branch, dry_run, agents.as_deref()),
             }
         }
         Commands::Tui => {
