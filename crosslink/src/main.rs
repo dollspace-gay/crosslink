@@ -18,6 +18,7 @@ mod locks;
 mod models;
 #[allow(dead_code)]
 mod orchestrator;
+mod pipeline;
 mod seam;
 mod server;
 #[allow(dead_code)]
@@ -1430,6 +1431,10 @@ enum SwarmCommands {
         #[arg(long)]
         budget_aware: bool,
     },
+    /// Continue a paused pipeline (e.g., after human checkpoint)
+    ReviewContinue,
+    /// Show pipeline status
+    ReviewStatus,
 }
 
 #[derive(Subcommand)]
@@ -2313,6 +2318,8 @@ fn main() -> Result<()> {
                     max_agents,
                     budget_aware,
                 ),
+                SwarmCommands::ReviewContinue => commands::swarm::review_continue(&crosslink_dir),
+                SwarmCommands::ReviewStatus => commands::swarm::review_status(&crosslink_dir),
             }
         }
         Commands::Tui => {

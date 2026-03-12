@@ -1976,6 +1976,49 @@ fn find_latest_checkpoint(dir: &Path) -> Option<Checkpoint> {
 }
 
 // ---------------------------------------------------------------------------
+// swarm fix (stub — full implementation tracked separately)
+// ---------------------------------------------------------------------------
+
+/// Launch parallel fix agents, one per issue.
+///
+/// This is a placeholder that will be implemented in a dedicated PR.
+pub fn fix(
+    _crosslink_dir: &Path,
+    _issues: Option<&str>,
+    _from_label: Option<&str>,
+    _max_agents: usize,
+    _budget_aware: bool,
+) -> Result<()> {
+    bail!("swarm fix is not yet implemented. See the project tracker for status.");
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline wrappers
+// ---------------------------------------------------------------------------
+
+/// Continue a paused pipeline past a human checkpoint.
+pub fn review_continue(crosslink_dir: &Path) -> Result<()> {
+    let mut pipeline = crate::pipeline::load_pipeline(crosslink_dir)?
+        .context("No active pipeline found. Start one with `crosslink swarm review`")?;
+    pipeline.confirm_checkpoint()?;
+    crate::pipeline::save_pipeline(crosslink_dir, &pipeline)?;
+    println!(
+        "Pipeline resumed from checkpoint. Current stage: {}",
+        pipeline.current_stage
+    );
+    Ok(())
+}
+
+/// Show the current pipeline status.
+pub fn review_status(crosslink_dir: &Path) -> Result<()> {
+    match crate::pipeline::load_pipeline(crosslink_dir)? {
+        Some(pipeline) => println!("{}", pipeline.summary()),
+        None => println!("No active pipeline."),
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
