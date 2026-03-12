@@ -3,8 +3,11 @@
 Generate the crosslink banner image as an SVG using Forecast brand primitives.
 
 Concept: Interconnected AI agents as layered organic shapes in the Forecast
-visual language — overlapping ellipses, circles, crescents, and rounded
-rectangles with scattered dot accents suggesting data flow between agents.
+visual language — overlapping ellipses, circles, and rounded rectangles with
+scattered dot accents suggesting data flow between agents.
+
+Uses multiplicative blend mode throughout (no alpha transparency on shapes).
+Full-width composition with no edge clipping.
 
 Usage:
     python3 scripts/generate-banner.py                    # SVG to stdout
@@ -13,226 +16,76 @@ Usage:
 """
 
 import argparse
-import math
 import random
 import sys
+from pathlib import Path
 
-# ── Forecast Brand Palette ──────────────────────────────────────────────────
-PALETTE = {
-    "red":    "#F95838",
-    "green":  "#007C35",
-    "blue":   "#00A6DB",
-    "yellow": "#FFCE02",
-    "pink":   "#FFB6C6",
-    "bg":     "#F9F4F5",
-    "white":  "#FFFFFF",
-    "black":  "#000000",
-}
-
-# Extended palette with translucent variants for dot motifs
-DOT_COLORS = [
-    PALETTE["red"],
-    PALETTE["green"],
-    PALETTE["blue"],
-    PALETTE["yellow"],
-    PALETTE["pink"],
-    "rgba(0,0,0,0.08)",   # ghost dots
-    "rgba(0,0,0,0.05)",
-]
+sys.path.insert(0, str(Path(__file__).parent))
+from brand import P, CONFETTI_COLORS, ellipse, circle, rrect, confetti, write_svg
 
 WIDTH = 1500
 HEIGHT = 500
-
-# Seed for reproducibility
 SEED = 42
 
+MUL = 'style="mix-blend-mode: multiply"'
 
-def svg_header():
-    return f"""<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {HEIGHT}" width="{WIDTH}" height="{HEIGHT}">
-  <defs>
-    <!-- Soft clip for clean edges -->
-    <clipPath id="banner-clip">
-      <rect width="{WIDTH}" height="{HEIGHT}" rx="0"/>
-    </clipPath>
-  </defs>
-  <g clip-path="url(#banner-clip)">
-    <!-- Background -->
-    <rect width="{WIDTH}" height="{HEIGHT}" fill="{PALETTE['bg']}"/>
-"""
+def _m(shape_svg):
+    """Wrap a shape in a multiply-blend group."""
+    return f'  <g {MUL}>\n  {shape_svg}  </g>\n'
 
 
-def svg_footer():
-    return """  </g>
-</svg>
-"""
-
-
-def ellipse(cx, cy, rx, ry, fill, opacity=1.0, rotate=0):
-    transform = f' transform="rotate({rotate} {cx} {cy})"' if rotate else ""
-    op = f' opacity="{opacity}"' if opacity < 1.0 else ""
-    return f'    <ellipse cx="{cx}" cy="{cy}" rx="{rx}" ry="{ry}" fill="{fill}"{op}{transform}/>\n'
-
-
-def circle(cx, cy, r, fill, opacity=1.0):
-    op = f' opacity="{opacity}"' if opacity < 1.0 else ""
-    return f'    <circle cx="{cx}" cy="{cy}" r="{r}" fill="{fill}"{op}/>\n'
-
-
-def rounded_rect(x, y, w, h, fill, rx=None, opacity=1.0, rotate=0):
-    if rx is None:
-        rx = min(w, h) * 0.4
-    op = f' opacity="{opacity}"' if opacity < 1.0 else ""
-    transform = f' transform="rotate({rotate} {x + w/2} {y + h/2})"' if rotate else ""
-    return f'    <rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{fill}"{op}{transform}/>\n'
-
-
-def crescent(cx, cy, r, fill, opacity=1.0, rotate=0):
-    """A crescent/C-shape made from two overlapping circles (path difference)."""
-    # Outer arc
-    outer_r = r
-    inner_r = r * 0.7
-    offset = r * 0.35
-
-    # Build a crescent using arc paths
-    # Start at top of outer circle, arc right, then inner arc back
-    svg = f'    <g transform="rotate({rotate} {cx} {cy})"'
-    if opacity < 1.0:
-        svg += f' opacity="{opacity}"'
-    svg += '>\n'
-
-    # Use a mask approach: draw outer circle, cut with offset inner circle
-    mask_id = f"crescent-{cx:.0f}-{cy:.0f}-{rotate:.0f}"
-    svg += f'      <mask id="{mask_id}">\n'
-    svg += f'        <rect x="{cx - outer_r - 10}" y="{cy - outer_r - 10}" '
-    svg += f'width="{outer_r * 2 + 20}" height="{outer_r * 2 + 20}" fill="white"/>\n'
-    svg += f'        <circle cx="{cx + offset}" cy="{cy}" r="{inner_r}" fill="black"/>\n'
-    svg += f'      </mask>\n'
-    svg += f'      <circle cx="{cx}" cy="{cy}" r="{outer_r}" fill="{fill}" mask="url(#{mask_id})"/>\n'
-    svg += '    </g>\n'
-    return svg
-
-
-def triangle(cx, cy, size, fill, opacity=1.0, rotate=0):
-    """An equilateral-ish triangle (like the Forecast brand triangles)."""
-    h = size * math.sqrt(3) / 2
-    points = [
-        (cx, cy - h * 0.6),
-        (cx - size / 2, cy + h * 0.4),
-        (cx + size / 2, cy + h * 0.4),
-    ]
-    pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in points)
-    op = f' opacity="{opacity}"' if opacity < 1.0 else ""
-    transform = f' transform="rotate({rotate} {cx} {cy})"' if rotate else ""
-    return f'    <polygon points="{pts}" fill="{fill}"{op}{transform}/>\n'
-
-
-def scattered_dots(rng, region_x, region_y, region_w, region_h, count, r_min=2, r_max=6):
-    """Generate scattered dot motif in a region — the Forecast signature pattern."""
-    svg = ""
-    for _ in range(count):
-        x = region_x + rng.random() * region_w
-        y = region_y + rng.random() * region_h
-        r = r_min + rng.random() * (r_max - r_min)
-        color = rng.choice(DOT_COLORS)
-        svg += circle(x, y, r, color)
-    return svg
-
-
-def generate_banner():
-    """Compose the banner from Forecast brand primitives.
-
-    Layout concept — three "agent clusters" across the banner connected
-    by dot-flow paths, with a large central composition:
-
-    [Agent cluster 1]  ···dots···  [Central hub]  ···dots···  [Agent cluster 2]
-         left                        center                       right
-    """
+def generate():
     rng = random.Random(SEED)
-    svg = svg_header()
 
-    # ── Layer 1: Large background shapes (depth) ────────────────────────
+    svg = f"""<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {HEIGHT}" width="{WIDTH}" height="{HEIGHT}">
+  <rect width="{WIDTH}" height="{HEIGHT}" fill="{P['bg']}"/>
+"""
 
-    # Large pink ellipse — center-right, the dominant "hub" shape
-    svg += ellipse(820, 260, 260, 200, PALETTE["pink"], opacity=0.7)
+    # ── Layer 1: Large background shapes ──────────────────────────────────
+    svg += _m(ellipse(820, 260, 260, 200, P["pink"]))
+    svg += _m(rrect(1050, 50, 320, 160, P["yellow"], rx=70, rotate=8))
+    svg += _m(ellipse(200, 310, 200, 160, P["blue"]))
+    svg += _m(ellipse(1380, 220, 150, 130, P["pink"]))
+    svg += _m(ellipse(60, 140, 120, 100, P["yellow"]))
 
-    # Golden yellow rounded rect — upper right, tilted
-    svg += rounded_rect(1050, 30, 320, 160, PALETTE["yellow"], rx=70, opacity=0.8, rotate=8)
+    # ── Layer 2: Medium agent shapes ──────────────────────────────────────
+    svg += _m(circle(260, 190, 90, P["green"]))
+    svg += _m(circle(320, 125, 18, P["red"]))
 
-    # Blue ellipse — left side, partially off-canvas
-    svg += ellipse(180, 320, 200, 160, PALETTE["blue"], opacity=0.5)
+    svg += _m(ellipse(530, 280, 100, 75, P["pink"]))
 
-    # ── Layer 2: Medium agent shapes ────────────────────────────────────
+    svg += _m(rrect(700, 150, 200, 220, P["green"], rx=60))
+    svg += _m(circle(870, 200, 70, P["yellow"]))
+    svg += _m(circle(780, 170, 22, P["red"]))
 
-    # Agent 1 (left): green circle with red accent dot
-    svg += circle(250, 200, 90, PALETTE["green"], opacity=0.85)
-    svg += circle(310, 135, 18, PALETTE["red"])
+    svg += _m(ellipse(1150, 300, 110, 80, P["yellow"]))
 
-    # Agent 2 (center-left): pink ellipse with blue crescent
-    svg += ellipse(530, 280, 100, 75, PALETTE["pink"], opacity=0.9)
-    svg += crescent(490, 250, 50, PALETTE["blue"], opacity=0.8, rotate=-30)
+    svg += _m(circle(1350, 180, 75, P["pink"]))
+    svg += _m(circle(1380, 230, 30, P["blue"]))
+    svg += _m(circle(1310, 150, 20, P["red"]))
 
-    # Central hub: large overlapping composition
-    # — green rounded rect as base
-    svg += rounded_rect(700, 150, 200, 220, PALETTE["green"], rx=60, opacity=0.75)
-    # — yellow circle overlapping
-    svg += circle(870, 200, 70, PALETTE["yellow"], opacity=0.85)
-    # — small red circle accent
-    svg += circle(780, 170, 22, PALETTE["red"])
-    # — blue triangle pointing right (suggesting flow/direction)
-    svg += triangle(900, 310, 80, PALETTE["blue"], opacity=0.75, rotate=90)
+    # ── Layer 3: Small accent shapes ─────────────────────────────────────
+    svg += _m(circle(450, 130, 35, P["blue"]))
+    svg += _m(circle(1020, 250, 45, P["red"]))
+    svg += _m(circle(100, 370, 30, P["green"]))
+    svg += _m(circle(1430, 380, 25, P["green"]))
 
-    # Agent 3 (right): yellow ellipse with green triangle
-    svg += ellipse(1150, 300, 110, 80, PALETTE["yellow"], opacity=0.8)
-    svg += triangle(1200, 260, 55, PALETTE["green"], opacity=0.9, rotate=15)
+    svg += _m(rrect(580, 100, 80, 50, P["red"], rx=25))
+    svg += _m(rrect(1250, 350, 100, 60, P["blue"], rx=30))
 
-    # Agent 4 (far right): pink circle cluster
-    svg += circle(1350, 180, 75, PALETTE["pink"], opacity=0.8)
-    svg += circle(1380, 230, 30, PALETTE["blue"], opacity=0.7)
-    svg += circle(1310, 150, 20, PALETTE["red"], opacity=0.9)
+    # ── Layer 4: Confetti dots (already multiply via brand.py) ───────────
+    svg += confetti(rng, 20, 30, 200, 180, count=12)
+    svg += confetti(rng, 320, 60, 250, 150, count=15)
+    svg += confetti(rng, 620, 80, 200, 120, count=12)
+    svg += confetti(rng, 920, 100, 250, 180, count=15)
+    svg += confetti(rng, 1200, 60, 250, 180, count=12)
+    svg += confetti(rng, 100, 300, 300, 150, count=10)
+    svg += confetti(rng, 500, 330, 300, 140, count=10)
+    svg += confetti(rng, 900, 320, 300, 150, count=10)
+    svg += confetti(rng, 1250, 300, 200, 160, count=8)
 
-    # ── Layer 3: Crescent connectors ────────────────────────────────────
-    # Crescents between agent clusters suggesting communication/links
-
-    svg += crescent(400, 180, 45, PALETTE["green"], opacity=0.6, rotate=45)
-    svg += crescent(1020, 250, 55, PALETTE["red"], opacity=0.5, rotate=-20)
-    svg += crescent(1280, 350, 40, PALETTE["green"], opacity=0.5, rotate=120)
-
-    # ── Layer 4: Scattered dot flows ────────────────────────────────────
-    # Dots flowing between agent clusters — the "data/memory" layer
-
-    # Flow: left cluster → center
-    svg += scattered_dots(rng, 320, 150, 250, 150, count=25, r_min=2, r_max=5)
-
-    # Flow: center → right cluster
-    svg += scattered_dots(rng, 920, 200, 250, 150, count=25, r_min=2, r_max=5)
-
-    # Sparse ambient dots across the full banner
-    svg += scattered_dots(rng, 50, 30, 1400, 440, count=40, r_min=1.5, r_max=4)
-
-    # ── Layer 5: Small accent dots on top ───────────────────────────────
-    # Bright, opaque accent dots that pop
-
-    accent_positions = [
-        (160, 380, 8, PALETTE["yellow"]),
-        (450, 120, 6, PALETTE["red"]),
-        (650, 400, 10, PALETTE["blue"]),
-        (950, 130, 7, PALETTE["yellow"]),
-        (1100, 420, 9, PALETTE["green"]),
-        (1400, 350, 6, PALETTE["red"]),
-        (80, 100, 5, PALETTE["pink"]),
-        (1450, 80, 8, PALETTE["green"]),
-    ]
-    for x, y, r, color in accent_positions:
-        svg += circle(x, y, r, color)
-
-    # ── Forecast logo mark (top-left) ───────────────────────────────────
-    # The quarter-circle: pink background wedge + green triangle
-    svg += f'    <!-- Forecast logo mark -->\n'
-    svg += f'    <path d="M 30 30 L 30 65 A 35 35 0 0 0 65 30 Z" fill="{PALETTE["pink"]}" opacity="0.6"/>\n'
-    svg += triangle(44, 48, 22, PALETTE["green"], opacity=0.9, rotate=225)
-
-    svg += svg_footer()
+    svg += "</svg>\n"
     return svg
 
 
@@ -242,7 +95,7 @@ def main():
     parser.add_argument("--png", action="store_true", help="Convert to PNG (requires cairosvg)")
     args = parser.parse_args()
 
-    svg_content = generate_banner()
+    svg_content = generate()
 
     if args.png:
         try:

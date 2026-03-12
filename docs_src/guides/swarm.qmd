@@ -4,6 +4,10 @@ title: "Swarm Orchestration"
 
 Swarm orchestration lets you build a complex feature across multiple phases. You hand the system a design document and a budget, and the swarm decomposes it into phases, launches agents, gates quality between phases, and manages spending -- all automatically.
 
+::: {.column-page-right}
+![](../assets/img/swarm-flow.svg)
+:::
+
 ## Overview
 
 ```
@@ -32,17 +36,17 @@ Swarm orchestration lets you build a complex feature across multiple phases. You
 ## Initializing a Swarm
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say / do:**
 
 > "Build this feature across multiple phases. Here's my design doc."
 
 You provide a design document describing the feature. The swarm decomposes it into phases and work units automatically.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 &rarr;
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -54,28 +58,20 @@ Parses the document, creates a phased plan, and stores it on the `crosslink/hub`
 :::
 :::
 
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-crosslink swarm init --doc DESIGN-MY-FEATURE.md
-crosslink swarm status
-crosslink swarm plan-show
-```
-:::
-
 ## Planning with Budget Awareness
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say / do:**
 
 > "I have a 3-hour budget window. Schedule the phases to fit."
 
 You set a budget and the swarm figures out how to distribute phases across your available time. Cost estimates improve with each completed phase.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 &rarr;
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -88,34 +84,20 @@ Plans phase scheduling, configures the cost model, and estimates wall-clock cost
 :::
 :::
 
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-# Plan across budget windows
-crosslink swarm plan
-crosslink swarm plan --budget-window 2h
-
-# Configure budget parameters
-crosslink swarm config --budget-window 3h --model opus
-
-# Estimate cost for a specific phase
-crosslink swarm estimate 2
-```
-:::
-
 ## Launching a Phase
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say / do:**
 
 > "Launch phase 1."
 
 Each agent in the phase gets its own worktree, branch, crosslink issue, and agent identity. They run in parallel, coordinated through distributed locks.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 &rarr;
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -128,17 +110,17 @@ Launches all agents for phase 1 and shows progress.
 :::
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say / do:**
 
 > "Launch phase 2 -- but only if I have budget left."
 
 Budget-aware launch checks remaining budget before starting. If the estimated cost exceeds your window, the launch is blocked with a warning.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 &rarr;
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -147,27 +129,20 @@ crosslink swarm launch 2 --budget-aware
 :::
 :::
 
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-crosslink swarm launch 1
-crosslink swarm launch 2 --budget-aware
-```
-:::
-
 ## Phase Gates
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say / do:**
 
 > "Run the quality gate for phase 1."
 
 The gate runs the project's full test suite. All tests must pass before the phase is considered complete and you can advance.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 &rarr;
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -178,26 +153,20 @@ Runs the test suite. Reports pass/fail and any failures.
 :::
 :::
 
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-crosslink swarm gate 1
-```
-:::
-
 ## Checkpointing
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say / do:**
 
 > "Phase 1 looks good. Record it and move on."
 
 Checkpointing records timing data, agent results, and handoff notes. This is what `resume` reads if you come back later.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 &rarr;
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -215,27 +184,20 @@ Use `--force` to checkpoint even if the gate hasn't passed (for partial progress
 crosslink swarm checkpoint 1 --force --notes "3 of 4 agents complete, one blocked"
 ```
 
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-crosslink swarm checkpoint 1 --notes "Phase 1 complete: data layer and config parsing done"
-crosslink swarm checkpoint 1 --force --notes "3 of 4 agents complete, one blocked"
-```
-:::
-
 ## Resuming After Interruption
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say / do:**
 
 > "I'm back. Where did we leave off?"
 
 Resume reconstructs swarm state from the hub branch and tells you exactly what to do next.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 &rarr;
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -244,13 +206,6 @@ crosslink swarm resume
 
 Reads checkpoints, lock state, heartbeats, and budget to show: which phases are done, which agents are still running, and which phases are ready to launch.
 :::
-:::
-
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-crosslink swarm resume
-crosslink swarm status
-```
 :::
 
 ## Harvesting Cost Data

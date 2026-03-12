@@ -9,17 +9,17 @@ Keep your crosslink data lean and your agent infrastructure clean. Over time, th
 The `crosslink/hub` and `crosslink/knowledge` branches grow with every lock operation, heartbeat, and knowledge entry. Pruning squashes old history to keep these branches fast.
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say / do:**
 
 > "The hub branch is getting bloated. Squash it down."
 
 You want to squash coordination history while keeping current state intact.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 &rarr;
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -31,17 +31,17 @@ Squashes both hub and knowledge branch history down to the current state. Lock a
 :::
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say / do:**
 
 > "Just prune the knowledge branch."
 
 Prune only the knowledge branch, leaving hub history intact.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 &rarr;
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -50,46 +50,22 @@ crosslink prune --knowledge-only --force
 :::
 :::
 
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-# Prune both branches (interactive confirmation)
-crosslink prune
-
-# Skip confirmation
-crosslink prune --force
-
-# Prune only hub branch
-crosslink prune --hub-only --force
-
-# Prune only knowledge branch
-crosslink prune --knowledge-only --force
-
-# Keep the last 5 commits instead of squashing to 1
-crosslink prune --keep-commits 5 --force
-
-# Dry run -- see what would be pruned without changing anything
-crosslink prune --dry-run
-crosslink prune --hub-only --dry-run
-crosslink prune --knowledge-only --dry-run
-```
-:::
-
 ## Kickoff Cleanup
 
 After agents finish their work, worktrees, tmux sessions, and Docker containers remain until explicitly cleaned up.
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say / do:**
 
 > "Clean up all the finished agent infrastructure."
 
 You want to reclaim disk space and remove stale processes from completed agents.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 &rarr;
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -98,21 +74,6 @@ crosslink kickoff cleanup
 
 Removes worktrees for completed agents (`.kickoff-status` is `DONE` or process is dead), kills orphaned tmux sessions, and removes stopped Docker containers.
 :::
-:::
-
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-# Automated cleanup
-crosslink kickoff cleanup
-
-# Dry run -- see what would be removed
-crosslink kickoff cleanup --dry-run
-
-# Manual cleanup for a single agent
-git worktree remove .worktrees/add-batch-retry-logic
-tmux kill-session -t feat-add-batch-retry-logic
-docker rm crosslink-add-batch-retry-logic
-```
 :::
 
 ## The `/maintain` Skill

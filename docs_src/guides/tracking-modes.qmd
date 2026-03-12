@@ -5,15 +5,15 @@ title: "Tracking Modes"
 Crosslink enforces issue tracking at three levels. You set the mode once; agents are automatically held to it on every action.
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You configure:**
 
 Set `tracking_mode` in `.crosslink/hook-config.json` to control how strictly agents must track their work.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 →
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agents experience:**
 
 - **strict** — blocked from editing without an active issue

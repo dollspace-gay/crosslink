@@ -186,4 +186,4 @@ See also:
 
 ## License
 
-MIT
+[MIT](LICENSE)

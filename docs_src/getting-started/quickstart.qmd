@@ -6,165 +6,141 @@ Get crosslink running and watch your agent handle a task with persistent memory 
 
 ![](../assets/img/quickstart.gif)
 
-## 1. Install
+## 1. Install and Initialize
 
 ```bash
 cargo install crosslink
-```
-
-See [Installation](installation.qmd) for more options.
-
-## 2. Initialize Your Project
-
-::: {.columns}
-::: {.column width="45%"}
-**You say:**
-
-> "Set up crosslink in this project"
-:::
-::: {.column width="10%"}
-:::
-::: {.column width="45%"}
-**Your agent runs:**
-
-```bash
-crosslink init
-```
-
-This creates `.crosslink/` (config, rules, database), `.claude/hooks/` (behavioral hooks), and `.claude/settings.json` (hook configuration).
-:::
-:::
-
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
 cd your-project
 crosslink init
 ```
 
-The interactive TUI walkthrough guides you through initial configuration.
-:::
+This creates `.crosslink/` (config, rules, database), `.claude/hooks/` (behavioral hooks), and `.claude/settings.json` (hook wiring). See [Installation](installation.qmd) for more install options.
 
-## 3. Start a Session
+## 2. Start a Session
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say:**
 
-> "What was I working on?"
+> "Let's get started"
 
-Your agent picks up where the last session left off — handoff notes appear automatically.
+Every conversation begins with a session. If a previous session left handoff notes, your agent sees them immediately.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Your agent runs:**
 
 ```bash
 crosslink session start
 ```
 
-If a previous session left handoff notes, they are displayed immediately.
+On the first session this is a no-op. On subsequent sessions, handoff notes from the previous agent (or your past self) appear automatically.
 :::
 :::
 
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-crosslink session start
-# Read the handoff notes yourself
-```
-:::
-
-## 4. Create an Issue
+## 3. Create an Issue
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say:**
 
 > "Fix the login bug — it's high priority"
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Your agent runs:**
 
 ```bash
-crosslink quick "Fix login bug" -p high -l bug
+crosslink quick "Fix login bug" \
+  -p high -l bug
 ```
 
 One command: creates the issue, labels it, and marks it as the active work item.
 :::
 :::
 
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-crosslink create "Fix login bug" -p high
-crosslink issue label 1 bug
-crosslink session work 1
-```
-:::
-
-## 5. Work With Breadcrumbs
+## 4. Work With Breadcrumbs
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say:**
 
 > "Dig into the auth module and find the root cause"
 
-Your agent explores the code, leaving breadcrumbs as it goes. These survive context compression — if the context window fills up, the trail of what was found and decided persists.
+Your agent explores the code, leaving breadcrumbs as it goes. These survive context compression — if the window fills up, the trail of what was found and decided persists.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Your agent runs:**
 
 ```bash
-crosslink session action "Found root cause in refresh_token()"
-crosslink issue comment 1 "Token wasn't refreshed on 401 responses"
+# Breadcrumb — survives context compression
+crosslink session action \
+  "Found root cause in refresh_token()"
+
+# Permanent comment on the issue
+crosslink issue comment 1 \
+  "Token wasn't refreshed on 401"
+
 # ... implements the fix, runs tests ...
 ```
 :::
 :::
 
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
+## 5. Commit and Close
+
+::: {.columns}
+::: {.column width="35%"}
+**You say:**
+
+> "Commit that and close the issue"
+
+The agent uses the built-in `/commit` skill, which creates the commit and records a result comment on the active issue. Closing auto-appends a changelog entry.
+:::
+::: {.column width="5%"}
+:::
+::: {.column width="60%"}
+**Your agent runs:**
+
 ```bash
-crosslink session work 1
-crosslink session action "Found root cause in refresh_token()"
-crosslink issue comment 1 "Token wasn't refreshed on 401 responses"
-# ... fix it yourself ...
+# /commit stages, writes the message,
+# and records the result on the issue
+/commit
+
+crosslink close 1
 ```
+:::
 :::
 
 ## 6. End the Session
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say:**
 
 > "Wrap up and leave notes for next time"
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Your agent runs:**
 
 ```bash
-crosslink session end --notes "Fixed auth bug #1. Dark mode (#2) is next."
+crosslink session end \
+  --notes "Fixed auth bug #1. Dark mode is next."
 ```
 
-The next session — whether it is you, another agent, or the same agent after a restart — will see these handoff notes automatically.
+The next session — whether it is you, another agent, or the same agent after a restart — sees these handoff notes automatically.
 :::
-:::
-
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-crosslink session end --notes "Fixed auth bug #1. Dark mode (#2) is next."
-```
 :::
 
 ## What's Next?
 
 - [Session Workflow](../guides/session-workflow.qmd) — deep dive into session management
+- [Design Workflow](../guides/design-workflow.qmd) — iterate on design documents before implementation
 - [Kickoff](../guides/kickoff.qmd) — launch autonomous background agents
 - [Swarm Orchestration](../guides/swarm.qmd) — multi-agent phased builds
 - [Knowledge Management](../guides/knowledge.qmd) — shared research across agents

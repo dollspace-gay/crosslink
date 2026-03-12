@@ -4,6 +4,8 @@ title: "Session Workflow"
 
 Sessions are crosslink's memory system. Your agents use them automatically to preserve context across conversations — tracking what's being worked on, recording breadcrumbs, and passing handoff notes to the next session.
 
+![](../assets/img/session-flow.svg)
+
 ![](../assets/img/session-workflow.gif)
 
 ## The Session Lifecycle
@@ -19,17 +21,17 @@ Every agent conversation follows this cycle. The hooks handle most of it automat
 ## Starting a Session
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You start a new conversation:**
 
 The agent's `session-start` hook fires automatically, showing handoff notes from the previous session, cleaning up stale sessions, and displaying open issues.
 
 Your agent picks up exactly where the last one left off.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 →
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -43,28 +45,20 @@ crosslink session start
 :::
 :::
 
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-crosslink session start
-crosslink session last-handoff  # read previous notes
-crosslink list -s open          # see what's available
-```
-:::
-
 ## Setting Focus
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say:**
 
 > "Work on the dark mode feature"
 
 The agent finds the matching issue and claims it as its active focus. The work-check hook uses this to track which issue is active — all subsequent code changes are attributed to this issue.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 →
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -84,13 +78,13 @@ crosslink quick "Add dark mode toggle" -p high -l feature
 ## Recording Breadcrumbs
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **While working**, the agent periodically records what it's doing. These breadcrumbs survive context compression — when the AI's context window fills up and resets, the session hook restores the last breadcrumb so the agent knows where it left off.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 →
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -107,17 +101,17 @@ crosslink session action "Dark mode CSS done, writing tests"
 ## Ending a Session
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say:**
 
 > "That's good for now, let's wrap up"
 
 The agent writes handoff notes summarizing what was done, what's in progress, and what's next — as if briefing a colleague taking over.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 →
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -132,15 +126,15 @@ crosslink session end --notes "Implemented dark mode \
 ## Checking Status
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You ask:**
 
 > "What are you working on?"
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 →
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash

@@ -7,17 +7,17 @@ Crosslink's hooks are guardrails that agents follow automatically. You configure
 ## How It Works
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You configure once:**
 
 Run `crosslink init` in your project. Hooks are installed into `.claude/hooks/` and activate automatically for every Claude Code session.
 
 No per-agent setup. No manual prompting. Every agent that touches this repo follows the same rules.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 →
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agents get checked on every action:**
 
 ```

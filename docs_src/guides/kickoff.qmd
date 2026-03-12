@@ -4,7 +4,6 @@ title: "Kickoff: Autonomous Feature Agents"
 
 The `/kickoff` flow launches an autonomous Claude agent in an isolated git worktree to implement a feature in the background. You describe what you want, and a fully instrumented agent handles the rest -- tracked through crosslink the entire way.
 
-![](../assets/img/kickoff.gif)
 
 ## Overview
 
@@ -22,20 +21,25 @@ The `/kickoff` flow launches an autonomous Claude agent in an isolated git workt
                   explore -> implement -> test -> commit -> done
 ```
 
+::: {.column-page-right}
+![](../assets/img/kickoff-flow.svg)
+:::
+
+![](../assets/img/kickoff.gif)
+
 ## Usage
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say / do:**
 
 > "Build batch retry logic for the job queue."
 
 You describe the feature in natural language. Optionally specify a verification level.
 :::
-::: {.column width="10%"}
-&rarr;
+::: {.column width="5%"}
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -47,17 +51,16 @@ Creates branch, worktree, agent identity, prompt, and launches a background tmux
 :::
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say / do:**
 
 > "Build it and make sure CI passes before you call it done."
 
 Adding verification means the agent will push, open a draft PR, and iterate until CI is green.
 :::
-::: {.column width="10%"}
-&rarr;
+::: {.column width="5%"}
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -68,17 +71,16 @@ crosslink kickoff run "add batch retry logic" \
 :::
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say / do:**
 
 > "Build it, get CI green, and do a thorough self-review before finishing."
 
 The agent runs CI plus an adversarial review pass -- checking for debug code, TODOs, and incomplete error handling.
 :::
-::: {.column width="10%"}
-&rarr;
+::: {.column width="5%"}
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -86,19 +88,6 @@ crosslink kickoff run "add batch retry logic" \
   --verify thorough
 ```
 :::
-:::
-
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-# Basic -- implement and test locally
-/kickoff "add batch retry logic"
-
-# With CI verification
-/kickoff "add batch retry logic" --verify ci
-
-# Thorough -- CI + adversarial self-review
-/kickoff "add batch retry logic" --verify thorough
-```
 :::
 
 ## What Happens Step by Step
@@ -222,17 +211,16 @@ While the agent works, use `/check` to monitor progress:
 See which agents are currently running across all execution backends:
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say / do:**
 
 > "What agents are running right now?"
 
 You want a quick view of all active agents -- whether they are in worktrees, tmux sessions, or Docker containers.
 :::
-::: {.column width="10%"}
-&rarr;
+::: {.column width="5%"}
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -241,26 +229,6 @@ crosslink kickoff list
 
 Output includes agent name, worktree path, branch, backend (tmux/docker), uptime, and current status.
 :::
-:::
-
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-# List all active kickoff agents
-crosslink kickoff list
-
-# JSON output for scripting
-crosslink --json kickoff list
-
-# Filter by status
-crosslink kickoff list --status running
-crosslink kickoff list --status done
-```
-
-Discovery checks three sources:
-
-- **Worktrees** -- scans `.worktrees/` for active agent directories
-- **tmux** -- queries tmux for sessions matching the `feat-*` prefix
-- **Docker** -- queries Docker/Podman for crosslink agent containers
 :::
 
 ## Safety Constraints
@@ -278,17 +246,16 @@ The background agent operates under the same crosslink hook enforcement as inter
 After reviewing the agent's work, clean up the worktree and session infrastructure.
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say / do:**
 
 > "Clean up all the finished agents."
 
 You want to remove worktrees, tmux sessions, and containers for agents that are done.
 :::
-::: {.column width="10%"}
-&rarr;
+::: {.column width="5%"}
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -297,22 +264,6 @@ crosslink kickoff cleanup
 
 Prunes stale worktrees, terminates dead tmux sessions, and removes stopped Docker containers. Only cleans up agents whose `.kickoff-status` is `DONE` or whose processes are no longer running.
 :::
-:::
-
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-# Automated cleanup of all finished agents
-crosslink kickoff cleanup
-
-# Dry run -- see what would be removed
-crosslink kickoff cleanup --dry-run
-
-# Manual cleanup for a single agent
-git merge feature/add-batch-retry-logic
-git worktree remove .worktrees/add-batch-retry-logic
-
-# Or if using the draft PR, merge via GitHub
-```
 :::
 
 ## Running Multiple Agents

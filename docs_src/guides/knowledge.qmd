@@ -2,6 +2,8 @@
 title: "Knowledge Management"
 ---
 
+![](../assets/img/knowledge-flow.svg)
+
 Crosslink's knowledge system is shared memory for your agents. When one agent researches an API, evaluates a library, or documents an architectural decision, that knowledge is automatically available to every other agent working on the project.
 
 Knowledge pages live on a dedicated `crosslink/knowledge` git branch (separate from your code) and sync automatically when agents start sessions.
@@ -9,17 +11,17 @@ Knowledge pages live on a dedicated `crosslink/knowledge` git branch (separate f
 ## How Agents Use Knowledge
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say:**
 
 > "Research the best approach for rate limiting"
 
 The agent investigates, then saves its findings as a knowledge page — tagged, sourced, and searchable.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 →
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -38,17 +40,17 @@ Later, when another agent starts a session on a related issue, the `session-star
 ## Creating Pages
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You say:**
 
 > "Save that auth research to knowledge"
 
 Agents create pages with descriptive slugs, tags for discoverability, and source links for provenance.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 →
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
@@ -69,27 +71,20 @@ crosslink knowledge add auth-design \
 :::
 :::
 
-::: {.callout-note collapse="true" title="Manual CLI equivalent"}
-```bash
-crosslink knowledge add <slug> --title "Title" --content "..." --tag <tag> --source <url>
-crosslink knowledge add <slug> --from-doc <path>
-```
-:::
-
 ## Browsing and Searching
 
 ::: {.columns}
-::: {.column width="45%"}
+::: {.column width="35%"}
 **You ask:**
 
 > "What do we know about caching?"
 
 The agent searches across all knowledge pages with full-text search, filtering by tags, contributors, or date range.
 :::
-::: {.column width="10%"}
+::: {.column width="5%"}
 →
 :::
-::: {.column width="45%"}
+::: {.column width="60%"}
 **Agent executes:**
 
 ```bash
