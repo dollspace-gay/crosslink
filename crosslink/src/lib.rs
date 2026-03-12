@@ -7,6 +7,7 @@ pub mod clock_skew;
 pub mod compaction;
 pub mod db;
 pub mod events;
+pub mod findings;
 pub mod hydration;
 pub mod identity;
 pub mod issue_file;

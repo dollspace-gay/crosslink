@@ -8,6 +8,8 @@ mod daemon;
 mod db;
 #[allow(dead_code)]
 mod events;
+#[allow(dead_code)]
+mod findings;
 mod hydration;
 mod identity;
 mod issue_file;
