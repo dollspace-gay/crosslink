@@ -6,7 +6,7 @@
   "priority": "high",
   "created_by": "m1",
   "created_at": "2026-02-27T05:49:23.059378Z",
-  "updated_at": "2026-03-12T05:18:20.542529Z",
+  "updated_at": "2026-03-12T06:14:36.433781Z",
   "closed_at": "2026-02-27T13:31:25.248589Z",
   "labels": [
     "release"
@@ -29,6 +29,15 @@
       "kind": "result",
       "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A",
       "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgbMJQrcFvxUHGFzKhLs2qsfUDMqPDdJSAHuIKkxY6rD4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA9eeUAAZP8GVVkhXkj9jFBqQ8w3qnPSTLWjIHXG4FiHup2jqj5gRii13HZ5qavVDEH51HQdD9sqf97BWOTm7xCQ=="
+    },
+    {
+      "id": 280,
+      "author": "maxine--basel",
+      "content": "Committed: fix(docs): correct CLI commands, flags, and defaults after adversarial audit | Files: 14 files changed, 115 insertions(+), 109 deletions(-)",
+      "created_at": "2026-03-12T06:14:36.433781Z",
+      "kind": "result",
+      "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A",
+      "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgbMJQrcFvxUHGFzKhLs2qsfUDMqPDdJSAHuIKkxY6rD4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAiUwy2LMUEXnxf1D0wT3yq6b2MOMlowwsIixJZohIhlpZ6OqKNeFP1ynWHkNnPoo9zhJFWm1VDV0qo3VqXMy5Dw=="
     }
   ]
 }
