@@ -2270,6 +2270,257 @@ fn find_latest_checkpoint(dir: &Path) -> Option<Checkpoint> {
 }
 
 // ---------------------------------------------------------------------------
+// swarm fix — parallel issue-to-agent fix execution
+// ---------------------------------------------------------------------------
+
+/// Plan for parallel fix execution, stored at `swarm/fix-plan.json`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FixPlan {
+    pub schema_version: u32,
+    pub created_at: String,
+    pub issues: Vec<FixTarget>,
+}
+
+/// A single issue targeted for an agent fix.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FixTarget {
+    pub issue_number: u64,
+    pub title: String,
+    pub body: String,
+    pub labels: Vec<String>,
+    pub agent_slug: String,
+    pub status: AgentStatus,
+}
+
+/// Fetch details for a single GitHub issue via `gh issue view`.
+fn fetch_issue_details(number: u64) -> Result<(String, String, Vec<String>)> {
+    let output = std::process::Command::new("gh")
+        .args([
+            "issue",
+            "view",
+            &number.to_string(),
+            "--json",
+            "title,body,labels",
+        ])
+        .output()
+        .context("Failed to run gh issue view")?;
+
+    if !output.status.success() {
+        bail!(
+            "gh issue view {} failed: {}",
+            number,
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&output.stdout).context("Failed to parse gh issue view output")?;
+
+    let title = parsed["title"].as_str().unwrap_or_default().to_string();
+    let body = parsed["body"].as_str().unwrap_or_default().to_string();
+    let labels = parsed["labels"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v["name"].as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok((title, body, labels))
+}
+
+/// Fetch issues matching a label via `gh issue list`.
+fn fetch_issues_by_label(label: &str) -> Result<Vec<(u64, String, String, Vec<String>)>> {
+    let output = std::process::Command::new("gh")
+        .args([
+            "issue",
+            "list",
+            "--label",
+            label,
+            "--json",
+            "number,title,body,labels",
+            "--limit",
+            "100",
+        ])
+        .output()
+        .context("Failed to run gh issue list")?;
+
+    if !output.status.success() {
+        bail!(
+            "gh issue list --label {} failed: {}",
+            label,
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let parsed: Vec<serde_json::Value> =
+        serde_json::from_slice(&output.stdout).context("Failed to parse gh issue list output")?;
+
+    let mut results = Vec::new();
+    for item in parsed {
+        let number = item["number"].as_u64().unwrap_or(0);
+        if number == 0 {
+            continue;
+        }
+        let title = item["title"].as_str().unwrap_or_default().to_string();
+        let body = item["body"].as_str().unwrap_or_default().to_string();
+        let labels = item["labels"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v["name"].as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        results.push((number, title, body, labels));
+    }
+
+    Ok(results)
+}
+
+/// Create a slug for a fix agent from the issue number and title.
+///
+/// Example: `slugify_fix_target(326, "Buffer overflow in parser")` → `"fix-326-buffer-overflow-in-parser"`
+fn slugify_fix_target(issue_number: u64, title: &str) -> String {
+    let slug_part: String = title
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+
+    // Truncate slug_part to keep the total slug reasonable
+    let max_slug_len: usize = 50;
+    let prefix = format!("fix-{}-", issue_number);
+    let remaining = max_slug_len.saturating_sub(prefix.len());
+    let truncated = if slug_part.len() > remaining {
+        // Cut at a word boundary if possible
+        match slug_part[..remaining].rfind('-') {
+            Some(pos) if pos > 0 => &slug_part[..pos],
+            _ => &slug_part[..remaining],
+        }
+    } else {
+        &slug_part
+    };
+
+    format!("{}{}", prefix, truncated)
+}
+
+/// Parse comma-separated issue numbers from a string.
+fn parse_issue_numbers(input: &str) -> Result<Vec<u64>> {
+    input
+        .split(',')
+        .map(|s| {
+            let trimmed = s.trim();
+            trimmed
+                .parse::<u64>()
+                .with_context(|| format!("Invalid issue number: {:?}", trimmed))
+        })
+        .collect()
+}
+
+/// Build and persist a fix plan for parallel issue resolution.
+pub fn fix(
+    crosslink_dir: &Path,
+    issues: Option<&str>,
+    from_label: Option<&str>,
+    max_agents: usize,
+    budget_aware: bool,
+) -> Result<()> {
+    // Resolve issues from the provided source
+    let issue_data: Vec<(u64, String, String, Vec<String>)> = match (issues, from_label) {
+        (Some(ids), _) => {
+            let numbers = parse_issue_numbers(ids)?;
+            let mut data = Vec::new();
+            for num in numbers {
+                let (title, body, labels) = fetch_issue_details(num)?;
+                data.push((num, title, body, labels));
+            }
+            data
+        }
+        (None, Some(label)) => fetch_issues_by_label(label)?,
+        (None, None) => {
+            bail!(
+                "Either --issues or --from-label is required.\n\n\
+                 Usage:\n  \
+                   crosslink swarm fix --issues 326,327,328\n  \
+                   crosslink swarm fix --from-label review-finding"
+            );
+        }
+    };
+
+    if issue_data.is_empty() {
+        bail!("No issues found matching the given criteria.");
+    }
+
+    // Build fix targets
+    let targets: Vec<FixTarget> = issue_data
+        .into_iter()
+        .map(|(number, title, body, labels)| {
+            let agent_slug = slugify_fix_target(number, &title);
+            FixTarget {
+                issue_number: number,
+                title,
+                body,
+                labels,
+                agent_slug,
+                status: AgentStatus::Planned,
+            }
+        })
+        .collect();
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let plan = FixPlan {
+        schema_version: 1,
+        created_at: now,
+        issues: targets,
+    };
+
+    // Persist to hub branch
+    let sync = SyncManager::new(crosslink_dir)?;
+    sync.init_cache()?;
+    sync.fetch()?;
+
+    write_hub_json(&sync, "swarm/fix-plan.json", &plan)?;
+    commit_hub_files(&sync, &["swarm/fix-plan.json"], "swarm: persist fix plan")?;
+
+    // Print summary
+    println!("Fix plan created with {} issue(s):\n", plan.issues.len());
+    println!("  {:<8} {:<40} {}", "Issue", "Agent Slug", "Labels");
+    println!("  {:<8} {:<40} {}", "-----", "----------", "------");
+    for target in &plan.issues {
+        let labels_str = if target.labels.is_empty() {
+            String::from("-")
+        } else {
+            target.labels.join(", ")
+        };
+        println!(
+            "  #{:<7} {:<40} {}",
+            target.issue_number, target.agent_slug, labels_str
+        );
+    }
+
+    if plan.issues.len() > max_agents {
+        println!(
+            "\nNote: {} issues exceed max_agents ({}). Some will queue.",
+            plan.issues.len(),
+            max_agents
+        );
+    }
+
+    if budget_aware {
+        println!("\nBudget checking not yet integrated.");
+    }
+
+    println!("\nPlan persisted to hub branch at swarm/fix-plan.json");
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -3078,6 +3329,14 @@ mod tests {
     }
 
     #[test]
+    fn test_slugify_fix_target_basic() {
+        assert_eq!(
+            slugify_fix_target(326, "Buffer overflow in parser"),
+            "fix-326-buffer-overflow-in-parser"
+        );
+    }
+
+    #[test]
     fn test_assign_partitions_round_robin() {
         let partitions = vec![
             ("alpha".to_string(), vec!["a/1.rs".to_string()]),
@@ -3199,5 +3458,87 @@ mod tests {
             serde_json::to_string(&FindingSeverity::Info).unwrap(),
             "\"info\""
         );
+    }
+
+    #[test]
+    fn test_slugify_fix_target_special_chars() {
+        assert_eq!(
+            slugify_fix_target(42, "Fix: memory leak (critical!)"),
+            "fix-42-fix-memory-leak-critical"
+        );
+    }
+
+    #[test]
+    fn test_slugify_fix_target_long_title_truncates() {
+        let long_title =
+            "This is a very long title that should be truncated to keep the slug reasonable";
+        let slug = slugify_fix_target(1, long_title);
+        assert!(slug.len() <= 50, "slug too long: {} ({})", slug, slug.len());
+        assert!(slug.starts_with("fix-1-"));
+        assert!(!slug.ends_with('-'));
+    }
+
+    #[test]
+    fn test_slugify_fix_target_empty_title() {
+        assert_eq!(slugify_fix_target(99, ""), "fix-99-");
+    }
+
+    #[test]
+    fn test_fix_plan_serde_roundtrip() {
+        let plan = FixPlan {
+            schema_version: 1,
+            created_at: "2026-03-12T10:00:00Z".to_string(),
+            issues: vec![
+                FixTarget {
+                    issue_number: 326,
+                    title: "Buffer overflow".to_string(),
+                    body: "Details here".to_string(),
+                    labels: vec!["bug".to_string(), "review-finding".to_string()],
+                    agent_slug: "fix-326-buffer-overflow".to_string(),
+                    status: AgentStatus::Planned,
+                },
+                FixTarget {
+                    issue_number: 327,
+                    title: "Memory leak".to_string(),
+                    body: "".to_string(),
+                    labels: vec![],
+                    agent_slug: "fix-327-memory-leak".to_string(),
+                    status: AgentStatus::Running,
+                },
+            ],
+        };
+        let json = serde_json::to_string_pretty(&plan).unwrap();
+        let parsed: FixPlan = serde_json::from_str(&json).unwrap();
+        assert_eq!(plan, parsed);
+    }
+
+    #[test]
+    fn test_parse_issue_numbers_valid() {
+        let nums = parse_issue_numbers("326,327,328").unwrap();
+        assert_eq!(nums, vec![326, 327, 328]);
+    }
+
+    #[test]
+    fn test_parse_issue_numbers_with_spaces() {
+        let nums = parse_issue_numbers("1, 2, 3").unwrap();
+        assert_eq!(nums, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_parse_issue_numbers_single() {
+        let nums = parse_issue_numbers("42").unwrap();
+        assert_eq!(nums, vec![42]);
+    }
+
+    #[test]
+    fn test_parse_issue_numbers_invalid() {
+        let result = parse_issue_numbers("326,abc,328");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_fix_requires_issues_or_label() {
+        let result = parse_issue_numbers("");
+        assert!(result.is_err());
     }
 }

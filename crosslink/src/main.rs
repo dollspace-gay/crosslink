@@ -1435,6 +1435,21 @@ enum SwarmCommands {
         #[arg(long)]
         fix: bool,
     },
+    /// Launch parallel fix agents, one per issue
+    Fix {
+        /// Comma-separated issue numbers (e.g., "326,327,328")
+        #[arg(long, value_name = "IDS")]
+        issues: Option<String>,
+        /// Label filter to select issues (e.g., "review-finding")
+        #[arg(long, value_name = "LABEL")]
+        from_label: Option<String>,
+        /// Maximum number of concurrent agents
+        #[arg(long, default_value = "6")]
+        max_agents: usize,
+        /// Check budget before launching
+        #[arg(long)]
+        budget_aware: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -2319,6 +2334,18 @@ fn main() -> Result<()> {
                     doc.as_deref(),
                     file_issues,
                     fix,
+                ),
+                SwarmCommands::Fix {
+                    issues,
+                    from_label,
+                    max_agents,
+                    budget_aware,
+                } => commands::swarm::fix(
+                    &crosslink_dir,
+                    issues.as_deref(),
+                    from_label.as_deref(),
+                    max_agents,
+                    budget_aware,
                 ),
             }
         }
