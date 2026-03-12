@@ -22,4 +22,5 @@ pub mod shared_writer;
 pub mod signing;
 pub mod sync;
 pub mod token_usage;
+pub mod trust_model;
 pub mod utils;

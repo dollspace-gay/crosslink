@@ -24,6 +24,7 @@ mod server;
 mod shared_writer;
 mod signing;
 mod sync;
+mod trust_model;
 mod tui;
 mod utils;
 
