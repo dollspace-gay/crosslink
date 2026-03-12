@@ -6,7 +6,7 @@
   "priority": "high",
   "created_by": "m1",
   "created_at": "2026-02-27T05:49:23.059378Z",
-  "updated_at": "2026-03-12T05:15:00.296669Z",
+  "updated_at": "2026-03-12T05:18:20.542529Z",
   "closed_at": "2026-02-27T13:31:25.248589Z",
   "labels": [
     "release"
@@ -20,6 +20,15 @@
       "kind": "handoff",
       "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A",
       "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgbMJQrcFvxUHGFzKhLs2qsfUDMqPDdJSAHuIKkxY6rD4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAG9vuBGkHm9AQ47JRaTdJT2rlczOCMnjcjkmuwwbH9wkLPyUVmWYDE7HMLTOVmBiOmVfFOmaJp8rjC0u4VFOjAw=="
+    },
+    {
+      "id": 279,
+      "author": "maxine--basel",
+      "content": "Committed: docs: agent-first documentation overhaul for v0.5.0 | Files: 35 files changed, 2477 insertions(+), 535 deletions(-)",
+      "created_at": "2026-03-12T05:18:20.542528Z",
+      "kind": "result",
+      "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A",
+      "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgbMJQrcFvxUHGFzKhLs2qsfUDMqPDdJSAHuIKkxY6rD4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA9eeUAAZP8GVVkhXkj9jFBqQ8w3qnPSTLWjIHXG4FiHup2jqj5gRii13HZ5qavVDEH51HQdD9sqf97BWOTm7xCQ=="
     }
   ]
 }
