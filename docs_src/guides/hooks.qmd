@@ -98,7 +98,7 @@ When an agent's behavior diverges from project norms (e.g., repeatedly ignoring 
 When a hook blocks an agent's action, or a human redirects the agent's approach, the intervention is logged for audit:
 
 ```bash
-crosslink intervene <issue-id> "Hook blocked git push attempt" \
+crosslink issue intervene <issue-id> "Hook blocked git push attempt" \
   --trigger tool_blocked \
   --context "Agent tried to push directly"
 ```

@@ -12,9 +12,9 @@ The `crosslink/hub` and `crosslink/knowledge` branches grow with every lock oper
 ::: {.column width="45%"}
 **You say / do:**
 
-> "The hub branch is getting bloated. Clean up anything older than 30 days."
+> "The hub branch is getting bloated. Squash it down."
 
-You want to squash old coordination history while keeping recent state intact.
+You want to squash coordination history while keeping current state intact.
 :::
 ::: {.column width="10%"}
 &rarr;
@@ -23,10 +23,10 @@ You want to squash old coordination history while keeping recent state intact.
 **Agent executes:**
 
 ```bash
-crosslink prune --hub --before 30d
+crosslink prune --force
 ```
 
-Squashes hub branch history older than 30 days into a single root commit. Current lock and heartbeat state is preserved.
+Squashes both hub and knowledge branch history down to the current state. Lock and heartbeat data is preserved.
 :::
 :::
 
@@ -34,9 +34,9 @@ Squashes hub branch history older than 30 days into a single root commit. Curren
 ::: {.column width="45%"}
 **You say / do:**
 
-> "Prune the knowledge branch too."
+> "Just prune the knowledge branch."
 
-Knowledge entries accumulate revision history. Pruning compacts old revisions while keeping the latest version of each entry.
+Prune only the knowledge branch, leaving hub history intact.
 :::
 ::: {.column width="10%"}
 &rarr;
@@ -45,28 +45,32 @@ Knowledge entries accumulate revision history. Pruning compacts old revisions wh
 **Agent executes:**
 
 ```bash
-crosslink prune --knowledge --before 30d
+crosslink prune --knowledge-only --force
 ```
 :::
 :::
 
 ::: {.callout-note collapse="true" title="Manual CLI equivalent"}
 ```bash
-# Prune hub branch history
-crosslink prune --hub
-crosslink prune --hub --before 30d
-crosslink prune --hub --before 2024-01-01
+# Prune both branches (interactive confirmation)
+crosslink prune
 
-# Prune knowledge branch history
-crosslink prune --knowledge
-crosslink prune --knowledge --before 30d
+# Skip confirmation
+crosslink prune --force
+
+# Prune only hub branch
+crosslink prune --hub-only --force
+
+# Prune only knowledge branch
+crosslink prune --knowledge-only --force
+
+# Keep the last 5 commits instead of squashing to 1
+crosslink prune --keep-commits 5 --force
 
 # Dry run -- see what would be pruned without changing anything
-crosslink prune --hub --dry-run
-crosslink prune --knowledge --dry-run
-
-# Prune both at once
-crosslink prune --hub --knowledge --before 30d
+crosslink prune --dry-run
+crosslink prune --hub-only --dry-run
+crosslink prune --knowledge-only --dry-run
 ```
 :::
 
@@ -122,7 +126,7 @@ From Claude Code, you can run an automated maintenance pass that combines prunin
 This runs the equivalent of:
 
 ```bash
-crosslink prune --hub --knowledge --before 30d
+crosslink prune --force
 crosslink kickoff cleanup
 crosslink sync
 ```
@@ -136,7 +140,7 @@ Use this checklist to keep your crosslink installation healthy:
 | When | What to do | Command |
 |------|------------|---------|
 | After a swarm completes | Clean up finished agent worktrees and sessions | `crosslink kickoff cleanup` |
-| Weekly (active projects) | Prune hub and knowledge history older than 30 days | `crosslink prune --hub --knowledge --before 30d` |
+| Weekly (active projects) | Prune hub and knowledge history | `crosslink prune --force` |
 | Before a release | Verify no stale locks or orphaned agents | `crosslink locks list` and `crosslink kickoff list` |
 | After pruning | Re-sync to verify branch integrity | `crosslink sync` |
 | When disk space is low | Dry-run cleanup to see what can be reclaimed | `crosslink kickoff cleanup --dry-run` |

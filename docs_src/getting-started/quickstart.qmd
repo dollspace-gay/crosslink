@@ -120,7 +120,7 @@ Your agent explores the code, leaving breadcrumbs as it goes. These survive cont
 
 ```bash
 crosslink session action "Found root cause in refresh_token()"
-crosslink comment 1 "Token wasn't refreshed on 401 responses"
+crosslink issue comment 1 "Token wasn't refreshed on 401 responses"
 # ... implements the fix, runs tests ...
 ```
 :::
@@ -130,7 +130,7 @@ crosslink comment 1 "Token wasn't refreshed on 401 responses"
 ```bash
 crosslink session work 1
 crosslink session action "Found root cause in refresh_token()"
-crosslink comment 1 "Token wasn't refreshed on 401 responses"
+crosslink issue comment 1 "Token wasn't refreshed on 401 responses"
 # ... fix it yourself ...
 ```
 :::

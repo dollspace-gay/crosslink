@@ -150,7 +150,7 @@ Import existing documentation into the knowledge base:
 ```bash
 crosslink knowledge import ./docs/research/
 crosslink knowledge import ./docs/ --tag imported --overwrite
-crosslink knowledge import ./notes/ --dry_run  # preview without writing
+crosslink knowledge import ./notes/ --dry-run  # preview without writing
 ```
 
 ## Tips

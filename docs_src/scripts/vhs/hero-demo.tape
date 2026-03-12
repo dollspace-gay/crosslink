@@ -40,7 +40,7 @@ Type `crosslink session action "Patched 401 retry logic"`
 Enter
 Sleep 0.8s
 
-Type `crosslink comment 1 "Token refresh now retries with backoff on 401"`
+Type `crosslink issue comment 1 "Token refresh now retries with backoff on 401"`
 Enter
 Sleep 1s
 

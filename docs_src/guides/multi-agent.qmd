@@ -162,8 +162,8 @@ You set up trust once, and all subsequent sync operations verify signatures auto
 # Each agent generates a signing key on init
 crosslink agent init my-agent-1
 
-# Add trusted agent keys
-crosslink trust add /path/to/agent-key.pub
+# Approve trusted agents
+crosslink trust approve my-agent-1
 crosslink trust list
 
 # Sync with automatic verification
@@ -175,7 +175,7 @@ crosslink sync
 ::: {.callout-note collapse="true" title="Manual CLI equivalent"}
 ```bash
 # Set up trust
-crosslink trust add <public-key-path>
+crosslink trust approve <agent-id>
 crosslink trust list
 
 # Sync with signature verification

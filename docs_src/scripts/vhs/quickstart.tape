@@ -49,7 +49,7 @@ Enter
 Type `crosslink session action "Found root cause in refresh_token()"`
 Enter
 Sleep 1s
-Type `crosslink comment 1 "Token wasn't refreshed on 401 responses"`
+Type `crosslink issue comment 1 "Token wasn't refreshed on 401 responses"`
 Enter
 Sleep 1.5s
 

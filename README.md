@@ -116,15 +116,16 @@ Live interactive terminal UI built with ratatui:
 ### Web Dashboard
 
 ```bash
-crosslink web
+crosslink serve
 ```
 
 Browser-based dashboard for visual project oversight — charts, drag-and-drop, and real-time agent monitoring.
 
 ### Maintenance
 
-- **`crosslink prune`** — Clean up stale hub and knowledge history
-- **`crosslink maintain`** — Health checks, database compaction, and project hygiene
+- **`crosslink prune`** — Squash stale hub and knowledge branch history
+- **`crosslink integrity`** — Data integrity checks (counters, hydration, locks, schema)
+- **`crosslink compact`** — Manual event compaction
 
 ### Other
 

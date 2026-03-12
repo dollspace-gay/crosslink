@@ -62,7 +62,7 @@ Research done by one agent is available to all. Shared markdown knowledge pages 
 
 ::: {.feature-card}
 ### Web Dashboard
-`crosslink web` launches a browser-based dashboard for visual project oversight. Same data, richer interface — charts, drag-and-drop, and real-time agent monitoring.
+`crosslink serve` launches a browser-based dashboard for visual project oversight. Same data, richer interface — charts, drag-and-drop, and real-time agent monitoring.
 :::
 
 ::: {.feature-card}
@@ -77,7 +77,7 @@ Tell your agent what to fix and it handles the rest — `quick` creates, labels,
 
 ::: {.feature-card}
 ### Maintenance
-`crosslink prune` cleans up stale hub and knowledge history. `crosslink maintain` runs health checks, compacts the database, and keeps your project lean.
+`crosslink prune` squashes stale hub and knowledge branch history. `crosslink integrity` runs health checks, and `crosslink compact` keeps the database lean.
 :::
 
 ::: {.feature-card}

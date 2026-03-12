@@ -21,23 +21,20 @@ You want a visual overview of everything happening in the project. The dashboard
 **Agent executes:**
 
 ```bash
-crosslink serve --open
+crosslink serve
 ```
 
-Starts the web server and opens your default browser. Real-time agent data streams in via WebSocket.
+Starts the web server at `http://localhost:3100`. Real-time agent data streams in via WebSocket.
 :::
 :::
 
 ::: {.callout-note collapse="true" title="Manual CLI equivalent"}
 ```bash
-# Start on default port (9746)
+# Start on default port (3100)
 crosslink serve
 
 # Custom port
 crosslink serve --port 8080
-
-# Start and open browser automatically
-crosslink serve --open
 ```
 :::
 

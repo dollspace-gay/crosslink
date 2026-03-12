@@ -249,11 +249,11 @@ Output includes agent name, worktree path, branch, backend (tmux/docker), uptime
 crosslink kickoff list
 
 # JSON output for scripting
-crosslink kickoff list --json
+crosslink --json kickoff list
 
-# Filter by backend
-crosslink kickoff list --backend tmux
-crosslink kickoff list --backend docker
+# Filter by status
+crosslink kickoff list --status running
+crosslink kickoff list --status done
 ```
 
 Discovery checks three sources:
