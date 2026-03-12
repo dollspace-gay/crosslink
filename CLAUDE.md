@@ -39,6 +39,8 @@ crosslink issue tested <id>
 
 Top-level shortcuts still work: `crosslink create`, `crosslink list`, `crosslink quick`, etc.
 
+**Global flags**: `--quiet` / `-q` (minimal output, scripts), `--json` (machine-readable output).
+
 ## Session Commands
 
 ```bash
