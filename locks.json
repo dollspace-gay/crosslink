@@ -1,16 +1,16 @@
 {
   "version": 1,
   "locks": {
-    "166": {
+    "186": {
       "agent_id": "maxine--basel",
       "branch": null,
-      "claimed_at": "2026-03-11T19:32:08.258987Z",
+      "claimed_at": "2026-03-13T18:23:09.729408Z",
       "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A"
     },
-    "5": {
+    "183": {
       "agent_id": "maxine--basel",
       "branch": null,
-      "claimed_at": "2026-03-12T05:16:15.291277Z",
+      "claimed_at": "2026-03-13T02:30:17.086289Z",
       "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A"
     },
     "184": {
@@ -25,10 +25,16 @@
       "claimed_at": "2026-03-13T01:39:57.633557Z",
       "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A"
     },
-    "183": {
+    "166": {
       "agent_id": "maxine--basel",
       "branch": null,
-      "claimed_at": "2026-03-13T02:30:17.086289Z",
+      "claimed_at": "2026-03-11T19:32:08.258987Z",
+      "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A"
+    },
+    "5": {
+      "agent_id": "maxine--basel",
+      "branch": null,
+      "claimed_at": "2026-03-12T05:16:15.291277Z",
       "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A"
     },
     "181": {
