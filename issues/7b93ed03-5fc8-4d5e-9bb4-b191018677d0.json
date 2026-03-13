@@ -6,5 +6,8 @@
   "priority": "high",
   "created_by": "maxine--basel",
   "created_at": "2026-03-13T18:23:03.847928Z",
-  "updated_at": "2026-03-13T18:23:03.847928Z"
+  "updated_at": "2026-03-13T18:23:05.726364Z",
+  "labels": [
+    "enhancement"
+  ]
 }
