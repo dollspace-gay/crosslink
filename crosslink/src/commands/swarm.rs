@@ -1072,6 +1072,7 @@ pub fn launch(
             quiet,
             design_doc: None,
             doc_path: None,
+            skip_permissions: false,
         };
 
         match kickoff::run(crosslink_dir, db, writer, &opts) {
