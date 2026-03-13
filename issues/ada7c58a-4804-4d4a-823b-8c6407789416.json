@@ -7,5 +7,16 @@
   "priority": "high",
   "created_by": "maxine--basel",
   "created_at": "2026-03-13T18:28:06.165109Z",
-  "updated_at": "2026-03-13T18:28:06.165109Z"
+  "updated_at": "2026-03-13T23:29:18.492495Z",
+  "comments": [
+    {
+      "id": 293,
+      "author": "maxine--basel",
+      "content": "Committed: style(docs): diagram polish — bigger confetti, solid arrows, icons in tl;dr, footer below nav [CL-187] | Files: 26 files changed, 358 insertions(+), 256 deletions(-)",
+      "created_at": "2026-03-13T23:29:18.492495Z",
+      "kind": "result",
+      "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A",
+      "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgbMJQrcFvxUHGFzKhLs2qsfUDMqPDdJSAHuIKkxY6rD4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAghg3XoBcg7QDUmT7XSyQaH6C+XVL9RHiwpHnThbVMaoiCumIJmkUDSkT94daRw8HmokJKcgkUXEkuVqUhqZ6Ag=="
+    }
+  ]
 }
