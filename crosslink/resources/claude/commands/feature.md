@@ -35,7 +35,7 @@ The user will provide a human-readable description of the feature (e.g. "add bat
 
 - Create a crosslink issue for the feature work with the user's original description as the title.
 - Set priority to `medium` (unless the user specifies otherwise).
-- Use: `crosslink create "<description>" -p medium --label feature`
+- Use: `crosslink issue create "<description>" -p medium --label feature`
 
 ## Constraints
 

@@ -40,12 +40,12 @@ crosslink session status
 If an active issue exists, record the commit as a result comment:
 
 ```bash
-crosslink comment <issue-id> "Committed: <first line of commit message> | Files: <shortstat summary>" --kind result
+crosslink issue comment <issue-id> "Committed: <first line of commit message> | Files: <shortstat summary>" --kind result
 ```
 
 For example:
 ```bash
-crosslink comment 5 "Committed: Add typed comment support to schema | Files: 14 files changed, 312 insertions(+), 48 deletions(-)" --kind result
+crosslink issue comment 5 "Committed: Add typed comment support to schema | Files: 14 files changed, 312 insertions(+), 48 deletions(-)" --kind result
 ```
 
 If no active session or issue, skip the comment silently.

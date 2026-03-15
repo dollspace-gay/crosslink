@@ -54,6 +54,9 @@ pub fn detect_python_prefix(project_root: &Path) -> String {
 
     // 3. local venv
     if project_root.join(".venv").is_dir() {
+        if cfg!(target_os = "windows") {
+            return ".venv\\Scripts\\python.exe".to_string();
+        }
         return ".venv/bin/python3".to_string();
     }
 
@@ -121,9 +124,10 @@ fn install_cpitd_from_pypi(python_prefix: &str) -> Result<bool> {
     if python_prefix.starts_with("poetry ") {
         return run_install_command("poetry", &["add", "--group", "dev", "cpitd"]);
     }
-    if python_prefix.starts_with(".venv/") {
+    if python_prefix.starts_with(".venv/") || python_prefix.starts_with(".venv\\") {
         let pip = python_prefix
             .replace("python3", "pip")
+            .replace("python.exe", "pip.exe")
             .replace("python", "pip");
         return run_install_command(&pip, &["install", "cpitd"]);
     }
@@ -167,9 +171,10 @@ fn install_cpitd_from_source(python_prefix: &str) -> Result<bool> {
         // Poetry can't install from arbitrary paths into dev deps easily,
         // fall back to pip inside the poetry env
         run_install_command("poetry", &["run", "pip", "install", &tmp_dir_str])
-    } else if python_prefix.starts_with(".venv/") {
+    } else if python_prefix.starts_with(".venv/") || python_prefix.starts_with(".venv\\") {
         let pip = python_prefix
             .replace("python3", "pip")
+            .replace("python.exe", "pip.exe")
             .replace("python", "pip");
         run_install_command(&pip, &["install", &tmp_dir_str])
     } else if python_prefix.starts_with("pipenv ") {

@@ -172,6 +172,9 @@ pub fn write_issue_file(path: &std::path::Path, issue: &IssueFile) -> anyhow::Re
 }
 
 /// Read all issue files from a directory.
+///
+/// Handles both v1 layout (`issues/{uuid}.json`) and v2 layout
+/// (`issues/{uuid}/issue.json`).
 pub fn read_all_issue_files(issues_dir: &std::path::Path) -> anyhow::Result<Vec<IssueFile>> {
     let mut issues = Vec::new();
     if !issues_dir.exists() {
@@ -180,7 +183,8 @@ pub fn read_all_issue_files(issues_dir: &std::path::Path) -> anyhow::Result<Vec<
     for entry in std::fs::read_dir(issues_dir)? {
         let entry = entry?;
         let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) == Some("json") {
+        if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("json") {
+            // V1 layout: issues/{uuid}.json
             match read_issue_file(&path) {
                 Ok(issue) => issues.push(issue),
                 Err(e) => {
@@ -188,6 +192,20 @@ pub fn read_all_issue_files(issues_dir: &std::path::Path) -> anyhow::Result<Vec<
                         "Warning: skipping malformed issue file {}: {e}",
                         path.display()
                     );
+                }
+            }
+        } else if path.is_dir() {
+            // V2 layout: issues/{uuid}/issue.json
+            let issue_path = path.join("issue.json");
+            if issue_path.exists() {
+                match read_issue_file(&issue_path) {
+                    Ok(issue) => issues.push(issue),
+                    Err(e) => {
+                        eprintln!(
+                            "Warning: skipping malformed issue file {}: {e}",
+                            issue_path.display()
+                        );
+                    }
                 }
             }
         }
@@ -270,7 +288,6 @@ pub fn read_all_milestone_files(
 /// A standalone comment file for the v2 hub layout.
 ///
 /// Stored at `issues/{issue-uuid}/comments/{comment-uuid}.json`.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommentFile {
     pub uuid: Uuid,
@@ -294,7 +311,6 @@ pub struct CommentFile {
 /// A per-issue lock file for the v2 hub layout.
 ///
 /// Stored at `locks/{display-id}.json`.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LockFileV2 {
     pub issue_id: i64,
@@ -307,18 +323,15 @@ pub struct LockFileV2 {
 }
 
 /// Layout version marker stored at `meta/version.json`.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LayoutVersion {
     pub layout_version: u32,
 }
 
 /// The current hub directory layout version.
-#[allow(dead_code)]
 pub const CURRENT_LAYOUT_VERSION: u32 = 2;
 
 /// Read a single comment file from disk.
-#[allow(dead_code)]
 pub fn read_comment_file(path: &std::path::Path) -> anyhow::Result<CommentFile> {
     let content = std::fs::read_to_string(path)
         .with_context(|| format!("Failed to read comment file: {}", path.display()))?;
@@ -328,7 +341,6 @@ pub fn read_comment_file(path: &std::path::Path) -> anyhow::Result<CommentFile> 
 
 /// Write a comment file to disk (pretty-printed JSON).
 /// Uses atomic write (temp file + rename) to prevent corruption from interrupted writes.
-#[allow(dead_code)]
 pub fn write_comment_file(path: &std::path::Path, comment: &CommentFile) -> anyhow::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -338,7 +350,6 @@ pub fn write_comment_file(path: &std::path::Path, comment: &CommentFile) -> anyh
 }
 
 /// Read all comment files from a directory, sorted by `(created_at, author, uuid)`.
-#[allow(dead_code)]
 pub fn read_comment_files(comments_dir: &std::path::Path) -> anyhow::Result<Vec<CommentFile>> {
     let mut comments = Vec::new();
     if !comments_dir.exists() {
@@ -371,7 +382,6 @@ pub fn read_comment_files(comments_dir: &std::path::Path) -> anyhow::Result<Vec<
 /// Read the layout version from `meta/version.json`.
 ///
 /// Returns `1` if the file is absent, indicating a v1 (flat-file) layout.
-#[allow(dead_code)]
 pub fn read_layout_version(meta_dir: &std::path::Path) -> anyhow::Result<u32> {
     let path = meta_dir.join("version.json");
     if !path.exists() {
@@ -385,7 +395,6 @@ pub fn read_layout_version(meta_dir: &std::path::Path) -> anyhow::Result<u32> {
 }
 
 /// Write the layout version to `meta/version.json`.
-#[allow(dead_code)]
 pub fn write_layout_version(meta_dir: &std::path::Path, version: u32) -> anyhow::Result<()> {
     std::fs::create_dir_all(meta_dir)?;
     let path = meta_dir.join("version.json");
@@ -985,5 +994,149 @@ mod tests {
         // Overwrite with version 3
         write_layout_version(&meta_dir, 3).unwrap();
         assert_eq!(read_layout_version(&meta_dir).unwrap(), 3);
+    }
+
+    #[test]
+    fn test_default_comment_kind() {
+        assert_eq!(default_comment_kind(), "note");
+    }
+
+    #[test]
+    fn test_validate_comment_kind_valid() {
+        for kind in KNOWN_COMMENT_KINDS {
+            assert!(
+                validate_comment_kind(kind),
+                "expected {kind:?} to be a valid comment kind"
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_comment_kind_invalid() {
+        assert!(!validate_comment_kind("bogus"));
+        assert!(!validate_comment_kind(""));
+        assert!(!validate_comment_kind("NOTE")); // case-sensitive
+    }
+
+    #[test]
+    fn test_validate_trigger_type_valid() {
+        for trigger in KNOWN_TRIGGER_TYPES {
+            assert!(
+                validate_trigger_type(trigger),
+                "expected {trigger:?} to be a valid trigger type"
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_trigger_type_invalid() {
+        assert!(!validate_trigger_type("bogus"));
+        assert!(!validate_trigger_type(""));
+        assert!(!validate_trigger_type("REDIRECT")); // case-sensitive
+    }
+
+    #[test]
+    fn test_read_all_issue_files_v2_layout() {
+        let dir = tempfile::tempdir().unwrap();
+        let issues_dir = dir.path().join("issues");
+
+        // Create two issues using the V2 directory layout: issues/{uuid}/issue.json
+        for i in 0..2 {
+            let issue = IssueFile {
+                uuid: Uuid::new_v4(),
+                display_id: Some(i + 1),
+                title: format!("V2 Issue {}", i + 1),
+                description: None,
+                status: "open".to_string(),
+                priority: "medium".to_string(),
+                parent_uuid: None,
+                created_by: "test".to_string(),
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                closed_at: None,
+                labels: vec![],
+                comments: vec![],
+                blockers: vec![],
+                related: vec![],
+                milestone_uuid: None,
+                time_entries: vec![],
+            };
+            let subdir = issues_dir.join(issue.uuid.to_string());
+            std::fs::create_dir_all(&subdir).unwrap();
+            write_issue_file(&subdir.join("issue.json"), &issue).unwrap();
+        }
+
+        let loaded = read_all_issue_files(&issues_dir).unwrap();
+        assert_eq!(loaded.len(), 2);
+        // Both titles should start with "V2 Issue"
+        for issue in &loaded {
+            assert!(issue.title.starts_with("V2 Issue"));
+        }
+    }
+
+    #[test]
+    fn test_read_all_issue_files_v2_malformed_skipped() {
+        let dir = tempfile::tempdir().unwrap();
+        let issues_dir = dir.path().join("issues");
+
+        // Create one valid V2 issue
+        let valid_uuid = Uuid::new_v4();
+        let valid_issue = IssueFile {
+            uuid: valid_uuid,
+            display_id: Some(1),
+            title: "Valid V2".to_string(),
+            description: None,
+            status: "open".to_string(),
+            priority: "medium".to_string(),
+            parent_uuid: None,
+            created_by: "test".to_string(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            closed_at: None,
+            labels: vec![],
+            comments: vec![],
+            blockers: vec![],
+            related: vec![],
+            milestone_uuid: None,
+            time_entries: vec![],
+        };
+        let valid_subdir = issues_dir.join(valid_uuid.to_string());
+        std::fs::create_dir_all(&valid_subdir).unwrap();
+        write_issue_file(&valid_subdir.join("issue.json"), &valid_issue).unwrap();
+
+        // Create a V2 directory with malformed issue.json
+        let bad_subdir = issues_dir.join(Uuid::new_v4().to_string());
+        std::fs::create_dir_all(&bad_subdir).unwrap();
+        std::fs::write(bad_subdir.join("issue.json"), "not valid json").unwrap();
+
+        let loaded = read_all_issue_files(&issues_dir).unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].title, "Valid V2");
+    }
+
+    #[test]
+    fn test_read_all_milestone_files_skips_malformed() {
+        let dir = tempfile::tempdir().unwrap();
+        let ms_dir = dir.path().join("milestones");
+        std::fs::create_dir_all(&ms_dir).unwrap();
+
+        // Write a valid milestone file
+        let entry = MilestoneEntry {
+            uuid: Uuid::new_v4(),
+            display_id: 1,
+            name: "v1.0".to_string(),
+            description: None,
+            status: "open".to_string(),
+            created_at: Utc::now(),
+            closed_at: None,
+        };
+        write_milestone_file(&ms_dir.join(format!("{}.json", entry.uuid)), &entry).unwrap();
+
+        // Write a malformed milestone file
+        std::fs::write(ms_dir.join("bad.json"), "not valid json").unwrap();
+
+        let loaded = read_all_milestone_files(&ms_dir).unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].name, "v1.0");
     }
 }

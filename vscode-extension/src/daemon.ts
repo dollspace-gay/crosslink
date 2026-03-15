@@ -141,11 +141,22 @@ export class DaemonManager {
         // Close stdin to signal the daemon to exit (zombie prevention)
         this.process.stdin?.end();
 
+        const pid = this.process.pid;
+
         // Give it a moment to exit gracefully
         const killTimeout = setTimeout(() => {
             if (this.process && !this.process.killed) {
                 this.outputChannel.appendLine('Daemon did not exit gracefully, forcing kill');
-                this.process.kill('SIGKILL');
+                if (process.platform === 'win32' && pid !== undefined) {
+                    // On Windows, SIGKILL is unreliable; use taskkill /F instead
+                    try {
+                        cp.execSync(`taskkill /PID ${pid} /F`);
+                    } catch {
+                        // Process may have already exited
+                    }
+                } else {
+                    this.process.kill('SIGKILL');
+                }
             }
         }, 2000);
 
@@ -153,8 +164,17 @@ export class DaemonManager {
             clearTimeout(killTimeout);
         });
 
-        // Also send SIGTERM for good measure
-        this.process.kill('SIGTERM');
+        // Send termination signal
+        if (process.platform === 'win32' && pid !== undefined) {
+            // On Windows, SIGTERM is a no-op for child processes; use taskkill instead
+            try {
+                cp.execSync(`taskkill /PID ${pid}`);
+            } catch {
+                // Process may have already exited
+            }
+        } else {
+            this.process.kill('SIGTERM');
+        }
     }
 
     /**

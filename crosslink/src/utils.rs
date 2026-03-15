@@ -79,6 +79,41 @@ pub fn truncate(s: &str, max_chars: usize) -> String {
     }
 }
 
+/// Check whether a name matches a Windows reserved device name.
+///
+/// Windows reserves names like CON, PRN, AUX, NUL, COM1-COM9, and LPT1-LPT9.
+/// Files with these names (with or without extensions) cause silent failures on
+/// Windows. We reject them on all platforms since data may be synced cross-platform.
+pub fn is_windows_reserved_name(name: &str) -> bool {
+    let upper = name.to_uppercase();
+    let stem = upper.split('.').next().unwrap_or(&upper);
+    matches!(
+        stem,
+        "CON"
+            | "PRN"
+            | "AUX"
+            | "NUL"
+            | "COM1"
+            | "COM2"
+            | "COM3"
+            | "COM4"
+            | "COM5"
+            | "COM6"
+            | "COM7"
+            | "COM8"
+            | "COM9"
+            | "LPT1"
+            | "LPT2"
+            | "LPT3"
+            | "LPT4"
+            | "LPT5"
+            | "LPT6"
+            | "LPT7"
+            | "LPT8"
+            | "LPT9"
+    )
+}
+
 /// Atomically write content to a file by writing to a temporary file first,
 /// then renaming. This prevents corrupted files from interrupted writes.
 pub fn atomic_write(path: &std::path::Path, content: &[u8]) -> anyhow::Result<()> {
@@ -218,5 +253,82 @@ mod tests {
     #[test]
     fn test_truncate_zero_max() {
         assert_eq!(truncate("hello", 0), "...");
+    }
+
+    #[test]
+    fn test_windows_reserved_names_rejected() {
+        for name in &["CON", "PRN", "AUX", "NUL", "COM1", "COM9", "LPT1", "LPT9"] {
+            assert!(
+                is_windows_reserved_name(name),
+                "{} should be reserved",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn test_windows_reserved_names_case_insensitive() {
+        assert!(is_windows_reserved_name("con"));
+        assert!(is_windows_reserved_name("Con"));
+        assert!(is_windows_reserved_name("nul"));
+        assert!(is_windows_reserved_name("Aux"));
+    }
+
+    #[test]
+    fn test_windows_reserved_names_with_extension() {
+        assert!(is_windows_reserved_name("CON.txt"));
+        assert!(is_windows_reserved_name("nul.md"));
+    }
+
+    #[test]
+    fn test_non_reserved_names_allowed() {
+        assert!(!is_windows_reserved_name("console"));
+        assert!(!is_windows_reserved_name("printer"));
+        assert!(!is_windows_reserved_name("auxiliary"));
+        assert!(!is_windows_reserved_name("my-agent"));
+        assert!(!is_windows_reserved_name("com10"));
+        assert!(!is_windows_reserved_name("lpt10"));
+    }
+
+    #[test]
+    fn test_format_issue_id_positive() {
+        assert_eq!(format_issue_id(1), "#1");
+        assert_eq!(format_issue_id(42), "#42");
+        assert_eq!(format_issue_id(0), "#0");
+    }
+
+    #[test]
+    fn test_format_issue_id_negative() {
+        assert_eq!(format_issue_id(-1), "L1");
+        assert_eq!(format_issue_id(-99), "L99");
+    }
+
+    #[test]
+    fn test_atomic_write_creates_file() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("output.txt");
+        atomic_write(&path, b"hello world").unwrap();
+        let contents = std::fs::read(&path).unwrap();
+        assert_eq!(contents, b"hello world");
+    }
+
+    #[test]
+    fn test_atomic_write_overwrites_existing() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("output.txt");
+        atomic_write(&path, b"first").unwrap();
+        atomic_write(&path, b"second").unwrap();
+        let contents = std::fs::read(&path).unwrap();
+        assert_eq!(contents, b"second");
+    }
+
+    #[test]
+    fn test_atomic_write_leaves_no_tmp_file() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("output.txt");
+        atomic_write(&path, b"data").unwrap();
+        // The .output.txt.tmp file should not remain after a successful write
+        let tmp_path = dir.path().join(".output.txt.tmp");
+        assert!(!tmp_path.exists());
     }
 }
