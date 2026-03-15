@@ -55,7 +55,10 @@ def generate():
     # ── Knowledge branch (center) ─────────────────────────────────────────
     kb_x, kb_y = 250, 130
     kb_w, kb_h = 200, 175
-    svg += container(kb_x, kb_y, kb_w, kb_h, P["yellow"], "crosslink/knowledge")
+    svg += rrect(kb_x, kb_y, kb_w, kb_h, P["yellow"], rx=30, opacity=0.12)
+    svg += rrect(kb_x + 4, kb_y + 4, kb_w - 8, kb_h - 8, P["white"], rx=28, opacity=0.85)
+    svg += text(kb_x + kb_w / 2, kb_y + 30, "crosslink/knowledge",
+                cls="subheading", size=18, fill=P["black"])
 
     # Knowledge pages inside
     pages = [
@@ -88,7 +91,7 @@ def generate():
         svg += text(rx, ry + 18, desc, cls="body", size=10, fill=P["muted"])
 
     # ── Sync indicator ────────────────────────────────────────────────────
-    svg += text(cx, 335, "synced via git push/pull", cls="body", size=12, fill=P["yellow"])
+    svg += text(cx, 335, "synced via git push/pull", cls="body", size=12, fill=P["muted"])
 
     # ── Bottom: capabilities row ──────────────────────────────────────────
     svg += rrect(50, 365, WIDTH - 100, 85, P["gray"], rx=20)

@@ -1,8 +1,6 @@
 ---
-title: "Design Document Workflow"
+title: "Design document workflow"
 ---
-
-&nbsp;
 
 ::: {.feature-card}
 ![](../assets/img/cards/workflow.svg){.card-icon}
@@ -14,12 +12,21 @@ The `/design` flow turns a rough feature idea into a validated, codebase-grounde
 
 &nbsp;
 
----
-
 ## Overview
 
-![](../assets/img/design-flow.svg)
+To start a design session, ask your agent:
 
+```bash
+/design "add batch retry logic for sync"
+```
+
+This triggers the conversational design document workflow.
+
+::: {.column-screen .center}
+![](../assets/img/design-flow.svg){width="850px"}
+:::
+
+<!-- 
 ```
 /design "add batch retry logic"
     |
@@ -28,9 +35,7 @@ The `/design` flow turns a rough feature idea into a validated, codebase-grounde
     +-- 3. Draft                 (.design/add-batch-retry-logic.md)
     +-- 4. Validate              (requirements, criteria, real file refs)
     +-- 5. Store as knowledge    (crosslink knowledge, tagged design-doc)
-```
-
-&nbsp;
+``` -->
 
 ---
 
@@ -66,7 +71,9 @@ The agent explores the codebase and asks 3-5 clarifying questions before writing
 
 ---
 
-## Phase 1: Explore and Interview
+## Design workflow
+
+### *Phase 1:* Explore and Interview
 
 The agent reads architecture files, searches for related code, checks existing knowledge pages, and scans `.design/` for prior work. Then it asks questions grounded in what it found — every question references specific files, functions, or patterns from the codebase.
 
@@ -87,11 +94,8 @@ Questions:
 
 Answer the questions and the agent proceeds to drafting.
 
-&nbsp;
 
----
-
-## Phase 2: Draft
+### *Phase 2:* Draft
 
 ::: {.columns}
 ::: {.column width="35%"}

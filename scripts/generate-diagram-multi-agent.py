@@ -52,8 +52,8 @@ def generate():
     # ── Coordination branch (center hub) ──────────────────────────────────
     hub_y = 270
     # Draw container shell without title, then add black title manually
-    svg += rrect(80, hub_y - 40, 520, 100, P["yellow"], rx=30, opacity=0.12)
-    svg += rrect(84, hub_y - 36, 512, 92, P["white"], rx=28, opacity=0.85)
+    svg += rrect(80, hub_y - 40, 520, 120, P["yellow"], rx=30, opacity=0.12)
+    svg += rrect(84, hub_y - 36, 512, 112, P["white"], rx=28, opacity=0.85)
     svg += text(340, hub_y - 10, "crosslink/hub branch",
                 cls="subheading", size=18, fill=P["black"])
 
@@ -72,13 +72,13 @@ def generate():
                               color, stroke_width=1.5)
 
     # ── Sync label ────────────────────────────────────────────────────────
-    svg += text(cx, hub_y + 78, "sync via git push/pull to coordination branch",
+    svg += text(cx, hub_y + 55, "sync via git push/pull to coordination branch",
                 cls="body", size=12, fill=P["muted"])
 
-    # ── Daemon indicator (connected to what it does) ─────────────────────
-    svg += rrect(380, hub_y + 60, 220, 28, P["green"], rx=14, opacity=0.12)
-    svg += circle(394, hub_y + 74, 4, P["green"])
-    svg += text(490, hub_y + 78, "daemon: auto-sync + heartbeat",
+    # ── Daemon indicator (sits outside the hub box) ──────────────────────
+    svg += rrect(380, hub_y + 90, 220, 28, P["green"], rx=14, opacity=0.12)
+    svg += circle(394, hub_y + 104, 4, P["green"])
+    svg += text(490, hub_y + 108, "daemon: auto-sync + heartbeat",
                 cls="body", size=11, fill=P["green"])
 
     # ── Bottom: result summary ────────────────────────────────────────────

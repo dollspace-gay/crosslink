@@ -8,7 +8,7 @@
       .mono { font-family: 'IBM Plex Mono', 'SF Mono', monospace; }
     </style>
   </defs>
-  <rect width="900" height="580" fill="#F9F4F5"/>
+  <!-- no background rect — page bg shows through -->
   <text x="450.0" y="38" class="heading" font-size="22" fill="#000000" text-anchor="middle">Kickoff agent lifecycle</text>
   <text x="450.0" y="58" class="subheading" font-size="14" fill="#666666" text-anchor="middle">from instruction to autonomous implementation</text>
   <ellipse cx="100" cy="170" rx="80" ry="60" fill="#FFB6C6" opacity="0.4"/>
@@ -94,20 +94,20 @@
   <polygon points="690.0,370.0 686.6,360.6 693.4,360.6" fill="#00A6DB"/>
   <line x1="370.0" y1="248.0" x2="370.0" y2="370.0" stroke="#007C35" stroke-width="2" stroke-linecap="round"/>
   <polygon points="370.0,370.0 366.6,360.6 373.4,360.6" fill="#007C35"/>
-  <g style="mix-blend-mode: multiply" opacity="0.5">
-    <circle cx="34.4" cy="92.1" r="8" fill="#F95838"/>
-    <circle cx="19.3" cy="122.9" r="8" fill="#00A6DB"/>
-    <circle cx="50.0" cy="152.8" r="8" fill="#007C35"/>
-    <circle cx="17.2" cy="114.7" r="8" fill="#F95838"/>
-    <circle cx="29.4" cy="124.1" r="8" fill="#F95838"/>
-    <circle cx="64.6" cy="89.9" r="8" fill="#007C35"/>
+  <g style="mix-blend-mode: multiply">
+    <circle cx="34.4" cy="92.1" r="8" fill="#F95838" opacity="0.5"/>
+    <circle cx="19.3" cy="122.9" r="8" fill="#00A6DB" opacity="0.5"/>
+    <circle cx="50.0" cy="152.8" r="8" fill="#007C35" opacity="0.5"/>
+    <circle cx="17.2" cy="114.7" r="8" fill="#F95838" opacity="0.5"/>
+    <circle cx="29.4" cy="124.1" r="8" fill="#F95838" opacity="0.5"/>
+    <circle cx="64.6" cy="89.9" r="8" fill="#007C35" opacity="0.5"/>
   </g>
-  <g style="mix-blend-mode: multiply" opacity="0.5">
-    <circle cx="857.8" cy="126.6" r="8" fill="#F95838"/>
-    <circle cx="854.6" cy="111.7" r="8" fill="#007C35"/>
-    <circle cx="822.8" cy="148.7" r="8" fill="#00A6DB"/>
-    <circle cx="845.1" cy="123.3" r="8" fill="#FFB6C6"/>
-    <circle cx="838.5" cy="145.3" r="8" fill="#007C35"/>
-    <circle cx="826.2" cy="125.7" r="8" fill="#007C35"/>
+  <g style="mix-blend-mode: multiply">
+    <circle cx="857.8" cy="126.6" r="8" fill="#F95838" opacity="0.5"/>
+    <circle cx="854.6" cy="111.7" r="8" fill="#007C35" opacity="0.5"/>
+    <circle cx="822.8" cy="148.7" r="8" fill="#00A6DB" opacity="0.5"/>
+    <circle cx="845.1" cy="123.3" r="8" fill="#FFB6C6" opacity="0.5"/>
+    <circle cx="838.5" cy="145.3" r="8" fill="#007C35" opacity="0.5"/>
+    <circle cx="826.2" cy="125.7" r="8" fill="#007C35" opacity="0.5"/>
   </g>
 </svg>

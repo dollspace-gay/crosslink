@@ -2,8 +2,6 @@
 title: "Swarm Orchestration"
 ---
 
-&nbsp;
-
 ::: {.feature-card}
 ![](../assets/img/cards/swarm.svg){.card-icon}
 
@@ -14,15 +12,19 @@ Swarm orchestration lets you build a complex feature across multiple phases. You
 
 &nbsp;
 
----
-
 ## Overview
 
-::: {.column-page-right}
-![](../assets/img/swarm-flow.svg)
+...
+
+```bash
+crosslink swarm init --doc DESIGN.md
+```
+
+::: {.column-screen .center}
+![](../assets/img/swarm-flow.svg){width="900px"}
 :::
 
-```
+<!-- ```
 "Build this auth system from my design doc."
     |
     +-- swarm init --doc DESIGN.md
@@ -43,13 +45,15 @@ Swarm orchestration lets you build a complex feature across multiple phases. You
     +-- swarm checkpoint 1    <- record progress
     +-- swarm launch 2        <- advance to Phase 2
     +-- ...
-```
+``` -->
 
 &nbsp;
 
 ---
 
-## Initializing a swarm
+## Developing with swarms
+
+### Initializing a swarm
 
 ::: {.columns}
 ::: {.column width="35%"}
@@ -74,11 +78,7 @@ Parses the document, creates a phased plan, and stores it on the `crosslink/hub`
 :::
 :::
 
-&nbsp;
-
----
-
-## Planning with budget awareness
+### Planning with budget awareness
 
 ::: {.columns}
 ::: {.column width="35%"}
@@ -104,11 +104,9 @@ Plans phase scheduling, configures the cost model, and estimates wall-clock cost
 :::
 :::
 
-&nbsp;
+### Launching a phase
 
----
-
-## Launching a phase
+Swarm planning automatically phases development based on dependency structure into phases, each with multiple components that can be developed in parallel.
 
 ::: {.columns}
 ::: {.column width="35%"}
@@ -153,11 +151,7 @@ crosslink swarm launch 2 --budget-aware
 :::
 :::
 
-&nbsp;
-
----
-
-## Phase gates
+### Phase gates
 
 ::: {.columns}
 ::: {.column width="35%"}
@@ -181,11 +175,7 @@ Runs the test suite. Reports pass/fail and any failures.
 :::
 :::
 
-&nbsp;
-
----
-
-## Checkpointing
+### Checkpointing
 
 ::: {.columns}
 ::: {.column width="35%"}
@@ -216,11 +206,7 @@ Use `--force` to checkpoint even if the gate hasn't passed (for partial progress
 crosslink swarm checkpoint 1 --force --notes "3 of 4 agents complete, one blocked"
 ```
 
-&nbsp;
-
----
-
-## Resuming after interruption
+### Resuming after interruption
 
 ::: {.columns}
 ::: {.column width="35%"}
@@ -290,7 +276,7 @@ crosslink swarm launch 2
 crosslink swarm resume
 ```
 
-&nbsp;
+<!-- &nbsp;
 
 ---
 
@@ -309,7 +295,7 @@ crosslink swarm resume
 | `swarm estimate <phase>` | Estimate wall-clock cost for a phase |
 | `swarm harvest` | Update cost history from completed agents |
 | `swarm resume` | Reconstruct state after interruption |
-| `swarm config --budget-window <DUR> --model <MODEL>` | Configure budget parameters |
+| `swarm config --budget-window <DUR> --model <MODEL>` | Configure budget parameters | -->
 
 &nbsp;
 

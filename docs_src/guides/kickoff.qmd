@@ -1,8 +1,6 @@
 ---
-title: "Kickoff: Autonomous Feature Agents"
+title: "Kickoff: Autonomous feature agents"
 ---
-
-&nbsp;
 
 ::: {.feature-card}
 ![](../assets/img/cards/workflow.svg){.card-icon}
@@ -14,11 +12,27 @@ The `/kickoff` flow launches an autonomous Claude agent in an isolated git workt
 
 &nbsp;
 
----
-
 ## Overview
 
+To start a new parallel feature agent, ask your agent:
+
+```bash
+/kickoff "github issue #37"
 ```
+
+or, from the CLI, use `crosslink kickoff run` for a task description:
+
+```bash
+crosslink kickoff run "add batch retry logic"
+```
+
+or a [design document](design-workflow.qmd):
+
+```bash
+crosslink kickoff run --doc .design/batch-retry-logic.md
+```
+
+<!-- ```
 /kickoff "add batch retry logic"
     |
     +-- 1. Create feature branch   (feature/add-batch-retry-logic)
@@ -30,15 +44,11 @@ The `/kickoff` flow launches an autonomous Claude agent in an isolated git workt
             |
             +-- Background agent runs autonomously:
                   explore -> implement -> test -> commit -> done
-```
+``` -->
 
----
-
-::: {.column-page-right}
-![](../assets/img/kickoff-flow.svg)
+::: {.column-screen .center}
+![](../assets/img/kickoff-flow.svg){width="900px"}
 :::
-
----
 
 <!-- ![](../assets/img/kickoff.gif) -->
 
@@ -173,11 +183,7 @@ Feature agent launched.
 
 **Important:** The agent waits for you to approve trust before it begins. Attach to the tmux session and approve the initial prompt.
 
-&nbsp;
-
----
-
-## What the agent does
+### 6. Implementation script
 
 Once trust is approved, the background agent:
 
@@ -196,9 +202,11 @@ Once trust is approved, the background agent:
 
 ---
 
-## Verification levels
+## Controlled agent execution
 
-### `--verify local` (default)
+### Verification levels
+
+#### `--verify local` (default)
 
 The agent runs the project's test suite and linter locally. No network operations.
 
@@ -222,11 +230,23 @@ Everything from `--verify ci`, plus an adversarial self-review:
 - Verifies complete error handling and no new warnings
 - Fixes any issues found and pushes again
 
+### Safety constraints
+
+The background agent operates under the same crosslink hook enforcement as interactive sessions:
+
+- **Always blocked:** `git push`, `git merge`, `git rebase`, `git reset`, and other destructive git commands (except when CI verification is enabled, where push is allowed)
+- **Gated on active issue:** `git commit` requires an active crosslink work item
+- **Tool auto-approval:** Only pre-approved tools run without prompting; anything else pauses the agent
+- **Isolated worktree:** All changes are confined to `.worktrees/` -- your main checkout is untouched
+- **Full audit trail:** Every decision, discovery, and intervention is logged on the crosslink issue
+
 &nbsp;
 
 ---
 
-## Monitoring with /check
+## Managing kickoffs
+
+### Monitoring with `/check`
 
 While the agent works, use `/check` to monitor progress:
 
@@ -240,11 +260,7 @@ While the agent works, use `/check` to monitor progress:
 
 `/check` reads the tmux pane, the `.kickoff-status` sentinel file, and crosslink issue state to report whether the agent is working, waiting for input, errored, or done.
 
-&nbsp;
-
----
-
-## Listing active agents
+### Listing active agents
 
 See which agents are currently running across all execution backends:
 
@@ -270,25 +286,7 @@ Output includes agent name, worktree path, branch, backend (tmux/docker), uptime
 :::
 :::
 
-&nbsp;
-
----
-
-## Safety constraints
-
-The background agent operates under the same crosslink hook enforcement as interactive sessions:
-
-- **Always blocked:** `git push`, `git merge`, `git rebase`, `git reset`, and other destructive git commands (except when CI verification is enabled, where push is allowed)
-- **Gated on active issue:** `git commit` requires an active crosslink work item
-- **Tool auto-approval:** Only pre-approved tools run without prompting; anything else pauses the agent
-- **Isolated worktree:** All changes are confined to `.worktrees/` -- your main checkout is untouched
-- **Full audit trail:** Every decision, discovery, and intervention is logged on the crosslink issue
-
-&nbsp;
-
----
-
-## Cleaning up
+### Cleaning up
 
 After reviewing the agent's work, clean up the worktree and session infrastructure.
 
@@ -314,11 +312,7 @@ Prunes stale worktrees, terminates dead tmux sessions, and removes stopped Docke
 :::
 :::
 
-&nbsp;
-
----
-
-## Running multiple agents
+### Running multiple agents
 
 You can launch multiple kickoff agents simultaneously on different features. Each gets its own worktree, branch, crosslink agent identity, and tmux session. Lock coordination via the `crosslink/hub` branch prevents two agents from working on the same issue.
 

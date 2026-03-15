@@ -2,8 +2,6 @@
 title: "Knowledge Management"
 ---
 
-&nbsp;
-
 ::: {.feature-card}
 ![](../assets/img/cards/knowledge.svg){.card-icon}
 
@@ -14,9 +12,10 @@ Crosslink's knowledge system is shared memory for your agents. When one agent re
 
 &nbsp;
 
-![](../assets/img/knowledge-flow.svg)
+::: {.column-screen .center}
+![](../assets/img/knowledge-flow.svg){width="850px"}
+:::
 
----
 
 ## How agents use knowledge
 
@@ -47,11 +46,7 @@ crosslink knowledge add rate-limiting \
 
 Later, when another agent starts a session on a related issue, the `session-start` hook and knowledge MCP server automatically surface relevant pages. Research done once benefits every agent.
 
-&nbsp;
-
----
-
-## Creating pages
+### Creating pages
 
 ::: {.columns}
 ::: {.column width="35%"}
@@ -85,11 +80,7 @@ crosslink knowledge add auth-design \
 :::
 :::
 
-&nbsp;
-
----
-
-## Browsing and searching
+### Browsing and searching
 
 ::: {.columns}
 ::: {.column width="35%"}
@@ -116,13 +107,11 @@ crosslink knowledge show api-auth
 
 You can also browse knowledge visually through the [TUI](tui.qmd) (Knowledge tab) or [Web Dashboard](web-dashboard.qmd).
 
-&nbsp;
+### Editing pages
 
----
+Your agents have a detailed surface to update knowledge as the project evolves.
 
-## Editing pages
-
-### Append and replace
+#### Append and replace
 
 ```bash
 # Append a new finding
@@ -138,7 +127,7 @@ crosslink knowledge edit rate-limiting \
   --tag load-testing --source "https://example.com/new-ref"
 ```
 
-### Section-based editing (v0.5.0)
+#### Section-based editing (v0.5.0)
 
 For surgical updates to specific parts of a page:
 
@@ -156,11 +145,7 @@ crosslink knowledge edit api-auth \
 
 This is especially useful when agents update knowledge incrementally — adding findings to the right section without disturbing the rest of the page.
 
-&nbsp;
-
----
-
-## Syncing and conflict resolution
+### Syncing and conflict resolution
 
 Knowledge syncs automatically during `crosslink session start` and `crosslink sync`. When two agents edit the same page concurrently, crosslink uses an **accept-both** merge strategy: both versions are preserved with clear markers, so no work is lost.
 
@@ -189,7 +174,7 @@ crosslink knowledge import ./notes/ --dry-run  # preview without writing
 - **Tag consistently.** Use tags like `architecture`, `security`, `performance`, `debugging`, `api`, `dependency` to make pages discoverable.
 - **Include sources.** Link to the original documentation, blog post, or discussion that informed the page.
 
-&nbsp;
+<!-- &nbsp;
 
 ---
 
@@ -206,4 +191,4 @@ crosslink knowledge import ./notes/ --dry-run  # preview without writing
 | `knowledge remove <slug>` | Remove a page |
 | `knowledge sync` | Manually sync from remote |
 | `knowledge search <query>` | Full-text search |
-| `knowledge import <directory>` | Bulk import markdown files |
+| `knowledge import <directory>` | Bulk import markdown files | -->

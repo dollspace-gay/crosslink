@@ -1,8 +1,6 @@
 ---
-title: "Multi-Agent Coordination"
+title: "Multi-agent coordination"
 ---
-
-&nbsp;
 
 ::: {.feature-card}
 ![](../assets/img/cards/multi-agent.svg){.card-icon}
@@ -14,23 +12,17 @@ Crosslink lets you tell your agent to work on multiple features at once. Behind 
 
 &nbsp;
 
----
-
 ## How it works
 
 Lock state is stored on a `crosslink/hub` git branch and synchronized via git. Each agent registers a machine-local identity and claims issues through locks. Other agents see which issues are taken and work on available ones instead. All of this happens automatically -- you never need to manage locks yourself.
 
-::: {.column-body-outset .center}
-![](../assets/img/multi-agent-flow.svg)
+::: {.column-screen .center}
+![](../assets/img/multi-agent-flow.svg){width="850px"}
 :::
 
 <!-- ![](../assets/img/multi-agent.gif) -->
 
-&nbsp;
-
----
-
-## Agent registration
+### Agent registration
 
 ::: {.columns}
 ::: {.column width="35%"}
@@ -47,18 +39,17 @@ You describe the features. The agent (or agents) each register unique identities
 **Agent executes:**
 
 ```bash
+# Parallel session 1
 crosslink agent init agent-frontend -d "Frontend specialist"
+# Parallel session 2
 crosslink agent init agent-backend -d "API work"
+# Parallel session 3
 crosslink agent init agent-infra -d "Infrastructure"
 ```
 :::
 :::
 
-&nbsp;
-
----
-
-## Lock coordination
+### Lock coordination
 
 ::: {.columns}
 ::: {.column width="35%"}
@@ -86,7 +77,7 @@ crosslink issue next        # skips locked issues
 :::
 :::
 
-### Lock-aware commands
+#### Lock-aware commands
 
 These commands automatically respect lock state -- no manual lock management required:
 
@@ -129,7 +120,9 @@ The daemon auto-flushes session state every 30s, pushes heartbeats every 2.5 min
 
 ---
 
-## Coordination branch
+## Coordinating agents
+
+### Hub branch
 
 Lock state lives on the `crosslink/hub` branch, separate from your code branches. The branch contains:
 
@@ -139,11 +132,7 @@ Lock state lives on the `crosslink/hub` branch, separate from your code branches
 
 Agents push to this branch when claiming/releasing locks and pull from it during `crosslink sync`.
 
-&nbsp;
-
----
-
-## Signature verification
+### Signature verification
 
 Crosslink supports SSH signature verification for the coordination branch to ensure lock state comes from trusted agents.
 

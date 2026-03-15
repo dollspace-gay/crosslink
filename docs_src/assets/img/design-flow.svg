@@ -8,7 +8,7 @@
       .mono { font-family: 'IBM Plex Mono', 'SF Mono', monospace; }
     </style>
   </defs>
-  <rect width="700" height="580" fill="#F9F4F5"/>
+  <!-- no background rect — page bg shows through -->
   <text x="350.0" y="36" class="heading" font-size="22" fill="#000000" text-anchor="middle">Design document workflow</text>
   <text x="350.0" y="56" class="subheading" font-size="14" fill="#666666" text-anchor="middle">from idea to validated, codebase-grounded spec</text>
   <ellipse cx="100" cy="155" rx="65" ry="45" fill="#00A6DB" opacity="0.12"/>
@@ -86,18 +86,18 @@
   <text x="572" y="459" class="body" font-size="13" fill="#1a1a1a" text-anchor="start">phased execution</text>
   <circle cx="558" cy="480" r="4" fill="#F95838" opacity="0.5"/>
   <text x="572" y="483" class="body" font-size="13" fill="#1a1a1a" text-anchor="start">budget-aware</text>
-  <g style="mix-blend-mode: multiply" opacity="0.5">
-    <circle cx="10.7" cy="89.0" r="8" fill="#FFCE02"/>
-    <circle cx="18.5" cy="83.5" r="8" fill="#F95838"/>
-    <circle cx="42.1" cy="136.9" r="8" fill="#007C35"/>
-    <circle cx="18.8" cy="139.3" r="8" fill="#F95838"/>
-    <circle cx="18.2" cy="122.9" r="8" fill="#FFCE02"/>
+  <g style="mix-blend-mode: multiply">
+    <circle cx="10.7" cy="89.0" r="8" fill="#FFCE02" opacity="0.5"/>
+    <circle cx="18.5" cy="83.5" r="8" fill="#F95838" opacity="0.5"/>
+    <circle cx="42.1" cy="136.9" r="8" fill="#007C35" opacity="0.5"/>
+    <circle cx="18.8" cy="139.3" r="8" fill="#F95838" opacity="0.5"/>
+    <circle cx="18.2" cy="122.9" r="8" fill="#FFCE02" opacity="0.5"/>
   </g>
-  <g style="mix-blend-mode: multiply" opacity="0.5">
-    <circle cx="661.6" cy="96.4" r="8" fill="#FFB6C6"/>
-    <circle cx="635.6" cy="81.6" r="8" fill="#FFCE02"/>
-    <circle cx="650.5" cy="96.5" r="8" fill="#FFCE02"/>
-    <circle cx="651.9" cy="156.4" r="8" fill="#007C35"/>
-    <circle cx="673.4" cy="113.3" r="8" fill="#FFB6C6"/>
+  <g style="mix-blend-mode: multiply">
+    <circle cx="661.6" cy="96.4" r="8" fill="#FFB6C6" opacity="0.5"/>
+    <circle cx="635.6" cy="81.6" r="8" fill="#FFCE02" opacity="0.5"/>
+    <circle cx="650.5" cy="96.5" r="8" fill="#FFCE02" opacity="0.5"/>
+    <circle cx="651.9" cy="156.4" r="8" fill="#007C35" opacity="0.5"/>
+    <circle cx="673.4" cy="113.3" r="8" fill="#FFB6C6" opacity="0.5"/>
   </g>
 </svg>

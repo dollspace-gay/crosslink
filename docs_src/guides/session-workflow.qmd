@@ -1,8 +1,6 @@
 ---
-title: "Session Workflow"
+title: "Session workflow"
 ---
-
- 
 
 ::: {.feature-card}
 ![](../assets/img/cards/session-memory.svg){.card-icon}
@@ -12,16 +10,14 @@ title: "Session Workflow"
 Sessions are crosslink's memory system. Your agents use them automatically to preserve context across conversations — tracking what's being worked on, recording breadcrumbs, and passing handoff notes to the next session.
 :::
 
- 
-
----
+&nbsp;
 
 ## The session lifecycle
 
 Every agent conversation follows this cycle. The hooks handle most of it automatically — you just provide direction.
 
-::: {.column-page-right .center}
-![](../assets/img/session-flow.svg){width="850px"}
+::: {.column-screen .center}
+![](../assets/img/session-flow.svg){width="750px"}
 :::
 
 <!-- ![](../assets/img/session-workflow.gif) -->

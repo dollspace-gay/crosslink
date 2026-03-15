@@ -14,17 +14,17 @@ The terminal dashboard is your window into agent activity — browse issues, mon
 
 &nbsp;
 
-<!-- ![](../assets/img/tui-demo.gif) -->
+## Overview
+
+While agents handle implementation, the TUI lets you monitor what's happening across your project. Open it from your local repo with:
 
 ```bash
 crosslink tui
 ```
 
----
+<!-- ![](../assets/img/tui-demo.gif) -->
 
-## What you see
-
-While agents handle implementation, the TUI lets you monitor what's happening across your project. It syncs data on startup and refreshes periodically in the background — press `r` for a manual refresh.
+The TUI syncs data on startup and refreshes periodically in the background — press `r` for a manual refresh.
 
 &nbsp;
 
@@ -77,11 +77,8 @@ View repository configuration at a glance.
 - Agent identity
 - Blocked and allowed commands
 
-&nbsp;
 
----
-
-## Keyboard navigation
+## Navigation
 
 | Key | Action |
 |-----|--------|
@@ -96,34 +93,24 @@ View repository configuration at a glance.
 | `?` | Show help overlay |
 | `/` | Search / filter |
 
-&nbsp;
 
----
+## Tips
 
-## Mouse support
+#### Mouse support
 
-The TUI supports mouse interactions:
+The TUI also supports mouse interactions:
 
 - Click tabs to switch between them
 - Click list items to select
 - Scroll with mouse wheel
 
-&nbsp;
-
----
-
-## Command palette
+#### Command palette
 
 Press `:` to open the command palette (`Ctrl+P` also works). Type to filter available actions.
 
-&nbsp;
-
----
-
-## Clipboard export
+#### Clipboard export
 
 Select an issue or knowledge page and use the command palette to copy its content to the clipboard.
 
-::: {.callout-note collapse="true" title="When to use TUI vs. Web Dashboard"}
+#### TUI vs. Dashboard
 The TUI is ideal for quick checks while working in the terminal — glance at agent status, browse an issue, or check a knowledge page. For richer visualization (DAG charts, Gantt timelines, interactive editing), use the [Web Dashboard](web-dashboard.qmd) with `crosslink serve`.
-:::

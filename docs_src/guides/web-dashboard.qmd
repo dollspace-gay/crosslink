@@ -2,8 +2,6 @@
 title: "Web Dashboard"
 ---
 
-&nbsp;
-
 ::: {.feature-card}
 ![](../assets/img/cards/web-dashboard.svg){.card-icon}
 
@@ -15,6 +13,8 @@ Monitor your agents and browse project state through a browser-based dashboard. 
 &nbsp;
 
 ---
+
+ 
 
 ## Starting the dashboard
 

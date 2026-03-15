@@ -58,16 +58,20 @@ def generate():
 
     # ── Wrap-around arrow: end → next start ───────────────────────────────
     # Tighter arc (x=90 instead of x=60), solid line, proper arrowhead
-    svg += (f'  <path d="M {cx - 20} 526 Q 90 526 90 310 Q 90 94 {cx - 20} 94" '
+    arc_x = 160
+    # Cubic bezier: leaves bottom horizontally, curves left, arrives at top horizontally
+    svg += (f'  <path d="M {cx - 20} 526 C {arc_x} 526 {arc_x} 94 {cx - 20} 94" '
             f'fill="none" stroke="{P["green"]}" stroke-width="2" '
             f'stroke-linecap="round" opacity="0.7"/>\n')
-    # Arrowhead pointing right into the top node
-    svg += (f'  <polygon points="{cx - 20},94 {cx - 28},104 {cx - 18},104" '
+    # Arrowhead pointing right (tangent at endpoint is horizontal)
+    tip_x = cx - 20
+    tip_y = 94
+    svg += (f'  <polygon points="{tip_x},{tip_y} {tip_x - 10},{tip_y - 5} {tip_x - 10},{tip_y + 5}" '
             f'fill="{P["green"]}" opacity="0.7"/>\n')
-    # Labels beside the arrow, not over it
-    svg += text(78, 300, "next conversation", cls="subheading", size=12, fill=P["green"],
+    # Labels beside the arrow
+    svg += text(arc_x - 12, 300, "next conversation", cls="subheading", size=12, fill=P["green"],
                 anchor="end")
-    svg += text(78, 317, "picks up here", cls="subheading", size=12, fill=P["green"],
+    svg += text(arc_x - 12, 317, "picks up here", cls="subheading", size=12, fill=P["green"],
                 anchor="end")
 
     # ── Bottom summary ────────────────────────────────────────────────────

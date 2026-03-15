@@ -12,8 +12,6 @@ Container execution gives your agents the same workflow with stronger sandboxing
 
 &nbsp;
 
----
-
 ## Why containers?
 
 - **Isolation** -- agents cannot access your host filesystem outside the worktree
@@ -54,7 +52,9 @@ Creates branch, worktree, builds the image (if needed), starts a container, and 
 
 ---
 
-## Building the image
+## Managing container lifecycle
+
+### Building the image
 
 ::: {.columns}
 ::: {.column width="35%"}
@@ -78,11 +78,7 @@ The default image includes: Rust toolchain (matches project's `rust-version`), P
 :::
 :::
 
-&nbsp;
-
----
-
-## Monitoring containers
+### Monitoring containers
 
 ::: {.columns}
 ::: {.column width="35%"}
@@ -107,11 +103,7 @@ Lists all running agent containers and streams live output from a specific agent
 :::
 :::
 
-&nbsp;
-
----
-
-## Managing container lifecycle
+### Manual control
 
 ```bash
 # Start a container manually for an existing worktree
@@ -169,7 +161,7 @@ crosslink kickoff run "my feature" --container docker
 crosslink kickoff run "my feature" --container podman
 ```
 
-&nbsp;
+<!-- &nbsp;
 
 ---
 
@@ -187,4 +179,4 @@ crosslink kickoff run "my feature" --container podman
 | `container shell <name>` | Open a shell in a container |
 | `container snapshot <name>` | Save container state as an image |
 
-See also: [Kickoff](kickoff.qmd) for launching agents, [Multi-Agent Coordination](multi-agent.qmd) for distributed locking.
+See also: [Kickoff](kickoff.qmd) for launching agents, [Multi-Agent Coordination](multi-agent.qmd) for distributed locking. -->

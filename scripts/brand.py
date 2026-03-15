@@ -48,7 +48,7 @@ def svg_header(width, height):
       .mono {{ font-family: 'IBM Plex Mono', 'SF Mono', monospace; }}
     </style>
   </defs>
-  <rect width="{width}" height="{height}" fill="{P['bg']}"/>
+  <!-- no background rect — page bg shows through -->
 """
 
 
@@ -126,11 +126,11 @@ def confetti(rng, x, y, w, h, count, colors=None, r=None):
     if colors is None:
         colors = CONFETTI_COLORS
     dot_r = r if r is not None else CONFETTI_RADIUS
-    svg = '  <g style="mix-blend-mode: multiply" opacity="0.5">\n'
+    svg = '  <g style="mix-blend-mode: multiply">\n'
     for _ in range(count):
         dx = x + rng.random() * w
         dy = y + rng.random() * h
-        svg += f'    <circle cx="{dx:.1f}" cy="{dy:.1f}" r="{dot_r}" fill="{rng.choice(colors)}"/>\n'
+        svg += f'    <circle cx="{dx:.1f}" cy="{dy:.1f}" r="{dot_r}" fill="{rng.choice(colors)}" opacity="0.5"/>\n'
     svg += '  </g>\n'
     return svg
 

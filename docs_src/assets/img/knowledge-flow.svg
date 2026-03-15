@@ -8,7 +8,7 @@
       .mono { font-family: 'IBM Plex Mono', 'SF Mono', monospace; }
     </style>
   </defs>
-  <rect width="680" height="480" fill="#F9F4F5"/>
+  <!-- no background rect — page bg shows through -->
   <text x="340.0" y="36" class="heading" font-size="22" fill="#000000" text-anchor="middle">Knowledge management</text>
   <text x="340.0" y="56" class="subheading" font-size="14" fill="#666666" text-anchor="middle">shared research pages synced via git</text>
   <text x="115" y="95" class="heading" font-size="16" fill="#000000" text-anchor="middle">Writers</text>
@@ -32,7 +32,7 @@
   <polygon points="240.0,210.0 236.5,219.4 231.3,214.9" fill="#666666"/>
   <rect x="250" y="130" width="200" height="175" rx="30" fill="#FFCE02" opacity="0.12"/>
   <rect x="254" y="134" width="192" height="167" rx="28" fill="#FFFFFF" opacity="0.85"/>
-  <text x="350.0" y="160" class="subheading" font-size="18" fill="#FFCE02" text-anchor="middle">crosslink/knowledge</text>
+  <text x="350.0" y="160" class="subheading" font-size="18" fill="#000000" text-anchor="middle">crosslink/knowledge</text>
   <rect x="265" y="178" width="170" height="22" rx="11" fill="#00A6DB" opacity="0.12"/>
   <text x="350.0" y="193" class="mono" font-size="11" fill="#00A6DB" text-anchor="middle">api-patterns</text>
   <rect x="265" y="206" width="170" height="22" rx="11" fill="#007C35" opacity="0.12"/>
@@ -60,7 +60,7 @@
   <ellipse cx="575" cy="280" rx="55" ry="22" fill="#FFFFFF" opacity="0.85"/>
   <text x="575" y="278" class="body" font-size="13" fill="#F95838" text-anchor="middle" font-weight="bold">Swarm</text>
   <text x="575" y="298" class="body" font-size="10" fill="#666666" text-anchor="middle">shared across phases</text>
-  <text x="340.0" y="335" class="body" font-size="12" fill="#FFCE02" text-anchor="middle">synced via git push/pull</text>
+  <text x="340.0" y="335" class="body" font-size="12" fill="#666666" text-anchor="middle">synced via git push/pull</text>
   <rect x="50" y="365" width="580" height="85" rx="20" fill="rgba(0,0,0,0.06)"/>
   <text x="130" y="395" class="heading" font-size="14" fill="#00A6DB" text-anchor="middle">Full-text search</text>
   <text x="130" y="416" class="mono" font-size="10" fill="#666666" text-anchor="middle">knowledge search &lt;query&gt;</text>
@@ -71,16 +71,16 @@
   <text x="540" y="395" class="heading" font-size="14" fill="#F95838" text-anchor="middle">Tagged &amp; filtered</text>
   <text x="540" y="416" class="mono" font-size="10" fill="#666666" text-anchor="middle">--tag, --since, --contributor</text>
   <text x="540" y="434" class="body" font-size="10" fill="#666666" text-anchor="middle"></text>
-  <g style="mix-blend-mode: multiply" opacity="0.5">
-    <circle cx="37.3" cy="85.5" r="8" fill="#FFB6C6"/>
-    <circle cx="36.6" cy="124.8" r="8" fill="#FFB6C6"/>
-    <circle cx="11.4" cy="139.0" r="8" fill="#FFCE02"/>
-    <circle cx="31.1" cy="86.5" r="8" fill="#FFCE02"/>
+  <g style="mix-blend-mode: multiply">
+    <circle cx="37.3" cy="85.5" r="8" fill="#FFB6C6" opacity="0.5"/>
+    <circle cx="36.6" cy="124.8" r="8" fill="#FFB6C6" opacity="0.5"/>
+    <circle cx="11.4" cy="139.0" r="8" fill="#FFCE02" opacity="0.5"/>
+    <circle cx="31.1" cy="86.5" r="8" fill="#FFCE02" opacity="0.5"/>
   </g>
-  <g style="mix-blend-mode: multiply" opacity="0.5">
-    <circle cx="654.0" cy="96.9" r="8" fill="#FFCE02"/>
-    <circle cx="668.9" cy="105.4" r="8" fill="#007C35"/>
-    <circle cx="668.4" cy="138.3" r="8" fill="#F95838"/>
-    <circle cx="633.6" cy="84.5" r="8" fill="#00A6DB"/>
+  <g style="mix-blend-mode: multiply">
+    <circle cx="654.0" cy="96.9" r="8" fill="#FFCE02" opacity="0.5"/>
+    <circle cx="668.9" cy="105.4" r="8" fill="#007C35" opacity="0.5"/>
+    <circle cx="668.4" cy="138.3" r="8" fill="#F95838" opacity="0.5"/>
+    <circle cx="633.6" cy="84.5" r="8" fill="#00A6DB" opacity="0.5"/>
   </g>
 </svg>
