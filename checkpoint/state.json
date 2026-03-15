@@ -1,0 +1,17 @@
+{
+  "next_display_id": 1,
+  "next_comment_id": 1,
+  "display_id_map": {},
+  "locks": {
+    "196": {
+      "agent_id": "maxine--basel",
+      "claimed_at": "2026-03-15T22:10:46.433663Z"
+    }
+  },
+  "issues": {},
+  "watermark": {
+    "timestamp": "2026-03-15T22:10:46.433663Z",
+    "agent_id": "maxine--basel",
+    "agent_seq": 1
+  }
+}
