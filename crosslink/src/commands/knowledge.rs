@@ -44,6 +44,8 @@ pub fn dispatch(command: KnowledgeCommands, crosslink_dir: &Path, global_json: b
             slug,
             append,
             content,
+            replace_section,
+            append_to_section,
             tag,
             source,
         } => edit(
@@ -51,6 +53,8 @@ pub fn dispatch(command: KnowledgeCommands, crosslink_dir: &Path, global_json: b
             &slug,
             append.as_deref(),
             content.as_deref(),
+            replace_section.as_deref(),
+            append_to_section.as_deref(),
             &tag,
             &source,
         ),
@@ -314,14 +318,22 @@ pub fn list(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn edit(
     crosslink_dir: &Path,
     slug: &str,
     append: Option<&str>,
     content: Option<&str>,
+    replace_section: Option<&str>,
+    append_to_section: Option<&str>,
     tags: &[String],
     sources: &[String],
 ) -> Result<()> {
+    // Validate: section-based flags require --content
+    if (replace_section.is_some() || append_to_section.is_some()) && content.is_none() {
+        bail!("--replace-section and --append-to-section require --content to be specified");
+    }
+
     let km = KnowledgeManager::new(crosslink_dir)?;
     ensure_initialized(&km)?;
     let sync_outcome = km.sync()?;
@@ -376,7 +388,15 @@ pub fn edit(
     // Determine the body
     let existing_body = extract_body(&existing);
 
-    let new_body = if let Some(full_content) = content {
+    let new_body = if let Some(heading) = replace_section {
+        let new_content =
+            content.ok_or_else(|| anyhow::anyhow!("--replace-section requires --content"))?;
+        replace_section_content(existing_body, heading, new_content)?
+    } else if let Some(heading) = append_to_section {
+        let new_content =
+            content.ok_or_else(|| anyhow::anyhow!("--append-to-section requires --content"))?;
+        append_to_section_content(existing_body, heading, new_content)?
+    } else if let Some(full_content) = content {
         // Replace content entirely
         let mut body = full_content.to_string();
         if !body.ends_with('\n') {
@@ -674,6 +694,135 @@ fn import_single_file(
 
     km.write_page(slug, &page_content)?;
     Ok(())
+}
+
+/// Parse a heading line and return its level (1-6) and text.
+/// Returns None if the line is not a markdown heading.
+fn parse_heading(line: &str) -> Option<(usize, &str)> {
+    let trimmed = line.trim_end();
+    if !trimmed.starts_with('#') {
+        return None;
+    }
+    let hashes = trimmed.bytes().take_while(|&b| b == b'#').count();
+    if hashes == 0 || hashes > 6 {
+        return None;
+    }
+    // Must be followed by a space (standard markdown heading)
+    let rest = &trimmed[hashes..];
+    if !rest.starts_with(' ') {
+        return None;
+    }
+    Some((hashes, rest[1..].trim()))
+}
+
+/// Find the line range of a section identified by its heading text.
+/// Returns (heading_line_idx, section_end_line_idx) where end is exclusive.
+/// The section extends from the heading line to the next heading of equal or higher level, or EOF.
+fn find_section_range(lines: &[&str], heading: &str) -> Result<(usize, usize)> {
+    // Normalize the heading query: strip leading '#' chars if the user included them
+    let query = heading.trim();
+    let (query_level, query_text) = if query.starts_with('#') {
+        match parse_heading(query) {
+            Some((level, text)) => (Some(level), text),
+            None => (None, query),
+        }
+    } else {
+        (None, query)
+    };
+
+    // Find the heading line
+    let mut heading_idx = None;
+    let mut heading_level = 0;
+    for (i, line) in lines.iter().enumerate() {
+        if let Some((level, text)) = parse_heading(line) {
+            let text_matches = text == query_text;
+            let level_matches = query_level.is_none() || query_level == Some(level);
+            if text_matches && level_matches {
+                heading_idx = Some(i);
+                heading_level = level;
+                break;
+            }
+        }
+    }
+
+    let start = heading_idx
+        .ok_or_else(|| anyhow::anyhow!("Section heading '{}' not found in the page", heading))?;
+
+    // Find the end: next heading of equal or higher (lower number) level
+    let mut end = lines.len();
+    for (i, line) in lines.iter().enumerate().skip(start + 1) {
+        if let Some((level, _)) = parse_heading(line) {
+            if level <= heading_level {
+                end = i;
+                break;
+            }
+        }
+    }
+
+    Ok((start, end))
+}
+
+/// Replace the content of a section (everything between the heading and the next same-or-higher-level heading).
+/// The heading line itself is preserved.
+fn replace_section_content(body: &str, heading: &str, new_content: &str) -> Result<String> {
+    let lines: Vec<&str> = body.lines().collect();
+    let (start, end) = find_section_range(&lines, heading)?;
+
+    let mut result = String::new();
+    // Lines before and including the heading
+    for line in &lines[..=start] {
+        result.push_str(line);
+        result.push('\n');
+    }
+    // New content
+    if !new_content.is_empty() {
+        result.push('\n');
+        result.push_str(new_content);
+        if !new_content.ends_with('\n') {
+            result.push('\n');
+        }
+    }
+    // Lines after the section
+    if end < lines.len() {
+        result.push('\n');
+        for line in &lines[end..] {
+            result.push_str(line);
+            result.push('\n');
+        }
+    }
+
+    Ok(result)
+}
+
+/// Append content to the end of a section (before the next same-or-higher-level heading).
+fn append_to_section_content(body: &str, heading: &str, new_content: &str) -> Result<String> {
+    let lines: Vec<&str> = body.lines().collect();
+    let (_, end) = find_section_range(&lines, heading)?;
+
+    let mut result = String::new();
+    // Lines up to (but not including) the section end
+    for line in &lines[..end] {
+        result.push_str(line);
+        result.push('\n');
+    }
+    // Append new content
+    if !new_content.is_empty() {
+        result.push('\n');
+        result.push_str(new_content);
+        if !new_content.ends_with('\n') {
+            result.push('\n');
+        }
+    }
+    // Lines after the section
+    if end < lines.len() {
+        result.push('\n');
+        for line in &lines[end..] {
+            result.push_str(line);
+            result.push('\n');
+        }
+    }
+
+    Ok(result)
 }
 
 /// Extract the body content after frontmatter.
@@ -1518,6 +1667,148 @@ mod tests {
         assert_eq!(fm.contributors, vec!["bot"]);
         assert_eq!(fm.created, "2026-03-01");
         assert!(content.contains("# Just a heading"));
+    }
+
+    // ==================== Section Parsing Tests ====================
+
+    #[test]
+    fn test_parse_heading_valid() {
+        assert_eq!(parse_heading("# Title"), Some((1, "Title")));
+        assert_eq!(parse_heading("## Section"), Some((2, "Section")));
+        assert_eq!(parse_heading("### Sub"), Some((3, "Sub")));
+        assert_eq!(parse_heading("###### Deep"), Some((6, "Deep")));
+    }
+
+    #[test]
+    fn test_parse_heading_invalid() {
+        assert_eq!(parse_heading("not a heading"), None);
+        assert_eq!(parse_heading("#no space"), None);
+        assert_eq!(parse_heading("####### too deep"), None);
+        assert_eq!(parse_heading(""), None);
+    }
+
+    #[test]
+    fn test_find_section_range_basic() {
+        let body = "# Title\n\nIntro text.\n\n## Architecture\n\nArch content.\n\n## Notes\n\nNote content.\n";
+        let lines: Vec<&str> = body.lines().collect();
+        let (start, end) = find_section_range(&lines, "## Architecture").unwrap();
+        assert_eq!(start, 4); // "## Architecture"
+        assert_eq!(end, 8); // "## Notes"
+    }
+
+    #[test]
+    fn test_find_section_range_last_section() {
+        let body = "# Title\n\nIntro.\n\n## Last Section\n\nLast content.\n";
+        let lines: Vec<&str> = body.lines().collect();
+        let (start, end) = find_section_range(&lines, "## Last Section").unwrap();
+        assert_eq!(start, 4);
+        assert_eq!(end, lines.len()); // extends to EOF
+    }
+
+    #[test]
+    fn test_find_section_range_without_hashes_in_query() {
+        let body = "# Title\n\n## Architecture\n\nContent.\n";
+        let lines: Vec<&str> = body.lines().collect();
+        let (start, _) = find_section_range(&lines, "Architecture").unwrap();
+        assert_eq!(start, 2);
+    }
+
+    #[test]
+    fn test_find_section_range_not_found() {
+        let body = "# Title\n\n## Existing\n\nContent.\n";
+        let lines: Vec<&str> = body.lines().collect();
+        let result = find_section_range(&lines, "## Missing");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[test]
+    fn test_find_section_subsections_included() {
+        let body = "## Parent\n\nParent content.\n\n### Child\n\nChild content.\n\n## Sibling\n\nSibling.\n";
+        let lines: Vec<&str> = body.lines().collect();
+        let (start, end) = find_section_range(&lines, "## Parent").unwrap();
+        assert_eq!(start, 0);
+        // Should include ### Child but stop at ## Sibling
+        assert_eq!(lines[end], "## Sibling");
+    }
+
+    #[test]
+    fn test_replace_section_content() {
+        let body = "# Title\n\nIntro.\n\n## Architecture\n\nOld arch content.\nMore old content.\n\n## Notes\n\nNote text.\n";
+        let result = replace_section_content(body, "## Architecture", "New arch content.").unwrap();
+        assert!(result.contains("# Title"));
+        assert!(result.contains("Intro."));
+        assert!(result.contains("## Architecture"));
+        assert!(result.contains("New arch content."));
+        assert!(!result.contains("Old arch content."));
+        assert!(!result.contains("More old content."));
+        assert!(result.contains("## Notes"));
+        assert!(result.contains("Note text."));
+    }
+
+    #[test]
+    fn test_replace_section_last_section() {
+        let body = "# Title\n\n## Only Section\n\nOld content.\n";
+        let result = replace_section_content(body, "## Only Section", "Replaced.").unwrap();
+        assert!(result.contains("## Only Section"));
+        assert!(result.contains("Replaced."));
+        assert!(!result.contains("Old content."));
+    }
+
+    #[test]
+    fn test_replace_section_not_found() {
+        let body = "# Title\n\n## Existing\n\nContent.\n";
+        let result = replace_section_content(body, "## Missing", "new");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_append_to_section_content() {
+        let body = "# Title\n\nIntro.\n\n## Notes\n\nExisting note.\n\n## Other\n\nOther text.\n";
+        let result = append_to_section_content(body, "## Notes", "Appended note.").unwrap();
+        assert!(result.contains("Existing note."));
+        assert!(result.contains("Appended note."));
+        assert!(result.contains("## Other"));
+        assert!(result.contains("Other text."));
+        // Appended content should come before ## Other
+        let notes_pos = result.find("Appended note.").unwrap();
+        let other_pos = result.find("## Other").unwrap();
+        assert!(notes_pos < other_pos);
+    }
+
+    #[test]
+    fn test_append_to_section_last_section() {
+        let body = "# Title\n\n## Notes\n\nExisting.\n";
+        let result = append_to_section_content(body, "## Notes", "More text.").unwrap();
+        assert!(result.contains("Existing."));
+        assert!(result.contains("More text."));
+    }
+
+    #[test]
+    fn test_append_to_section_not_found() {
+        let body = "# Title\n\n## Existing\n\nContent.\n";
+        let result = append_to_section_content(body, "## Missing", "new");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_replace_section_preserves_subsections_of_siblings() {
+        let body = "## A\n\nA content.\n\n### A1\n\nA1 content.\n\n## B\n\n### B1\n\nB1 content.\n";
+        let result = replace_section_content(body, "## A", "New A content.").unwrap();
+        assert!(result.contains("## A"));
+        assert!(result.contains("New A content."));
+        assert!(!result.contains("A1 content.")); // subsection replaced too
+        assert!(result.contains("## B"));
+        assert!(result.contains("### B1"));
+        assert!(result.contains("B1 content."));
+    }
+
+    #[test]
+    fn test_section_edit_query_without_hash_prefix() {
+        let body = "# Title\n\n## Architecture\n\nArch content.\n\n## Notes\n\nNote.\n";
+        let result = replace_section_content(body, "Architecture", "New arch.").unwrap();
+        assert!(result.contains("New arch."));
+        assert!(!result.contains("Arch content."));
     }
 
     // ==================== Round 1: List JSON Test ====================

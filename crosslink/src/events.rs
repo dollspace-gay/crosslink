@@ -8,7 +8,7 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::io::Write;
+use std::io::{Read as _, Seek, SeekFrom, Write};
 use std::path::Path;
 use uuid::Uuid;
 
@@ -155,14 +155,29 @@ impl EventCodec for NdjsonCodec {
     }
 
     fn decode_all(&self, bytes: &[u8]) -> Result<Vec<EventEnvelope>> {
+        let lines: Vec<&[u8]> = bytes.split(|&b| b == b'\n').collect();
         let mut events = Vec::new();
-        for line in bytes.split(|&b| b == b'\n') {
+        let total = lines.len();
+        for (i, line) in lines.iter().enumerate() {
             if line.is_empty() {
                 continue;
             }
-            let envelope: EventEnvelope =
-                serde_json::from_slice(line).context("Failed to decode event line")?;
-            events.push(envelope);
+            match serde_json::from_slice::<EventEnvelope>(line) {
+                Ok(envelope) => events.push(envelope),
+                Err(e) => {
+                    // Tolerate a corrupt trailing line (crash mid-write) but
+                    // treat corruption in the middle of the log as a hard error.
+                    if i == total - 1 || (i == total - 2 && lines.last() == Some(&&b""[..])) {
+                        eprintln!(
+                            "warning: truncating incomplete trailing event line ({} bytes): {}",
+                            line.len(),
+                            e
+                        );
+                    } else {
+                        return Err(e).context("Failed to decode event line");
+                    }
+                }
+            }
         }
         Ok(events)
     }
@@ -170,7 +185,47 @@ impl EventCodec for NdjsonCodec {
 
 // ── Log I/O ──────────────────────────────────────────────────────────
 
+/// Truncate any incomplete trailing line left by a crash.
+///
+/// Reads the tail of the file and, if it does not end with `\n`, truncates
+/// back to the last newline so the next append starts on a clean line.
+fn repair_trailing_line(file: &mut std::fs::File) -> Result<()> {
+    let len = file.seek(SeekFrom::End(0))?;
+    if len == 0 {
+        return Ok(());
+    }
+    // Read the last byte to check for newline terminator.
+    file.seek(SeekFrom::End(-1))?;
+    let mut last = [0u8; 1];
+    file.read_exact(&mut last)?;
+    if last[0] == b'\n' {
+        return Ok(());
+    }
+    // File does not end with newline — find the last newline and truncate.
+    // Read up to 64 KiB from the tail to find it.
+    let tail_size = len.min(65536);
+    file.seek(SeekFrom::End(-(tail_size as i64)))?;
+    let mut buf = vec![0u8; tail_size as usize];
+    file.read_exact(&mut buf)?;
+    let truncate_to = if let Some(pos) = buf.iter().rposition(|&b| b == b'\n') {
+        len - tail_size + pos as u64 + 1
+    } else {
+        // No newline found at all — the entire file is one corrupt fragment.
+        0
+    };
+    eprintln!(
+        "warning: truncating {} bytes of incomplete trailing data from event log",
+        len - truncate_to
+    );
+    file.set_len(truncate_to)?;
+    file.seek(SeekFrom::End(0))?;
+    Ok(())
+}
+
 /// Append an event to an agent's log file (creates file if needed).
+///
+/// Repairs any incomplete trailing line left by a previous crash before
+/// appending, and fsyncs after writing to ensure durability.
 pub fn append_event(log_path: &Path, envelope: &EventEnvelope) -> Result<()> {
     if let Some(parent) = log_path.parent() {
         std::fs::create_dir_all(parent)
@@ -180,11 +235,17 @@ pub fn append_event(log_path: &Path, envelope: &EventEnvelope) -> Result<()> {
     let bytes = codec.encode(envelope)?;
     let mut file = std::fs::OpenOptions::new()
         .create(true)
-        .append(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
         .open(log_path)
         .with_context(|| format!("Failed to open event log: {}", log_path.display()))?;
+    repair_trailing_line(&mut file)
+        .with_context(|| format!("Failed to repair event log: {}", log_path.display()))?;
     file.write_all(&bytes)
         .with_context(|| format!("Failed to append to event log: {}", log_path.display()))?;
+    file.sync_all()
+        .with_context(|| format!("Failed to fsync event log: {}", log_path.display()))?;
     Ok(())
 }
 
@@ -503,5 +564,75 @@ mod tests {
         assert_eq!(key.agent_id, "agent-1");
         assert_eq!(key.agent_seq, 5);
         assert_eq!(key.timestamp, envelope.timestamp);
+    }
+
+    #[test]
+    fn test_decode_all_truncates_incomplete_trailing_line() {
+        let codec = NdjsonCodec;
+        let envelope = make_envelope("agent-1", 1);
+        let mut bytes = codec.encode(&envelope).unwrap();
+        // Append a partial/corrupt trailing fragment (simulates crash mid-write)
+        bytes.extend_from_slice(b"{\"agent_id\":\"agent-1\",\"age");
+        let events = codec.decode_all(&bytes).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].agent_seq, 1);
+    }
+
+    #[test]
+    fn test_decode_all_errors_on_corrupt_middle_line() {
+        let codec = NdjsonCodec;
+        let e1 = make_envelope("agent-1", 1);
+        let e2 = make_envelope("agent-1", 2);
+        let mut bytes = codec.encode(&e1).unwrap();
+        bytes.extend_from_slice(b"CORRUPT_LINE\n");
+        bytes.extend_from_slice(&codec.encode(&e2).unwrap());
+        let result = codec.decode_all(&bytes);
+        assert!(result.is_err(), "corruption in middle should be an error");
+    }
+
+    #[test]
+    fn test_append_repairs_incomplete_trailing_line() {
+        let dir = tempfile::tempdir().unwrap();
+        let log_path = dir.path().join("events.log");
+
+        // Write a valid event
+        let e1 = make_envelope("agent-1", 1);
+        append_event(&log_path, &e1).unwrap();
+
+        // Simulate crash: append partial data without newline
+        {
+            use std::io::Write;
+            let mut f = std::fs::OpenOptions::new()
+                .append(true)
+                .open(&log_path)
+                .unwrap();
+            f.write_all(b"{\"agent_id\":\"partial").unwrap();
+        }
+
+        // Next append should repair the file and succeed
+        let e2 = make_envelope("agent-1", 2);
+        append_event(&log_path, &e2).unwrap();
+
+        let events = read_events(&log_path).unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].agent_seq, 1);
+        assert_eq!(events[1].agent_seq, 2);
+    }
+
+    #[test]
+    fn test_append_repairs_empty_corrupt_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let log_path = dir.path().join("events.log");
+
+        // Simulate crash on very first write: partial data, no newline
+        std::fs::write(&log_path, b"{\"agent_id\":\"partial").unwrap();
+
+        // Next append should truncate the corrupt data and write cleanly
+        let e1 = make_envelope("agent-1", 1);
+        append_event(&log_path, &e1).unwrap();
+
+        let events = read_events(&log_path).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].agent_seq, 1);
     }
 }

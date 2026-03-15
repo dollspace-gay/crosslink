@@ -5,20 +5,116 @@
 //! per-entity JSON files (issues, locks).
 
 use anyhow::{Context, Result};
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use std::collections::{BTreeSet, HashSet};
-use std::path::Path;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use crate::checkpoint::{
-    read_checkpoint, read_watermark, write_checkpoint, write_watermark, CheckpointState,
-    CompactIssue, CompactionLease, LockEntry, SkewWarning, UnsignedEventWarning,
+    read_checkpoint, read_watermark, write_checkpoint, CheckpointState, CompactIssue, LockEntry,
+    SkewWarning, UnsignedEventWarning,
 };
 use crate::events::{Event, EventEnvelope, OrderingKey};
 use crate::issue_file::{IssueFile, LockFileV2};
 
 /// Compaction lease duration in seconds.
 const LEASE_DURATION_SECS: i64 = 30;
+
+/// Lock file name inside the checkpoint directory.
+const COMPACTION_LOCK_FILE: &str = "compaction.lock";
+
+/// RAII guard for the compaction file lock.
+///
+/// On creation, atomically creates a lock file using `create_new(true)` which
+/// fails if the file already exists. On drop, removes the lock file.
+/// This ensures only one compaction process runs at a time.
+struct CompactionLockGuard {
+    path: PathBuf,
+}
+
+/// Information read from a stale lock file.
+struct StaleLockInfo {
+    agent_id: String,
+    acquired_at: chrono::DateTime<Utc>,
+}
+
+impl CompactionLockGuard {
+    /// Try to acquire the compaction lock by atomically creating a lock file.
+    fn try_acquire(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<Self>> {
+        let lock_dir = cache_dir.join("checkpoint");
+        fs::create_dir_all(&lock_dir)
+            .with_context(|| format!("Failed to create checkpoint dir: {}", lock_dir.display()))?;
+        let path = lock_dir.join(COMPACTION_LOCK_FILE);
+
+        match Self::try_create(&path, agent_id) {
+            Ok(guard) => return Ok(Some(guard)),
+            Err(_) if !path.exists() => {
+                if let Ok(guard) = Self::try_create(&path, agent_id) {
+                    return Ok(Some(guard));
+                }
+            }
+            Err(_) => {}
+        }
+
+        if let Some(info) = Self::read_lock_info(&path) {
+            let age = Utc::now() - info.acquired_at;
+            let is_stale = age.num_seconds() > LEASE_DURATION_SECS * 2;
+            let is_self = info.agent_id == agent_id;
+
+            if is_stale || (force && is_self) {
+                let _ = fs::remove_file(&path);
+                return Self::try_create(&path, agent_id).map(Some).or(Ok(None));
+            }
+        } else if force {
+            let _ = fs::remove_file(&path);
+            return Self::try_create(&path, agent_id).map(Some).or(Ok(None));
+        }
+
+        Ok(None)
+    }
+
+    fn try_create(path: &Path, agent_id: &str) -> Result<Self> {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+            .with_context(|| "Compaction lock file already exists")?;
+
+        let content = serde_json::json!({
+            "agent_id": agent_id,
+            "acquired_at": Utc::now().to_rfc3339(),
+            "pid": std::process::id(),
+        });
+        file.write_all(content.to_string().as_bytes())
+            .with_context(|| "Failed to write compaction lock file")?;
+
+        Ok(Self {
+            path: path.to_path_buf(),
+        })
+    }
+
+    fn read_lock_info(path: &Path) -> Option<StaleLockInfo> {
+        let content = fs::read_to_string(path).ok()?;
+        let value: serde_json::Value = serde_json::from_str(&content).ok()?;
+        let agent_id = value.get("agent_id")?.as_str()?.to_string();
+        let acquired_str = value.get("acquired_at")?.as_str()?;
+        let acquired_at = chrono::DateTime::parse_from_rfc3339(acquired_str)
+            .ok()?
+            .with_timezone(&Utc);
+        Some(StaleLockInfo {
+            agent_id,
+            acquired_at,
+        })
+    }
+}
+
+impl Drop for CompactionLockGuard {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}
 
 /// Clock skew threshold in seconds.
 const SKEW_THRESHOLD_SECS: i64 = 60;
@@ -39,17 +135,27 @@ pub struct CompactionResult {
 /// Reads all agent event logs, applies reduction rules in deterministic order,
 /// writes checkpoint state and materializes issue/lock files.
 ///
-/// If `force` is false, respects the compaction lease.
-/// Returns `None` if lease is held by another agent and not expired.
+/// Uses a filesystem lock file (`checkpoint/compaction.lock`) for mutual
+/// exclusion. The lock is created atomically with `create_new(true)` so that
+/// concurrent compaction attempts safely fail rather than racing.
+///
+/// If `force` is false, returns `None` when the lock is held by another agent.
+/// If `force` is true, stale or self-owned locks are removed before retrying.
 pub fn compact(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<CompactionResult>> {
+    // Acquire filesystem lock — this is the real mutual exclusion mechanism.
+    let _lock_guard = match CompactionLockGuard::try_acquire(cache_dir, agent_id, force)? {
+        Some(guard) => guard,
+        None => return Ok(None),
+    };
+
     let mut state = read_checkpoint(cache_dir)?;
 
-    if !force && !try_acquire_lease(&mut state, agent_id) {
-        return Ok(None);
-    }
-
-    // Read watermark for incremental compaction
-    let watermark = read_watermark(cache_dir)?;
+    // Read watermark for incremental compaction.
+    // Prefer embedded watermark from checkpoint state; fall back to legacy file.
+    let watermark = match state.watermark.clone() {
+        Some(wm) => Some(wm),
+        None => read_watermark(cache_dir)?,
+    };
 
     // Collect events from all agent logs
     let agents_dir = cache_dir.join("agents");
@@ -80,8 +186,9 @@ pub fn compact(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<C
         let git_skew_violations = git_violations.len();
         crate::clock_skew::write_skew_violations(cache_dir, &git_violations)?;
 
-        release_lease(&mut state);
+        state.compaction_lease = None;
         write_checkpoint(cache_dir, &state)?;
+        // _lock_guard dropped here, removing the lock file
         return Ok(Some(CompactionResult {
             events_processed: 0,
             issues_materialized: 0,
@@ -94,9 +201,7 @@ pub fn compact(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<C
 
     // If no watermark, we're doing a full compaction — reset state
     if watermark.is_none() {
-        let lease = state.compaction_lease.clone();
         state = CheckpointState::default();
-        state.compaction_lease = lease;
     }
 
     // Sort by ordering key for deterministic reduction
@@ -124,10 +229,9 @@ pub fn compact(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<C
         );
     }
 
-    // Update watermark to last processed event
+    // Update watermark to last processed event (written atomically with checkpoint)
     if let Some(last) = all_events.last() {
-        let new_watermark = OrderingKey::from_envelope(last);
-        write_watermark(cache_dir, &new_watermark)?;
+        state.watermark = Some(OrderingKey::from_envelope(last));
     }
 
     // Materialize changed entities to disk
@@ -144,8 +248,9 @@ pub fn compact(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<C
     let skew_warnings = state.skew_warnings.len();
     let unsigned_warnings = state.unsigned_event_warnings.len();
 
-    release_lease(&mut state);
+    state.compaction_lease = None;
     write_checkpoint(cache_dir, &state)?;
+    // _lock_guard dropped here, removing the lock file
 
     Ok(Some(CompactionResult {
         events_processed,
@@ -193,32 +298,6 @@ pub fn prune_events(cache_dir: &Path, agent_id: &str) -> Result<usize> {
 }
 
 // ── Internal functions ───────────────────────────────────────────────
-
-/// Try to acquire the compaction lease. Returns true if acquired.
-fn try_acquire_lease(state: &mut CheckpointState, agent_id: &str) -> bool {
-    let now = Utc::now();
-    if let Some(ref lease) = state.compaction_lease {
-        if lease.agent_id == agent_id {
-            // We already hold it — refresh
-        } else if lease.expires_at > now {
-            // Another agent holds an unexpired lease
-            return false;
-        }
-        // Expired lease from another agent — take it
-    }
-
-    state.compaction_lease = Some(CompactionLease {
-        agent_id: agent_id.to_string(),
-        acquired_at: now,
-        expires_at: now + Duration::seconds(LEASE_DURATION_SECS),
-    });
-    true
-}
-
-/// Release the compaction lease.
-fn release_lease(state: &mut CheckpointState) {
-    state.compaction_lease = None;
-}
 
 /// Deterministic reduction: apply a single event to checkpoint state.
 fn apply(
@@ -536,8 +615,37 @@ fn check_unsigned(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::checkpoint::CompactionLease;
     use crate::events::{append_event, Event, EventEnvelope};
     use chrono::Duration;
+
+    /// Try to acquire the compaction lease. Returns true if acquired.
+    /// (Test-only helper — production code uses CompactionLockGuard.)
+    fn try_acquire_lease(state: &mut CheckpointState, agent_id: &str) -> bool {
+        let now = Utc::now();
+        if let Some(ref lease) = state.compaction_lease {
+            if lease.agent_id == agent_id {
+                // We already hold it — refresh
+            } else if lease.expires_at > now {
+                // Another agent holds an unexpired lease
+                return false;
+            }
+            // Expired lease from another agent — take it
+        }
+
+        state.compaction_lease = Some(CompactionLease {
+            agent_id: agent_id.to_string(),
+            acquired_at: now,
+            expires_at: now + Duration::seconds(LEASE_DURATION_SECS),
+        });
+        true
+    }
+
+    /// Release the compaction lease.
+    /// (Test-only helper — production code uses CompactionLockGuard.)
+    fn release_lease(state: &mut CheckpointState) {
+        state.compaction_lease = None;
+    }
 
     fn make_envelope(agent_id: &str, seq: u64, event: Event) -> EventEnvelope {
         EventEnvelope {
@@ -1266,29 +1374,130 @@ mod tests {
     }
 
     #[test]
-    fn test_compact_respects_lease() {
+    fn test_compact_respects_file_lock() {
         let dir = tempfile::tempdir().unwrap();
         let cache_dir = dir.path();
         setup_cache(cache_dir);
 
-        // Set an active lease by another agent
-        let state = CheckpointState {
-            compaction_lease: Some(CompactionLease {
-                agent_id: "agent-2".to_string(),
-                acquired_at: Utc::now(),
-                expires_at: Utc::now() + Duration::seconds(30),
-            }),
-            ..Default::default()
-        };
-        write_checkpoint(cache_dir, &state).unwrap();
+        // Manually create a lock file held by another agent
+        let lock_path = cache_dir.join("checkpoint").join(COMPACTION_LOCK_FILE);
+        let content = serde_json::json!({
+            "agent_id": "agent-2",
+            "acquired_at": Utc::now().to_rfc3339(),
+            "pid": 99999,
+        });
+        std::fs::write(&lock_path, content.to_string()).unwrap();
 
-        // Try to compact as agent-1 without force
+        // Try to compact as agent-1 without force — should fail
         let result = compact(cache_dir, "agent-1", false).unwrap();
         assert!(result.is_none());
 
-        // Force should override
+        // Lock file should still exist
+        assert!(lock_path.exists());
+    }
+
+    #[test]
+    fn test_compact_force_overrides_stale_lock() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache_dir = dir.path();
+        setup_cache(cache_dir);
+
+        // Create a stale lock file (acquired long ago)
+        let lock_path = cache_dir.join("checkpoint").join(COMPACTION_LOCK_FILE);
+        let stale_time = Utc::now() - Duration::seconds(LEASE_DURATION_SECS * 3);
+        let content = serde_json::json!({
+            "agent_id": "agent-2",
+            "acquired_at": stale_time.to_rfc3339(),
+            "pid": 99999,
+        });
+        std::fs::write(&lock_path, content.to_string()).unwrap();
+
+        // Force should override the stale lock
         let result = compact(cache_dir, "agent-1", true).unwrap();
         assert!(result.is_some());
+
+        // Lock file should be cleaned up after compaction
+        assert!(!lock_path.exists());
+    }
+
+    #[test]
+    fn test_file_lock_guard_acquire_release() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache_dir = dir.path();
+        setup_cache(cache_dir);
+
+        let lock_path = cache_dir.join("checkpoint").join(COMPACTION_LOCK_FILE);
+
+        // Acquire lock
+        {
+            let guard = CompactionLockGuard::try_acquire(cache_dir, "agent-1", false)
+                .unwrap()
+                .unwrap();
+            assert!(lock_path.exists());
+
+            // Second acquire by different agent should fail
+            let result = CompactionLockGuard::try_acquire(cache_dir, "agent-2", false).unwrap();
+            assert!(result.is_none());
+
+            drop(guard);
+        }
+
+        // After drop, lock file should be removed
+        assert!(!lock_path.exists());
+
+        // Now agent-2 can acquire
+        let guard = CompactionLockGuard::try_acquire(cache_dir, "agent-2", false)
+            .unwrap()
+            .unwrap();
+        assert!(lock_path.exists());
+        drop(guard);
+    }
+
+    #[test]
+    fn test_file_lock_same_agent_force() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache_dir = dir.path();
+        setup_cache(cache_dir);
+
+        // Create a lock file owned by agent-1
+        let lock_path = cache_dir.join("checkpoint").join(COMPACTION_LOCK_FILE);
+        let content = serde_json::json!({
+            "agent_id": "agent-1",
+            "acquired_at": Utc::now().to_rfc3339(),
+            "pid": 99999,
+        });
+        std::fs::write(&lock_path, content.to_string()).unwrap();
+
+        // Same agent with force should be able to re-acquire
+        let guard = CompactionLockGuard::try_acquire(cache_dir, "agent-1", true)
+            .unwrap()
+            .unwrap();
+        assert!(lock_path.exists());
+        drop(guard);
+    }
+
+    #[test]
+    fn test_stale_lock_auto_cleared() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache_dir = dir.path();
+        setup_cache(cache_dir);
+
+        // Create a stale lock file (well past 2x lease duration)
+        let lock_path = cache_dir.join("checkpoint").join(COMPACTION_LOCK_FILE);
+        let stale_time = Utc::now() - Duration::seconds(LEASE_DURATION_SECS * 3);
+        let content = serde_json::json!({
+            "agent_id": "agent-old",
+            "acquired_at": stale_time.to_rfc3339(),
+            "pid": 99999,
+        });
+        std::fs::write(&lock_path, content.to_string()).unwrap();
+
+        // Even without force, stale locks should be auto-cleared
+        let guard = CompactionLockGuard::try_acquire(cache_dir, "agent-new", false)
+            .unwrap()
+            .unwrap();
+        assert!(lock_path.exists());
+        drop(guard);
     }
 
     #[test]

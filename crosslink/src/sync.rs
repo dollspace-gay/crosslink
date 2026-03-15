@@ -14,6 +14,10 @@ pub(crate) const HUB_CACHE_DIR: &str = ".hub-cache";
 /// The coordination branch name.
 pub(crate) const HUB_BRANCH: &str = "crosslink/hub";
 
+/// Maximum number of local commits ahead of remote before bailing.
+/// Prevents unbounded divergence from repeated rebase-retry cycles.
+const MAX_DIVERGENCE: usize = 10;
+
 /// Old directory name (for migration from crosslink/locks).
 const OLD_CACHE_DIR: &str = ".locks-cache";
 
@@ -417,6 +421,9 @@ impl SyncManager {
         if let Ok(output) = &log_result {
             let stdout = String::from_utf8_lossy(&output.stdout);
             if !stdout.trim().is_empty() {
+                // Bail if local has diverged too far — sign of a rebase loop
+                self.check_divergence()?;
+
                 // Clean dirty state before rebase — prevents "cannot pull
                 // with rebase: You have unstaged changes" error loop
                 self.clean_dirty_state()?;
@@ -548,9 +555,12 @@ impl SyncManager {
                 .output()
                 .context("Failed to run git verify-commit")?;
 
+            let stdout = String::from_utf8_lossy(&verify.stdout);
             let stderr = String::from_utf8_lossy(&verify.stderr);
+            // Combine stdout+stderr: macOS ssh-keygen emits "Good" on stdout
+            let combined = format!("{}\n{}", stdout, stderr);
             let verification = if verify.status.success() {
-                let parsed = signing::parse_verify_output(&stderr);
+                let parsed = signing::parse_verify_output(&combined);
                 let principal = parsed.as_ref().and_then(|(p, _)| p.clone());
                 let fingerprint = parsed.map(|(_, f)| f);
                 SignatureVerification::Valid {
@@ -672,10 +682,13 @@ impl SyncManager {
             .output()
             .context("Failed to run git verify-commit")?;
 
+        let stdout = String::from_utf8_lossy(&verify.stdout);
         let stderr = String::from_utf8_lossy(&verify.stderr);
+        // Combine stdout+stderr: macOS ssh-keygen emits "Good" on stdout
+        let combined = format!("{}\n{}", stdout, stderr);
 
         if verify.status.success() {
-            let parsed = signing::parse_verify_output(&stderr);
+            let parsed = signing::parse_verify_output(&combined);
             let principal = parsed.as_ref().and_then(|(p, _)| p.clone());
             let fingerprint = parsed.map(|(_, f)| f);
             Ok(SignatureVerification::Valid {
@@ -745,6 +758,9 @@ impl SyncManager {
             }
             // If push is rejected (conflict), clean dirty state and try pull+push once
             if err_str.contains("rejected") || err_str.contains("non-fast-forward") {
+                // Bail if local has diverged too far — sign of a rebase loop
+                self.check_divergence()?;
+
                 let _ = self.clean_dirty_state();
                 let _ = self.git_in_cache(&["pull", "--rebase", &self.remote, HUB_BRANCH]);
                 if let Err(retry_err) = self.git_in_cache(&["push", &self.remote, HUB_BRANCH]) {
@@ -1163,6 +1179,8 @@ impl SyncManager {
                     }
                     if err_str.contains("rejected") || err_str.contains("non-fast-forward") {
                         if attempt < 2 {
+                            // Bail if local has diverged too far — sign of a rebase loop
+                            self.check_divergence()?;
                             let _ =
                                 self.git_in_cache(&["pull", "--rebase", &self.remote, HUB_BRANCH]);
                             continue;
@@ -1228,6 +1246,8 @@ impl SyncManager {
                     }
                     if err_str.contains("rejected") || err_str.contains("non-fast-forward") {
                         if attempt < 2 {
+                            // Bail if local has diverged too far — sign of a rebase loop
+                            self.check_divergence()?;
                             let _ =
                                 self.git_in_cache(&["pull", "--rebase", &self.remote, HUB_BRANCH]);
                             continue;
@@ -1343,6 +1363,38 @@ impl SyncManager {
                 .current_dir(&self.cache_dir)
                 .args(["config", scope_flag, "user.name", "crosslink"])
                 .output();
+        }
+        Ok(())
+    }
+
+    /// Count how many commits the local hub branch is ahead of the remote.
+    /// Returns 0 if the remote ref doesn't exist or the count can't be determined.
+    fn count_unpushed_commits(&self) -> usize {
+        let remote_ref = format!("{}/{}", self.remote, HUB_BRANCH);
+        let range = format!("{}..HEAD", remote_ref);
+        match self.git_in_cache(&["rev-list", "--count", &range]) {
+            Ok(output) => String::from_utf8_lossy(&output.stdout)
+                .trim()
+                .parse::<usize>()
+                .unwrap_or(0),
+            Err(_) => 0,
+        }
+    }
+
+    /// Check if local has diverged too far from remote and bail if so.
+    pub(crate) fn check_divergence(&self) -> Result<()> {
+        let ahead = self.count_unpushed_commits();
+        if ahead > MAX_DIVERGENCE {
+            bail!(
+                "Hub branch has diverged: {} local commits ahead of remote \
+                 (threshold: {}). This likely indicates a rebase loop. \
+                 Resolve manually with: cd {} && git log --oneline {}/{}..HEAD",
+                ahead,
+                MAX_DIVERGENCE,
+                self.cache_dir.display(),
+                self.remote,
+                HUB_BRANCH
+            );
         }
         Ok(())
     }

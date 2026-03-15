@@ -17,6 +17,7 @@ pub fn dispatch(
     db: &Database,
     writer: Option<&SharedWriter>,
     quiet: bool,
+    json: bool,
 ) -> Result<()> {
     match command {
         KickoffCommands::Run {
@@ -87,11 +88,11 @@ pub fn dispatch(
         KickoffCommands::ShowPlan { agent } => show_plan(crosslink_dir, &agent),
         KickoffCommands::Report {
             agent,
-            json,
+            json: report_json,
             markdown,
             all,
         } => {
-            let format = if json {
+            let format = if report_json {
                 ReportFormat::Json
             } else if markdown {
                 ReportFormat::Markdown
@@ -106,6 +107,13 @@ pub fn dispatch(
                 report(crosslink_dir, &agent, format)
             }
         }
+        KickoffCommands::List { status } => list(crosslink_dir, &status, json, quiet),
+        KickoffCommands::Cleanup {
+            dry_run,
+            force,
+            keep,
+            json: cleanup_json,
+        } => cleanup(crosslink_dir, dry_run, force, keep, cleanup_json),
     }
 }
 
@@ -146,6 +154,18 @@ pub struct CriteriaFile {
     pub source_doc: String,
     pub extracted_at: String,
     pub criteria: Vec<Criterion>,
+}
+
+/// Metadata written at agent launch (`.kickoff-metadata.json`).
+///
+/// Records the timeout and start time so that `status` / `list` can detect
+/// agents that have exceeded their time budget.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KickoffMetadata {
+    /// ISO-8601 UTC timestamp of when the agent was launched.
+    pub started_at: String,
+    /// Timeout in seconds (matches `--timeout` flag).
+    pub timeout_secs: u64,
 }
 
 /// Options for `crosslink kickoff run`.
@@ -692,6 +712,7 @@ pub(crate) fn build_final_steps_section() -> &'static str {
 - All driver interventions have been logged via `crosslink intervene`
 
 Then:
+- **Final sync**: `crosslink sync` — push all comments and state to the coordination hub before ending
 - **End session**: `crosslink session end --notes "Completed: <summary of what was delivered, any caveats or follow-ups>"`
 - **Write status**: Write the word `DONE` to a file called `.kickoff-status` in the worktree root when completely finished
 "#
@@ -704,6 +725,8 @@ Then:
 pub(crate) const KICKOFF_EXCLUDE_PATTERNS: &[&str] = &[
     "KICKOFF.md",
     ".kickoff-status",
+    ".kickoff-slug",
+    ".kickoff-metadata.json",
     "PLAN_KICKOFF.md",
     ".kickoff-plan.json",
     ".kickoff-criteria.json",
@@ -762,25 +785,30 @@ these, ask the user to run it manually:
 
 ## Instructions
 
-1. **Start your crosslink session**: Run `crosslink session start` then `crosslink session work {issue_id}`
-2. **Read the project's CLAUDE.md** (if it exists) for conventions before starting
-3. Explore relevant code before making changes
-4. **Check the knowledge repo** for relevant research before starting:
+1. **Verify agent setup**: Run `crosslink agent status` to confirm your agent identity is initialized and the
+   database is connected. If it reports no agent, run `crosslink agent init` first. Then run `crosslink sync`
+   to pull the latest coordination state from the hub.
+2. **Start your crosslink session**: Run `crosslink session start` then `crosslink session work {issue_id}`
+3. **Read the project's CLAUDE.md** (if it exists) for conventions before starting
+4. Explore relevant code before making changes
+5. **Check the knowledge repo** for relevant research before starting:
    `crosslink knowledge search '<relevant terms>'`
    Existing knowledge pages may save you from redundant research.
-5. **Document your plan**: `crosslink comment {issue_id} "Plan: <approach, key files, chosen strategy>" --kind plan`
-6. Implement the feature fully (no stubs or placeholders)
+6. **Document your plan**: `crosslink comment {issue_id} "Plan: <approach, key files, chosen strategy>" --kind plan`
+7. Implement the feature fully (no stubs or placeholders)
    - Before each major step: `crosslink session action "Starting <description>..."`
    - **Save research**: If you perform web research, save results for future agents:
      `crosslink knowledge add <slug> --title '<topic>' --tag <category> --source '<url>' --content '<summary>'`
-7. **Document decisions**: When choosing between approaches:
+8. **Document decisions**: When choosing between approaches:
    `crosslink comment {issue_id} "Decision: <chose X over Y because Z>" --kind decision`
-8. **Document discoveries**: When finding something unexpected:
+9. **Document discoveries**: When finding something unexpected:
    `crosslink comment {issue_id} "Found: <observation>" --kind observation`
-9. **Log interventions**: If a hook blocks you or a human redirects you, log it immediately:
-   `crosslink intervene {issue_id} "Description" --trigger <type> --context "what you were attempting"`
-   **Handle blockers visibly**: Document with `crosslink comment {issue_id} "Blocker: <desc>" --kind blocker`
-   and resolutions with `crosslink comment {issue_id} "Resolved: <how>" --kind resolution`
+10. **Sync periodically**: After adding comments or completing major milestones, run `crosslink sync` to push
+    your changes to the coordination hub. Other agents and the driver cannot see your comments until you sync.
+11. **Log interventions**: If a hook blocks you or a human redirects you, log it immediately:
+    `crosslink intervene {issue_id} "Description" --trigger <type> --context "what you were attempting"`
+    **Handle blockers visibly**: Document with `crosslink comment {issue_id} "Blocker: <desc>" --kind blocker`
+    and resolutions with `crosslink comment {issue_id} "Resolved: <how>" --kind resolution`
 "#,
         description = opts.description,
         issue_id = issue_id,
@@ -1187,6 +1215,116 @@ fn read_sandbox_command(crosslink_dir: &Path) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+/// Watchdog configuration for detecting and nudging idle agents.
+struct WatchdogConfig {
+    /// Whether the watchdog is enabled (default: true)
+    enabled: bool,
+    /// Seconds of heartbeat staleness before nudging (default: 300)
+    staleness_secs: u64,
+    /// Maximum number of nudges before giving up (default: 5)
+    max_nudges: u32,
+    /// Seconds between watchdog checks (default: 120)
+    check_interval_secs: u64,
+    /// Grace period before watchdog starts checking (default: 300)
+    grace_period_secs: u64,
+}
+
+impl Default for WatchdogConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            staleness_secs: 300,
+            max_nudges: 5,
+            check_interval_secs: 120,
+            grace_period_secs: 300,
+        }
+    }
+}
+
+fn read_watchdog_config(crosslink_dir: &Path) -> WatchdogConfig {
+    let config_path = crosslink_dir.join("hook-config.json");
+    let content = match std::fs::read_to_string(&config_path) {
+        Ok(c) => c,
+        Err(_) => return WatchdogConfig::default(),
+    };
+    let parsed: serde_json::Value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(_) => return WatchdogConfig::default(),
+    };
+
+    let wd = match parsed.get("watchdog") {
+        Some(v) => v,
+        None => return WatchdogConfig::default(),
+    };
+
+    let mut cfg = WatchdogConfig::default();
+    if let Some(v) = wd.get("enabled").and_then(|v| v.as_bool()) {
+        cfg.enabled = v;
+    }
+    if let Some(v) = wd.get("staleness_secs").and_then(|v| v.as_u64()) {
+        cfg.staleness_secs = v;
+    }
+    if let Some(v) = wd.get("max_nudges").and_then(|v| v.as_u64()) {
+        cfg.max_nudges = v as u32;
+    }
+    if let Some(v) = wd.get("check_interval_secs").and_then(|v| v.as_u64()) {
+        cfg.check_interval_secs = v;
+    }
+    if let Some(v) = wd.get("grace_period_secs").and_then(|v| v.as_u64()) {
+        cfg.grace_period_secs = v;
+    }
+    cfg
+}
+
+/// Build the watchdog shell script that monitors heartbeat staleness and
+/// nudges idle agents by sending "continue" via tmux send-keys.
+fn build_watchdog_script(session_name: &str, worktree_dir: &Path, cfg: &WatchdogConfig) -> String {
+    // Use portable stat command — try GNU stat first, fall back to BSD
+    format!(
+        r#"NUDGES=0
+sleep {grace}
+while true; do
+    sleep {interval}
+    if [ -f "{worktree}/.kickoff-status" ]; then exit 0; fi
+    if ! tmux has-session -t "{session}" 2>/dev/null; then exit 0; fi
+    HB="{worktree}/.crosslink/.cache/last-heartbeat"
+    if [ -f "$HB" ]; then
+        LAST=$(stat -c %Y "$HB" 2>/dev/null || stat -f %m "$HB" 2>/dev/null)
+        NOW=$(date +%s)
+        AGE=$((NOW - LAST))
+        if [ "$AGE" -gt {staleness} ]; then
+            if [ "$NUDGES" -ge {max_nudges} ]; then exit 1; fi
+            NUDGES=$((NUDGES + 1))
+            tmux send-keys -t "{session}" "continue working, the task is not yet complete" Enter
+        fi
+    fi
+done
+"#,
+        grace = cfg.grace_period_secs,
+        interval = cfg.check_interval_secs,
+        worktree = worktree_dir.display(),
+        session = session_name,
+        staleness = cfg.staleness_secs,
+        max_nudges = cfg.max_nudges,
+    )
+}
+
+/// Spawn a background watchdog process that monitors the agent's heartbeat
+/// and sends "continue" to the tmux session if the agent goes idle.
+fn spawn_watchdog(session_name: &str, worktree_dir: &Path, cfg: &WatchdogConfig) -> Result<()> {
+    let script = build_watchdog_script(session_name, worktree_dir, cfg);
+
+    Command::new("bash")
+        .args(["-c", &script])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .context("Failed to spawn watchdog process")?;
+
+    Ok(())
+}
+
 /// Build the shell command string for launching a claude agent.
 ///
 /// When `sandbox_command` is set, the claude invocation is wrapped:
@@ -1466,6 +1604,7 @@ fn exclude_kickoff_files(worktree_dir: &Path) -> Result<()> {
 }
 
 /// Launch the agent as a local tmux process.
+#[allow(clippy::too_many_arguments)]
 fn launch_local(
     worktree_dir: &Path,
     session_name: &str,
@@ -1474,6 +1613,7 @@ fn launch_local(
     timeout: Duration,
     timeout_cmd: &str,
     sandbox_command: Option<&str>,
+    crosslink_dir: &Path,
 ) -> Result<()> {
     // Create the tmux session
     let output = Command::new("tmux")
@@ -1513,6 +1653,14 @@ fn launch_local(
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         bail!("Failed to send keys to tmux: {}", stderr.trim());
+    }
+
+    // Spawn watchdog sidecar to nudge idle agents
+    let watchdog_cfg = read_watchdog_config(crosslink_dir);
+    if watchdog_cfg.enabled {
+        if let Err(e) = spawn_watchdog(session_name, worktree_dir, &watchdog_cfg) {
+            eprintln!("Warning: failed to spawn watchdog: {}", e);
+        }
     }
 
     Ok(())
@@ -1566,6 +1714,9 @@ fn launch_container(
         "-d".to_string(),
         "--name".to_string(),
         container_name.clone(),
+        // Hard-kill the container after the timeout (grace period = 10s on top)
+        "--stop-timeout".to_string(),
+        format!("{}", timeout_secs),
         // Mount the worktree as workspace
         "-v".to_string(),
         format!("{}:/workspaces/repo", worktree_dir.to_string_lossy()),
@@ -1623,7 +1774,12 @@ pub fn run(
     };
 
     let root = repo_root()?;
-    let slug = slugify(opts.description);
+    let base_slug = slugify(opts.description);
+    let slug = if base_slug.is_empty() {
+        rand_hex_suffix()
+    } else {
+        format!("{}-{}", base_slug, rand_hex_suffix())
+    };
 
     // 2. Create or find the issue
     let issue_id = if let Some(id) = opts.issue {
@@ -1674,6 +1830,10 @@ pub fn run(
         create_worktree(&root, &slug, None)?
     };
 
+    // Write slug sentinel so other commands can identify this worktree
+    std::fs::write(worktree_dir.join(".kickoff-slug"), &slug)
+        .context("Failed to write .kickoff-slug sentinel")?;
+
     // 4. Detect project conventions
     let conventions = detect_conventions(&root);
 
@@ -1694,6 +1854,18 @@ pub fn run(
             std::fs::write(worktree_dir.join(".kickoff-criteria.json"), &json)
                 .context("Failed to write .kickoff-criteria.json")?;
         }
+    }
+
+    // 6c. Write launch metadata (timeout + start time) for status tracking
+    {
+        let metadata = KickoffMetadata {
+            started_at: chrono::Utc::now().to_rfc3339(),
+            timeout_secs: opts.timeout.as_secs(),
+        };
+        let json = serde_json::to_string_pretty(&metadata)
+            .context("Failed to serialize kickoff metadata")?;
+        std::fs::write(worktree_dir.join(".kickoff-metadata.json"), &json)
+            .context("Failed to write .kickoff-metadata.json")?;
     }
 
     // 7. Exclude kickoff files from git
@@ -1740,6 +1912,7 @@ pub fn run(
                 opts.timeout,
                 preflight.timeout_cmd,
                 preflight.sandbox_command.as_deref(),
+                crosslink_dir,
             )?;
 
             // 10. Report
@@ -1817,6 +1990,21 @@ fn rand_suffix() -> u32 {
     seed % 10000
 }
 
+/// Generate a 4-character hex suffix for worktree directory uniqueness.
+///
+/// Combines nanosecond timestamp with process ID to avoid collisions
+/// when two processes start in the same nanosecond window.
+fn rand_hex_suffix() -> String {
+    use std::time::SystemTime;
+    let nanos = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos();
+    let pid = std::process::id();
+    let mixed = nanos.wrapping_mul(31).wrapping_add(pid);
+    format!("{:04x}", mixed & 0xFFFF)
+}
+
 /// `crosslink kickoff status <agent>`
 pub fn status(crosslink_dir: &Path, agent: &str) -> Result<()> {
     // Check for .kickoff-status in any matching worktree
@@ -1845,7 +2033,7 @@ pub fn status(crosslink_dir: &Path, agent: &str) -> Result<()> {
                 if entry.file_type()?.is_dir() {
                     let name = entry.file_name();
                     let status_file = entry.path().join(".kickoff-status");
-                    let status = if status_file.exists() {
+                    let mut status = if status_file.exists() {
                         std::fs::read_to_string(&status_file)
                             .unwrap_or_default()
                             .trim()
@@ -1853,6 +2041,9 @@ pub fn status(crosslink_dir: &Path, agent: &str) -> Result<()> {
                     } else {
                         "running".to_string()
                     };
+                    if status == "running" && is_timed_out(&entry.path()) {
+                        status = "timed-out".to_string();
+                    }
                     println!("  {} — {}", name.to_string_lossy(), status);
                 }
             }
@@ -1864,7 +2055,7 @@ pub fn status(crosslink_dir: &Path, agent: &str) -> Result<()> {
 
     // Check .kickoff-status
     let status_file = worktree_dir.join(".kickoff-status");
-    let agent_status = if status_file.exists() {
+    let mut agent_status = if status_file.exists() {
         std::fs::read_to_string(&status_file)
             .unwrap_or_default()
             .trim()
@@ -1873,9 +2064,26 @@ pub fn status(crosslink_dir: &Path, agent: &str) -> Result<()> {
         "running (no status file yet)".to_string()
     };
 
+    // Check if the agent has exceeded its timeout
+    if agent_status.contains("running") && is_timed_out(&worktree_dir) {
+        agent_status = "timed-out".to_string();
+    }
+
     println!("Agent:     {}", agent);
     println!("Worktree:  {}", worktree_dir.display());
     println!("Status:    {}", agent_status);
+
+    // Show timeout metadata if available
+    if let Some(meta) = read_timeout_metadata(&worktree_dir) {
+        let hours = meta.timeout_secs / 3600;
+        let mins = (meta.timeout_secs % 3600) / 60;
+        if hours > 0 {
+            println!("Timeout:   {}h{}m", hours, mins);
+        } else {
+            println!("Timeout:   {}m", mins);
+        }
+        println!("Started:   {}", meta.started_at);
+    }
 
     // Check tmux session
     let session_name = tmux_session_name(wt_slug);
@@ -1905,6 +2113,658 @@ pub fn status(crosslink_dir: &Path, agent: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Information about a discovered kickoff agent.
+#[derive(Debug, Clone, Serialize)]
+struct AgentInfo {
+    id: String,
+    issue: Option<String>,
+    status: String,
+    session: Option<String>,
+    worktree: String,
+    docker: Option<String>,
+}
+
+/// Classification of an agent for cleanup purposes.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+enum CleanupClass {
+    /// Agent confirmed done — safe to remove.
+    Done,
+    /// Agent appears stale (no tmux/container, no DONE sentinel).
+    Stale,
+    /// Agent is still active — do not touch.
+    Active,
+}
+
+/// Discover all kickoff agents by scanning worktrees, tmux sessions, and Docker containers.
+///
+/// Shared discovery logic used by both `list` and `cleanup`.
+fn discover_agents(crosslink_dir: &Path) -> Result<Vec<AgentInfo>> {
+    let root = crosslink_dir
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("Cannot determine repo root"))?;
+
+    let worktrees_dir = root.join(".worktrees");
+
+    let mut agents: Vec<AgentInfo> = Vec::new();
+
+    // --- Source 1: Worktree scan ---
+    if worktrees_dir.is_dir() {
+        for entry in std::fs::read_dir(&worktrees_dir)? {
+            let entry = entry?;
+            if !entry.file_type()?.is_dir() {
+                continue;
+            }
+            let dir_name = entry.file_name().to_string_lossy().to_string();
+            let wt_path = entry.path();
+
+            // Read .kickoff-status sentinel
+            let status_file = wt_path.join(".kickoff-status");
+            let agent_status = if status_file.exists() {
+                let raw = std::fs::read_to_string(&status_file)
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
+                normalize_status(&raw)
+            } else {
+                "running".to_string()
+            };
+
+            // Try to read issue from .kickoff-criteria.json or agent config
+            let issue = read_agent_issue(&wt_path, crosslink_dir);
+
+            // Derive agent ID from agent config if available
+            let agent_id = read_agent_id(&wt_path, crosslink_dir)
+                .unwrap_or_else(|| format!("driver--{}", dir_name));
+
+            // Check tmux session
+            let session_name = tmux_session_name(&dir_name);
+            let tmux_active = tmux_session_exists(&session_name);
+
+            // Reconcile status: check timeout, then tmux liveness
+            let final_status = if agent_status == "running" && is_timed_out(&wt_path) {
+                "timed-out".to_string()
+            } else if agent_status == "running" && !tmux_active {
+                // Check if there's a docker container instead (handled below as overlay)
+                "stopped".to_string()
+            } else {
+                agent_status
+            };
+
+            agents.push(AgentInfo {
+                id: agent_id,
+                issue,
+                status: final_status,
+                session: if tmux_active {
+                    Some(session_name)
+                } else {
+                    None
+                },
+                worktree: wt_path.to_string_lossy().to_string(),
+                docker: None,
+            });
+        }
+    }
+
+    // --- Source 2: Docker containers ---
+    if command_available("docker") {
+        if let Ok(output) = Command::new("docker")
+            .args([
+                "ps",
+                "-a",
+                "--filter",
+                "label=crosslink-agent=true",
+                "--format",
+                "{{.Names}}\t{{.Status}}\t{{.Label \"crosslink-task\"}}",
+            ])
+            .output()
+        {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                for line in stdout.lines() {
+                    let parts: Vec<&str> = line.split('\t').collect();
+                    if parts.len() >= 2 {
+                        let container_name = parts[0];
+                        let container_status_raw = parts[1];
+                        let task_label = parts.get(2).unwrap_or(&"");
+
+                        // Try to match to an existing worktree agent
+                        let matched = agents.iter_mut().find(|a| {
+                            // Match by task label containing the worktree dir name
+                            if !task_label.is_empty() {
+                                a.worktree.contains(task_label)
+                            } else {
+                                // Match by container name containing the agent slug
+                                let slug = a.id.rsplit("--").next().unwrap_or(&a.id);
+                                container_name.contains(slug)
+                            }
+                        });
+
+                        if let Some(agent) = matched {
+                            agent.docker = Some(container_name.to_string());
+                            // If container is running, override status
+                            if container_status_raw.starts_with("Up") && agent.status == "stopped" {
+                                agent.status = "running".to_string();
+                            }
+                        } else {
+                            // Docker-only agent (no worktree found)
+                            let docker_status = if container_status_raw.starts_with("Up") {
+                                "running"
+                            } else if container_status_raw.contains("Exited (0)") {
+                                "done"
+                            } else {
+                                "failed"
+                            };
+                            agents.push(AgentInfo {
+                                id: container_name.to_string(),
+                                issue: if task_label.is_empty() {
+                                    None
+                                } else {
+                                    Some(task_label.to_string())
+                                },
+                                status: docker_status.to_string(),
+                                session: None,
+                                worktree: String::new(),
+                                docker: Some(container_name.to_string()),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(agents)
+}
+
+/// `crosslink kickoff list`
+///
+/// Enumerate all kickoff agents by scanning worktrees, tmux sessions, and Docker containers.
+pub fn list(crosslink_dir: &Path, status_filter: &str, json: bool, quiet: bool) -> Result<()> {
+    let agents = discover_agents(crosslink_dir)?;
+
+    // --- Filter by status ---
+    let filtered: Vec<&AgentInfo> = if status_filter == "all" {
+        agents.iter().collect()
+    } else {
+        agents
+            .iter()
+            .filter(|a| a.status == status_filter)
+            .collect()
+    };
+
+    // --- Output ---
+    if quiet {
+        for agent in &filtered {
+            println!("{}", agent.id);
+        }
+        return Ok(());
+    }
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&filtered)?);
+        return Ok(());
+    }
+
+    if filtered.is_empty() {
+        println!("No kickoff agents found.");
+        return Ok(());
+    }
+
+    // Table output
+    println!(
+        "{:<36} {:<8} {:<10} {:<24} WORKTREE",
+        "ID", "ISSUE", "STATUS", "SESSION"
+    );
+    for agent in &filtered {
+        let issue_display = agent.issue.as_deref().unwrap_or("-");
+        let session_display = agent.session.as_deref().unwrap_or("-");
+        let worktree_display = if agent.worktree.is_empty() {
+            "-"
+        } else {
+            // Show just the leaf directory name for brevity
+            std::path::Path::new(&agent.worktree)
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or(&agent.worktree)
+        };
+        // Append docker indicator if present
+        let status_display = if agent.docker.is_some() {
+            format!("{} 🐳", agent.status)
+        } else {
+            agent.status.clone()
+        };
+        println!(
+            "{:<36} {:<8} {:<10} {:<24} {}",
+            truncate_str(&agent.id, 35),
+            truncate_str(issue_display, 7),
+            status_display,
+            truncate_str(session_display, 23),
+            worktree_display
+        );
+    }
+
+    Ok(())
+}
+
+/// Classify an agent for cleanup purposes.
+fn classify_agent(agent: &AgentInfo) -> CleanupClass {
+    match agent.status.as_str() {
+        "done" => CleanupClass::Done,
+        "running" => CleanupClass::Active,
+        // "stopped" means tmux/container gone but no DONE sentinel — potentially stale
+        "stopped" => CleanupClass::Stale,
+        // "failed" agents are safe to clean up (they have a terminal sentinel)
+        "failed" => CleanupClass::Done,
+        // "timed-out" agents exceeded their timeout budget — treat as stale
+        "timed-out" => CleanupClass::Stale,
+        _ => CleanupClass::Stale,
+    }
+}
+
+/// Result of a single agent cleanup action.
+#[derive(Debug, Serialize)]
+struct CleanupResult {
+    id: String,
+    class: CleanupClass,
+    worktree_removed: bool,
+    tmux_killed: bool,
+    container_removed: bool,
+    error: Option<String>,
+}
+
+/// `crosslink kickoff cleanup`
+///
+/// Discover and remove stale kickoff agent artifacts: completed tmux sessions,
+/// worktrees with DONE sentinels, and orphaned worktrees whose sessions no longer exist.
+pub fn cleanup(
+    crosslink_dir: &Path,
+    dry_run: bool,
+    force: bool,
+    keep: usize,
+    json_output: bool,
+) -> Result<()> {
+    let agents = discover_agents(crosslink_dir)?;
+
+    // Classify each agent
+    let candidates: Vec<(AgentInfo, CleanupClass)> = agents
+        .into_iter()
+        .map(|a| {
+            let class = classify_agent(&a);
+            (a, class)
+        })
+        .collect();
+
+    // Separate active agents (never cleaned) from removable ones
+    let (active, removable): (Vec<_>, Vec<_>) = candidates
+        .into_iter()
+        .partition(|(_, class)| *class == CleanupClass::Active);
+
+    // Without --force, only clean Done agents (not Stale)
+    let (mut to_clean, skipped_stale): (Vec<_>, Vec<_>) = if force {
+        (removable, vec![])
+    } else {
+        removable
+            .into_iter()
+            .partition(|(_, class)| *class == CleanupClass::Done)
+    };
+
+    // Sort by worktree path (as a proxy for creation order) so --keep works predictably
+    to_clean.sort_by(|a, b| a.0.worktree.cmp(&b.0.worktree));
+
+    // Apply --keep: keep the N most recent (last N items after sorting)
+    let to_clean = if keep > 0 && to_clean.len() > keep {
+        to_clean[..to_clean.len() - keep].to_vec()
+    } else if keep > 0 && to_clean.len() <= keep {
+        vec![] // keep all
+    } else {
+        to_clean
+    };
+
+    // --- Dry-run / JSON output ---
+    if json_output {
+        #[derive(Serialize)]
+        struct CleanupPlan {
+            to_clean: Vec<CleanupPlanEntry>,
+            skipped_stale: Vec<CleanupPlanEntry>,
+            active: Vec<CleanupPlanEntry>,
+            dry_run: bool,
+        }
+        #[derive(Serialize)]
+        struct CleanupPlanEntry {
+            id: String,
+            status: String,
+            class: CleanupClass,
+            worktree: String,
+            session: Option<String>,
+            docker: Option<String>,
+        }
+        let to_entry = |items: &[(AgentInfo, CleanupClass)]| -> Vec<CleanupPlanEntry> {
+            items
+                .iter()
+                .map(|(a, c)| CleanupPlanEntry {
+                    id: a.id.clone(),
+                    status: a.status.clone(),
+                    class: c.clone(),
+                    worktree: a.worktree.clone(),
+                    session: a.session.clone(),
+                    docker: a.docker.clone(),
+                })
+                .collect()
+        };
+        let plan = CleanupPlan {
+            to_clean: to_entry(&to_clean),
+            skipped_stale: to_entry(&skipped_stale),
+            active: to_entry(&active),
+            dry_run,
+        };
+        println!("{}", serde_json::to_string_pretty(&plan)?);
+        if dry_run {
+            return Ok(());
+        }
+    }
+
+    if to_clean.is_empty() && skipped_stale.is_empty() {
+        if !json_output {
+            println!("No agents to clean up.");
+        }
+        return Ok(());
+    }
+
+    if dry_run || !json_output {
+        // Print the plan
+        if !to_clean.is_empty() {
+            println!("Cleanup candidates:\n");
+            for (agent, class) in &to_clean {
+                let class_label = match class {
+                    CleanupClass::Done => "DONE  ",
+                    CleanupClass::Stale => "STALE ",
+                    _ => "      ",
+                };
+                let wt_display = if agent.worktree.is_empty() {
+                    "-".to_string()
+                } else {
+                    std::path::Path::new(&agent.worktree)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or(&agent.worktree)
+                        .to_string()
+                };
+                let session_info = agent
+                    .session
+                    .as_deref()
+                    .map(|s| format!("tmux: {}", s))
+                    .unwrap_or_else(|| "tmux: exited".to_string());
+                let docker_info = agent
+                    .docker
+                    .as_deref()
+                    .map(|d| format!("  docker: {}", d))
+                    .unwrap_or_default();
+                println!(
+                    "  {}  {:<40} worktree: {:<30} {}{}",
+                    class_label, agent.id, wt_display, session_info, docker_info
+                );
+            }
+        }
+
+        if !skipped_stale.is_empty() {
+            println!(
+                "\n{} stale agent(s) skipped (use --force to include):",
+                skipped_stale.len()
+            );
+            for (agent, _) in &skipped_stale {
+                let wt_display = if agent.worktree.is_empty() {
+                    "-".to_string()
+                } else {
+                    std::path::Path::new(&agent.worktree)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or(&agent.worktree)
+                        .to_string()
+                };
+                println!("  STALE  {:<40} worktree: {}", agent.id, wt_display);
+            }
+        }
+
+        if dry_run {
+            let wt_count = to_clean
+                .iter()
+                .filter(|(a, _)| !a.worktree.is_empty())
+                .count();
+            let tmux_count = to_clean.iter().filter(|(a, _)| a.session.is_some()).count();
+            let docker_count = to_clean.iter().filter(|(a, _)| a.docker.is_some()).count();
+            println!();
+            print!("Would remove {} worktree(s)", wt_count);
+            if tmux_count > 0 {
+                print!(", kill {} tmux session(s)", tmux_count);
+            }
+            if docker_count > 0 {
+                print!(", remove {} container(s)", docker_count);
+            }
+            println!(".");
+            println!("Run without --dry-run to proceed.");
+            return Ok(());
+        }
+
+        println!();
+    }
+
+    // --- Execute cleanup ---
+    let mut results: Vec<CleanupResult> = Vec::new();
+
+    for (agent, class) in &to_clean {
+        let mut result = CleanupResult {
+            id: agent.id.clone(),
+            class: class.clone(),
+            worktree_removed: false,
+            tmux_killed: false,
+            container_removed: false,
+            error: None,
+        };
+
+        // 1. Kill tmux session if it still exists
+        if let Some(ref session_name) = agent.session {
+            match Command::new("tmux")
+                .args(["kill-session", "-t", session_name])
+                .output()
+            {
+                Ok(o) if o.status.success() => {
+                    result.tmux_killed = true;
+                    if !json_output {
+                        println!("  Killed tmux session: {}", session_name);
+                    }
+                }
+                Ok(o) => {
+                    let stderr = String::from_utf8_lossy(&o.stderr);
+                    eprintln!(
+                        "  Warning: failed to kill tmux session {}: {}",
+                        session_name,
+                        stderr.trim()
+                    );
+                }
+                Err(e) => {
+                    eprintln!("  Warning: tmux error for {}: {}", session_name, e);
+                }
+            }
+        }
+
+        // 2. Remove Docker/Podman container if present
+        if let Some(ref container_name) = agent.docker {
+            for runtime in &["docker", "podman"] {
+                if command_available(runtime) {
+                    if let Ok(o) = Command::new(runtime)
+                        .args(["rm", "-f", container_name])
+                        .output()
+                    {
+                        if o.status.success() {
+                            result.container_removed = true;
+                            if !json_output {
+                                println!("  Removed {} container: {}", runtime, container_name);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Remove the git worktree
+        if !agent.worktree.is_empty() && std::path::Path::new(&agent.worktree).exists() {
+            match Command::new("git")
+                .args(["worktree", "remove", "--force", &agent.worktree])
+                .output()
+            {
+                Ok(o) if o.status.success() => {
+                    result.worktree_removed = true;
+                    let wt_display = std::path::Path::new(&agent.worktree)
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or(&agent.worktree);
+                    if !json_output {
+                        println!("  Removed worktree: {}", wt_display);
+                    }
+                }
+                Ok(o) => {
+                    let stderr = String::from_utf8_lossy(&o.stderr);
+                    let msg = format!("git worktree remove failed: {}", stderr.trim());
+                    eprintln!("  Warning: {}", msg);
+                    result.error = Some(msg);
+                }
+                Err(e) => {
+                    let msg = format!("git worktree remove error: {}", e);
+                    eprintln!("  Warning: {}", msg);
+                    result.error = Some(msg);
+                }
+            }
+        }
+
+        results.push(result);
+    }
+
+    // --- Summary ---
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&results)?);
+    } else {
+        let wt_removed = results.iter().filter(|r| r.worktree_removed).count();
+        let tmux_killed = results.iter().filter(|r| r.tmux_killed).count();
+        let containers_removed = results.iter().filter(|r| r.container_removed).count();
+        let errors = results.iter().filter(|r| r.error.is_some()).count();
+
+        println!();
+        print!("Cleaned up {} agent(s)", results.len());
+        if wt_removed > 0 {
+            print!(": {} worktree(s)", wt_removed);
+        }
+        if tmux_killed > 0 {
+            print!(", {} tmux session(s)", tmux_killed);
+        }
+        if containers_removed > 0 {
+            print!(", {} container(s)", containers_removed);
+        }
+        if errors > 0 {
+            print!(" ({} error(s))", errors);
+        }
+        println!(".");
+    }
+
+    Ok(())
+}
+
+/// Normalize raw status file content to a canonical status string.
+fn normalize_status(raw: &str) -> String {
+    let lower = raw.to_lowercase();
+    if lower == "done" {
+        "done".to_string()
+    } else if lower.contains("fail") || lower.contains("error") {
+        "failed".to_string()
+    } else if lower.contains("running") || raw.is_empty() {
+        "running".to_string()
+    } else {
+        raw.to_string()
+    }
+}
+
+/// Check if an agent has exceeded its timeout based on `.kickoff-metadata.json`.
+///
+/// Returns `true` if the metadata file exists, contains a valid start time and
+/// timeout, and the elapsed wall-clock time exceeds the configured timeout.
+fn is_timed_out(wt_path: &Path) -> bool {
+    let meta_path = wt_path.join(".kickoff-metadata.json");
+    let content = match std::fs::read_to_string(&meta_path) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    let meta: KickoffMetadata = match serde_json::from_str(&content) {
+        Ok(m) => m,
+        Err(_) => return false,
+    };
+    let started = match chrono::DateTime::parse_from_rfc3339(&meta.started_at) {
+        Ok(dt) => dt.with_timezone(&chrono::Utc),
+        Err(_) => return false,
+    };
+    let elapsed = chrono::Utc::now().signed_duration_since(started);
+    elapsed.num_seconds() > meta.timeout_secs as i64
+}
+
+/// Read the timeout metadata for display purposes.
+fn read_timeout_metadata(wt_path: &Path) -> Option<KickoffMetadata> {
+    let meta_path = wt_path.join(".kickoff-metadata.json");
+    let content = std::fs::read_to_string(&meta_path).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
+/// Read the agent ID from the worktree's .crosslink/agent.json.
+fn read_agent_id(wt_path: &Path, _crosslink_dir: &Path) -> Option<String> {
+    let agent_json = wt_path.join(".crosslink").join("agent.json");
+    if agent_json.exists() {
+        if let Ok(content) = std::fs::read_to_string(&agent_json) {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
+                return val
+                    .get("agent_id")
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+            }
+        }
+    }
+    None
+}
+
+/// Try to read the associated issue from kickoff metadata.
+fn read_agent_issue(wt_path: &Path, _crosslink_dir: &Path) -> Option<String> {
+    // Try .kickoff-criteria.json first (has issue ID from kickoff)
+    let criteria_path = wt_path.join(".kickoff-criteria.json");
+    if criteria_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&criteria_path) {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
+                // The criteria file might have issue_id in extracted metadata
+                if let Some(id) = val.get("issue_id").and_then(|v| v.as_i64()) {
+                    return Some(format!("#{}", id));
+                }
+            }
+        }
+    }
+    // Try .crosslink/agent.json
+    let agent_json = wt_path.join(".crosslink").join("agent.json");
+    if agent_json.exists() {
+        if let Ok(content) = std::fs::read_to_string(&agent_json) {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
+                if let Some(id) = val.get("issue_id").and_then(|v| v.as_i64()) {
+                    return Some(format!("#{}", id));
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Truncate a string to `max` characters (char-boundary safe).
+fn truncate_str(s: &str, max: usize) -> String {
+    if s.chars().count() > max {
+        s.chars().take(max).collect()
+    } else {
+        s.to_string()
+    }
 }
 
 /// `crosslink kickoff logs <agent>`
@@ -2207,7 +3067,7 @@ pub fn plan(crosslink_dir: &Path, db: &Database, opts: &PlanOpts) -> Result<()> 
     } else {
         slugify(&opts.doc.title)
     };
-    let slug = format!("plan-{}", title_slug);
+    let slug = format!("plan-{}-{}", title_slug, rand_hex_suffix());
 
     // 2. Create or find issue (optional for plan mode)
     let issue_id = if let Some(id) = opts.issue {
@@ -2221,6 +3081,10 @@ pub fn plan(crosslink_dir: &Path, db: &Database, opts: &PlanOpts) -> Result<()> 
 
     // 3. Create worktree
     let (worktree_dir, branch_name) = create_worktree(&root, &slug, None)?;
+
+    // Write slug sentinel so other commands can identify this worktree
+    std::fs::write(worktree_dir.join(".kickoff-slug"), &slug)
+        .context("Failed to write .kickoff-slug sentinel")?;
 
     // 4. Build prompt
     let prompt = build_plan_prompt(opts.doc, issue_id);
@@ -2296,6 +3160,14 @@ pub fn plan(crosslink_dir: &Path, db: &Database, opts: &PlanOpts) -> Result<()> 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         bail!("Failed to send keys to tmux: {}", stderr.trim());
+    }
+
+    // Spawn watchdog sidecar to nudge idle agents
+    let watchdog_cfg = read_watchdog_config(crosslink_dir);
+    if watchdog_cfg.enabled {
+        if let Err(e) = spawn_watchdog(&session_name, &worktree_dir, &watchdog_cfg) {
+            eprintln!("Warning: failed to spawn watchdog: {}", e);
+        }
     }
 
     // 9. Report
@@ -3180,6 +4052,8 @@ mod tests {
             vec![
                 "KICKOFF.md",
                 ".kickoff-status",
+                ".kickoff-slug",
+                ".kickoff-metadata.json",
                 "PLAN_KICKOFF.md",
                 ".kickoff-plan.json",
                 ".kickoff-criteria.json",
@@ -3192,6 +4066,7 @@ mod tests {
     fn test_missing_exclude_patterns_one_present() {
         let patterns = missing_exclude_patterns("KICKOFF.md\nsome-other-file\n");
         assert!(patterns.contains(&".kickoff-status"));
+        assert!(patterns.contains(&".kickoff-slug"));
         assert!(patterns.contains(&"PLAN_KICKOFF.md"));
         assert!(patterns.contains(&".kickoff-plan.json"));
         assert!(patterns.contains(&".kickoff-criteria.json"));
@@ -3202,7 +4077,7 @@ mod tests {
     #[test]
     fn test_missing_exclude_patterns_all_present() {
         let patterns = missing_exclude_patterns(
-            "KICKOFF.md\n.kickoff-status\nPLAN_KICKOFF.md\n.kickoff-plan.json\n.kickoff-criteria.json\n.kickoff-report.json\n",
+            "KICKOFF.md\n.kickoff-status\n.kickoff-slug\n.kickoff-metadata.json\nPLAN_KICKOFF.md\n.kickoff-plan.json\n.kickoff-criteria.json\n.kickoff-report.json\n",
         );
         assert!(patterns.is_empty());
     }
@@ -3210,7 +4085,7 @@ mod tests {
     #[test]
     fn test_missing_exclude_patterns_with_whitespace() {
         let patterns = missing_exclude_patterns(
-            "  KICKOFF.md  \n  .kickoff-status  \n  PLAN_KICKOFF.md  \n  .kickoff-plan.json  \n  .kickoff-criteria.json  \n  .kickoff-report.json  \n",
+            "  KICKOFF.md  \n  .kickoff-status  \n  .kickoff-slug  \n  .kickoff-metadata.json  \n  PLAN_KICKOFF.md  \n  .kickoff-plan.json  \n  .kickoff-criteria.json  \n  .kickoff-report.json  \n",
         );
         assert!(patterns.is_empty());
     }
@@ -4584,5 +5459,67 @@ mod tests {
         assert!(tools.contains("Grep"));
         assert!(tools.contains("Bash(git log"));
         assert!(tools.contains("Bash(git diff"));
+    }
+
+    #[test]
+    fn test_watchdog_config_defaults() {
+        let cfg = WatchdogConfig::default();
+        assert!(cfg.enabled);
+        assert_eq!(cfg.staleness_secs, 300);
+        assert_eq!(cfg.max_nudges, 5);
+        assert_eq!(cfg.check_interval_secs, 120);
+        assert_eq!(cfg.grace_period_secs, 300);
+    }
+
+    #[test]
+    fn test_read_watchdog_config_missing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = read_watchdog_config(dir.path());
+        assert!(cfg.enabled);
+        assert_eq!(cfg.staleness_secs, 300);
+    }
+
+    #[test]
+    fn test_read_watchdog_config_no_watchdog_key() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("hook-config.json"), "{}").unwrap();
+        let cfg = read_watchdog_config(dir.path());
+        assert!(cfg.enabled);
+    }
+
+    #[test]
+    fn test_read_watchdog_config_custom_values() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("hook-config.json"),
+            r#"{"watchdog": {"enabled": false, "staleness_secs": 600, "max_nudges": 10}}"#,
+        )
+        .unwrap();
+        let cfg = read_watchdog_config(dir.path());
+        assert!(!cfg.enabled);
+        assert_eq!(cfg.staleness_secs, 600);
+        assert_eq!(cfg.max_nudges, 10);
+        assert_eq!(cfg.check_interval_secs, 120); // still default
+    }
+
+    #[test]
+    fn test_build_watchdog_script_contains_key_elements() {
+        let cfg = WatchdogConfig {
+            enabled: true,
+            staleness_secs: 300,
+            max_nudges: 3,
+            check_interval_secs: 60,
+            grace_period_secs: 120,
+        };
+        let script = build_watchdog_script("feat-my-agent", Path::new("/tmp/wt"), &cfg);
+        assert!(script.contains("sleep 120")); // grace period
+        assert!(script.contains("sleep 60")); // check interval
+        assert!(script.contains(".kickoff-status"));
+        assert!(script.contains("feat-my-agent"));
+        assert!(script.contains("last-heartbeat"));
+        assert!(script.contains("continue working"));
+        assert!(script.contains("NUDGES"));
+        assert!(script.contains("-gt 300")); // staleness threshold
+        assert!(script.contains("-ge 3")); // max nudges
     }
 }

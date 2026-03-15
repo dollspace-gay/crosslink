@@ -7,7 +7,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Row, Table, TableState, Wrap},
     Frame,
 };
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 
 use crate::db::Database;
@@ -119,6 +119,8 @@ pub struct IssuesTab {
     prev_view_mode: ViewMode,
     detail: Option<IssueDetail>,
     detail_scroll: u16,
+    /// Maximum detail scroll offset computed during render.
+    detail_max_scroll: Cell<u16>,
     open_count: usize,
     closed_count: usize,
     /// Flattened tree nodes for tree view.
@@ -145,6 +147,7 @@ impl IssuesTab {
             prev_view_mode: ViewMode::List,
             detail: None,
             detail_scroll: 0,
+            detail_max_scroll: Cell::new(0),
             open_count: 0,
             closed_count: 0,
             tree_nodes: Vec::new(),
@@ -324,12 +327,7 @@ impl IssuesTab {
                 self.searching = true;
                 TabAction::Consumed
             }
-            KeyCode::Char('r') => {
-                if let Some(db) = db {
-                    let _ = self.refresh(db);
-                }
-                TabAction::Consumed
-            }
+            KeyCode::Char('r') => TabAction::NotHandled,
             KeyCode::Char('t') => {
                 if let Some(db) = db {
                     let _ = self.build_tree(db);
@@ -350,7 +348,8 @@ impl IssuesTab {
                 TabAction::Consumed
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                self.detail_scroll = self.detail_scroll.saturating_add(1);
+                let max = self.detail_max_scroll.get();
+                self.detail_scroll = self.detail_scroll.saturating_add(1).min(max);
                 TabAction::Consumed
             }
             KeyCode::Up | KeyCode::Char('k') => {
@@ -358,7 +357,8 @@ impl IssuesTab {
                 TabAction::Consumed
             }
             KeyCode::PageDown => {
-                self.detail_scroll = self.detail_scroll.saturating_add(10);
+                let max = self.detail_max_scroll.get();
+                self.detail_scroll = self.detail_scroll.saturating_add(10).min(max);
                 TabAction::Consumed
             }
             KeyCode::PageUp => {
@@ -517,6 +517,7 @@ impl IssuesTab {
                             };
                             self.detail = Some(detail);
                             self.detail_scroll = 0;
+                            self.prev_view_mode = self.view_mode;
                             self.view_mode = ViewMode::Detail;
                         }
                     }
@@ -531,12 +532,7 @@ impl IssuesTab {
                 }
                 TabAction::Consumed
             }
-            KeyCode::Char('r') => {
-                if let Some(db) = db {
-                    let _ = self.build_tree(db);
-                }
-                TabAction::Consumed
-            }
+            KeyCode::Char('r') => TabAction::NotHandled,
             _ => TabAction::NotHandled,
         }
     }
@@ -992,15 +988,22 @@ impl IssuesTab {
             " \u{2500}".to_string() + &"\u{2500}".repeat(area.width.saturating_sub(4) as usize),
         ));
 
-        let detail_widget = Paragraph::new(lines)
-            .block(Block::default().borders(Borders::NONE))
-            .wrap(Wrap { trim: false })
-            .scroll((self.detail_scroll, 0));
-
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(0), Constraint::Length(1)])
             .split(area);
+
+        // Clamp scroll so the user can't scroll past content.
+        let content_height = lines.len() as u16;
+        let viewport_height = chunks[0].height;
+        let max_scroll = content_height.saturating_sub(viewport_height);
+        self.detail_max_scroll.set(max_scroll);
+        let clamped_scroll = self.detail_scroll.min(max_scroll);
+
+        let detail_widget = Paragraph::new(lines)
+            .block(Block::default().borders(Borders::NONE))
+            .wrap(Wrap { trim: false })
+            .scroll((clamped_scroll, 0));
 
         frame.render_widget(detail_widget, chunks[0]);
 
@@ -1049,6 +1052,19 @@ impl super::Tab for IssuesTab {
     // IssuesTab loads data eagerly in new() and on refresh, so no work needed on focus change.
     fn on_enter(&mut self) {}
     fn on_leave(&mut self) {}
+
+    fn force_refresh(&mut self) {
+        if let Ok(db) = self.open_db() {
+            match self.view_mode {
+                ViewMode::Tree => {
+                    let _ = self.build_tree(&db);
+                }
+                _ => {
+                    let _ = self.refresh(&db);
+                }
+            }
+        }
+    }
 }
 
 // === Helper functions ===
@@ -1308,6 +1324,9 @@ mod tests {
         tab.handle_list_key(make_key(KeyCode::Enter), Some(&db));
         assert!(matches!(tab.view_mode, ViewMode::Detail));
         assert!(tab.detail.is_some());
+
+        // Simulate a render having computed max scroll.
+        tab.detail_max_scroll.set(100);
 
         // Scroll
         tab.handle_detail_key(make_key(KeyCode::Down));

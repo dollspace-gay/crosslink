@@ -696,10 +696,12 @@ pub fn verify_content(
         return Ok(false);
     }
 
-    // Parse stderr to confirm "Good signature" message from ssh-keygen
+    // Parse output to confirm "Good signature" message from ssh-keygen.
     // On success, ssh-keygen outputs: Good "namespace" signature for principal ...
+    // Note: macOS emits this on stdout, while some Linux builds use stderr.
+    let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    if !stderr.contains("Good") {
+    if !stdout.contains("Good") && !stderr.contains("Good") {
         return Ok(false);
     }
 

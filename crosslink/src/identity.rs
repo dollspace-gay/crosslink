@@ -57,6 +57,28 @@ impl AgentConfig {
         Ok(config)
     }
 
+    /// Create an anonymous agent config for pre-init hub writes.
+    ///
+    /// Uses a stable hash of the crosslink directory path so each worktree
+    /// gets a consistent anonymous identity without collisions.
+    pub fn anonymous(crosslink_dir: &Path) -> Self {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        crosslink_dir.hash(&mut hasher);
+        let hash = hasher.finish();
+        let short = format!("{:08x}", hash as u32);
+        AgentConfig {
+            agent_id: format!("anon-{}", short),
+            machine_id: detect_hostname(),
+            description: Some("Anonymous agent (pre-init)".to_string()),
+            ssh_key_path: None,
+            ssh_fingerprint: None,
+            ssh_public_key: None,
+        }
+    }
+
     fn validate(&self) -> Result<()> {
         anyhow::ensure!(!self.agent_id.is_empty(), "agent_id cannot be empty");
         anyhow::ensure!(

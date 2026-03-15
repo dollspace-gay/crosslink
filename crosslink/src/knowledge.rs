@@ -915,11 +915,20 @@ pub fn parse_frontmatter(content: &str) -> Option<PageFrontmatter> {
     })
 }
 
+/// Escape a string value for safe inclusion in YAML frontmatter.
+///
+/// Wraps the value in double quotes, escaping any internal backslashes and
+/// double quotes to prevent YAML injection via crafted titles or other fields.
+fn yaml_escape(value: &str) -> String {
+    let escaped = value.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("\"{}\"", escaped)
+}
+
 /// Serialize frontmatter back to YAML format.
 pub fn serialize_frontmatter(fm: &PageFrontmatter) -> String {
     let mut out = String::from("---\n");
 
-    out.push_str(&format!("title: {}\n", &fm.title));
+    out.push_str(&format!("title: {}\n", yaml_escape(&fm.title)));
 
     // Tags as inline array
     if fm.tags.is_empty() {
@@ -935,7 +944,7 @@ pub fn serialize_frontmatter(fm: &PageFrontmatter) -> String {
         out.push_str("sources:\n");
         for src in &fm.sources {
             out.push_str(&format!("  - url: {}\n", &src.url));
-            out.push_str(&format!("    title: {}\n", &src.title));
+            out.push_str(&format!("    title: {}\n", yaml_escape(&src.title)));
             if let Some(ref accessed) = src.accessed_at {
                 out.push_str(&format!("    accessed_at: {}\n", accessed));
             }
@@ -990,7 +999,11 @@ fn parse_inline_array(value: &str) -> Option<Vec<String>> {
 /// Remove surrounding quotes from a string value.
 fn unquote(s: &str) -> String {
     let s = s.trim();
-    if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
+    if s.starts_with('"') && s.ends_with('"') {
+        s[1..s.len() - 1]
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\")
+    } else if s.starts_with('\'') && s.ends_with('\'') {
         s[1..s.len() - 1].to_string()
     } else {
         s.to_string()
