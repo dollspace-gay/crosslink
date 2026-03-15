@@ -92,6 +92,9 @@ pub struct CompactionLease {
     pub agent_id: String,
     pub acquired_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
+    /// PID of the process that acquired the lease, used for stale detection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pid: Option<u32>,
 }
 
 /// Warning about clock skew detected during compaction.
@@ -284,10 +287,21 @@ mod tests {
             agent_id: "agent-1".to_string(),
             acquired_at: Utc::now(),
             expires_at: Utc::now() + chrono::Duration::seconds(30),
+            pid: Some(12345),
         };
         let json = serde_json::to_string(&lease).unwrap();
         let parsed: CompactionLease = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.agent_id, "agent-1");
+        assert_eq!(parsed.pid, Some(12345));
+    }
+
+    #[test]
+    fn test_compaction_lease_backward_compat() {
+        // Old leases without pid field should deserialize with pid = None
+        let json = r#"{"agent_id":"agent-1","acquired_at":"2025-01-01T00:00:00Z","expires_at":"2025-01-01T00:00:30Z"}"#;
+        let parsed: CompactionLease = serde_json::from_str(json).unwrap();
+        assert_eq!(parsed.agent_id, "agent-1");
+        assert_eq!(parsed.pid, None);
     }
 
     #[test]
@@ -313,6 +327,68 @@ mod tests {
         let parsed: CompactIssue = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.labels.len(), 2);
         assert_eq!(parsed.blockers.len(), 1);
+    }
+
+    #[test]
+    fn test_read_watermark_legacy_fallback() {
+        // When checkpoint state has no embedded watermark but a legacy
+        // watermark.json file exists, read_watermark should fall back
+        // to reading the separate file (lines 163-167).
+        let dir = tempfile::tempdir().unwrap();
+        let cache_dir = dir.path();
+
+        // Write a checkpoint state WITHOUT an embedded watermark.
+        let state = CheckpointState::default();
+        assert!(state.watermark.is_none());
+        write_checkpoint(cache_dir, &state).unwrap();
+
+        // Manually write a legacy watermark.json file in the checkpoint dir.
+        let checkpoint_dir = cache_dir.join("checkpoint");
+        let legacy_key = OrderingKey {
+            timestamp: Utc::now(),
+            agent_id: "legacy-agent".to_string(),
+            agent_seq: 99,
+        };
+        let watermark_path = checkpoint_dir.join("watermark.json");
+        let content = serde_json::to_string_pretty(&legacy_key).unwrap();
+        std::fs::write(&watermark_path, content).unwrap();
+
+        // read_watermark should fall back to the legacy watermark.json file.
+        let loaded = read_watermark(cache_dir).unwrap().unwrap();
+        assert_eq!(loaded.agent_id, "legacy-agent");
+        assert_eq!(loaded.agent_seq, 99);
+    }
+
+    #[test]
+    fn test_read_watermark_embedded_takes_precedence_over_legacy() {
+        // When checkpoint state has an embedded watermark AND a legacy
+        // watermark.json file exists, the embedded watermark should win.
+        let dir = tempfile::tempdir().unwrap();
+        let cache_dir = dir.path();
+
+        // Write a checkpoint with an embedded watermark.
+        let embedded_key = OrderingKey {
+            timestamp: Utc::now(),
+            agent_id: "embedded-agent".to_string(),
+            agent_seq: 50,
+        };
+        write_watermark(cache_dir, &embedded_key).unwrap();
+
+        // Also write a legacy watermark.json with different data.
+        let checkpoint_dir = cache_dir.join("checkpoint");
+        let legacy_key = OrderingKey {
+            timestamp: Utc::now(),
+            agent_id: "legacy-agent".to_string(),
+            agent_seq: 99,
+        };
+        let watermark_path = checkpoint_dir.join("watermark.json");
+        let content = serde_json::to_string_pretty(&legacy_key).unwrap();
+        std::fs::write(&watermark_path, content).unwrap();
+
+        // Should prefer the embedded watermark, not the legacy file.
+        let loaded = read_watermark(cache_dir).unwrap().unwrap();
+        assert_eq!(loaded.agent_id, "embedded-agent");
+        assert_eq!(loaded.agent_seq, 50);
     }
 
     #[test]

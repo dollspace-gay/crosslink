@@ -6,12 +6,18 @@
 *.pyc
 __pycache__/
 
+# Docs build staging
+.docs_build/
+
 # Build/test artifacts
 crosslink/fuzz/target/
 crosslink/fuzz/artifacts/
 crosslink/fuzz/corpus/
 /mutants.out/
 crosslink/mutants.out/
+
+# Nested crosslink state (stale — real DB is at repo root .crosslink/)
+crosslink/.crosslink/
 
 # Project-specific ignores
 beads/

@@ -94,6 +94,8 @@ def load_all_rules(crosslink_dir):
         ('scala.md', 'Scala'),
         ('zig.md', 'Zig'),
         ('odin.md', 'Odin'),
+        ('elixir.md', 'Elixir'),
+        ('elixir-phoenix.md', 'Elixir/Phoenix'),
     ]
 
     for filename, lang_name in language_files:
@@ -144,6 +146,9 @@ def detect_languages():
         '.scala': 'Scala',
         '.zig': 'Zig',
         '.odin': 'Odin',
+        '.ex': 'Elixir',
+        '.exs': 'Elixir',
+        '.heex': 'Elixir/Phoenix',
     }
 
     found = set()
@@ -162,6 +167,7 @@ def detect_languages():
         'Gemfile': 'Ruby',
         'composer.json': 'PHP',
         'Package.swift': 'Swift',
+        'mix.exs': 'Elixir',
     }
 
     # Check cwd and immediate subdirs for config files
@@ -225,7 +231,8 @@ SKIP_DIRS = {
     '.git', 'node_modules', 'target', 'venv', '.venv', 'env', '.env',
     '__pycache__', '.crosslink', '.claude', 'dist', 'build', '.next',
     '.nuxt', 'vendor', '.idea', '.vscode', 'coverage', '.pytest_cache',
-    '.mypy_cache', '.tox', 'eggs', '*.egg-info', '.sass-cache'
+    '.mypy_cache', '.tox', 'eggs', '*.egg-info', '.sass-cache',
+    '_build', 'deps', '.elixir_ls', '.fetch'
 }
 
 
@@ -378,6 +385,23 @@ def get_dependencies(max_deps=30):
         if deps:
             return "Python (requirements.txt):\n" + "\n".join(deps[:max_deps])
 
+    # Check for Elixir (mix.exs)
+    mix_exs = os.path.join(cwd, 'mix.exs')
+    if os.path.exists(mix_exs):
+        try:
+            import re
+            with open(mix_exs, 'r') as f:
+                content = f.read()
+                # Match {:dep_name, "~> x.y"} or {:dep_name, ">= x.y"} patterns
+                for match in re.finditer(r'\{:(\w+),\s*"([^"]+)"', content):
+                    deps.append(f"  {match.group(1)}: {match.group(2)}")
+                    if len(deps) >= max_deps:
+                        break
+        except (OSError, Exception):
+            pass
+        if deps:
+            return "Elixir (mix.exs):\n" + "\n".join(deps[:max_deps])
+
     # Check for Go (go.mod)
     go_mod = os.path.join(cwd, 'go.mod')
     if os.path.exists(go_mod):
@@ -483,15 +507,15 @@ When writing code: write it. When making changes: make them. Skip the narration.
 
 ### Large File Management (500+ lines)
 If you need to write or modify code that will exceed 500 lines:
-1. Create a parent issue for the overall feature: `crosslink create "<feature name>" -p high`
-2. Break down into subissues: `crosslink subissue <parent_id> "<component 1>"`, etc.
+1. Create a parent issue for the overall feature: `crosslink issue create "<feature name>" -p high`
+2. Break down into subissues: `crosslink issue subissue <parent_id> "<component 1>"`, etc.
 3. Inform the user: "This implementation will require multiple files/components. I've created issue #X with Y subissues to track progress."
 4. Work on one subissue at a time, marking each complete before moving on.
 
 ### Context Window Management
 If the conversation is getting long OR the task requires many more steps:
-1. Create a crosslink issue to track remaining work: `crosslink create "Continue: <task summary>" -p high`
-2. Add detailed notes as a comment: `crosslink comment <id> "<what's done, what's next>"`
+1. Create a crosslink issue to track remaining work: `crosslink issue create "Continue: <task summary>" -p high`
+2. Add detailed notes as a comment: `crosslink issue comment <id> "<what's done, what's next>"`
 3. Inform the user: "This task will require additional turns. I've created issue #X to track progress."
 
 Use `crosslink session work <id>` to mark what you're working on.
@@ -614,7 +638,7 @@ def build_condensed_reminder(languages, tracking_mode):
 - **Quality**: No stubs/TODOs. Read before write. Complete features fully. Proper error handling.
 - **Testing**: Run tests after changes. Fix warnings, don't suppress them.
 
-Full rules were injected on first prompt. Use `crosslink list -s open` to see current issues.
+Full rules were injected on first prompt. Use `crosslink issue list -s open` to see current issues.
 </crosslink-behavioral-guard>"""
 
 

@@ -31,6 +31,7 @@ pub fn dispatch(
             dry_run,
             branch,
             doc,
+            skip_permissions,
         } => {
             let parsed_doc = if let Some(ref path) = doc {
                 let content = std::fs::read_to_string(path)
@@ -56,6 +57,7 @@ pub fn dispatch(
                 quiet,
                 design_doc: parsed_doc.as_ref(),
                 doc_path: doc.as_ref().map(|p| p.to_str().unwrap_or("unknown")),
+                skip_permissions,
             };
             run(crosslink_dir, db, writer, &opts)
         }
@@ -182,6 +184,7 @@ pub struct KickoffOpts<'a> {
     pub quiet: bool,
     pub design_doc: Option<&'a super::design_doc::DesignDoc>,
     pub doc_path: Option<&'a str>,
+    pub skip_permissions: bool,
 }
 
 /// Parse a container mode string into the enum.
@@ -411,6 +414,71 @@ pub(crate) fn detect_conventions(repo_root: &Path) -> ProjectConventions {
     // Make
     if repo_root.join("Makefile").is_file() || repo_root.join("makefile").is_file() {
         conv.allowed_tools.push("Bash(make *)".to_string());
+    }
+
+    // Elixir
+    if repo_root.join("mix.exs").is_file() {
+        if conv.test_command.is_none() {
+            conv.test_command = Some("mix test".to_string());
+        }
+        conv.lint_commands
+            .push("mix format --check-formatted".to_string());
+        conv.allowed_tools.push("Bash(mix compile *)".to_string());
+        conv.allowed_tools.push("Bash(mix test *)".to_string());
+        conv.allowed_tools.push("Bash(mix format *)".to_string());
+        conv.allowed_tools.push("Bash(mix deps.get *)".to_string());
+        conv.allowed_tools.push("Bash(mix deps.tree *)".to_string());
+        conv.allowed_tools
+            .push("Bash(mix deps.compile *)".to_string());
+        conv.allowed_tools
+            .push("Bash(mix ecto.migrate *)".to_string());
+        conv.allowed_tools
+            .push("Bash(mix gettext.extract *)".to_string());
+        conv.allowed_tools
+            .push("Bash(mix gettext.merge *)".to_string());
+        conv.allowed_tools.push("Bash(mix help *)".to_string());
+        conv.allowed_tools.push("Bash(mix hex.info *)".to_string());
+        conv.allowed_tools.push("Bash(mix xref *)".to_string());
+        conv.allowed_tools
+            .push("Bash(mix phx.routes *)".to_string());
+        conv.allowed_tools.push("Bash(mix dialyzer *)".to_string());
+
+        // Credo (check if it's a dep)
+        if let Ok(content) = std::fs::read_to_string(repo_root.join("mix.exs")) {
+            if content.contains(":credo") {
+                conv.lint_commands.push("mix credo --strict".to_string());
+                conv.allowed_tools.push("Bash(mix credo *)".to_string());
+            }
+            if content.contains(":sobelow") {
+                conv.lint_commands.push("mix sobelow --config".to_string());
+                conv.allowed_tools.push("Bash(mix sobelow *)".to_string());
+            }
+            // Tidewave MCP tools (if :tidewave is a dep and a local dev server is running)
+            // NOTE: subagent support for starting mix phx.server is TBD — for now
+            // these tools are available but require a running dev server
+            if content.contains(":tidewave") {
+                conv.allowed_tools
+                    .push("mcp__tidewave__get_logs".to_string());
+                conv.allowed_tools
+                    .push("mcp__tidewave__get_source_location".to_string());
+                conv.allowed_tools
+                    .push("mcp__tidewave__get_docs".to_string());
+                conv.allowed_tools
+                    .push("mcp__tidewave__get_ecto_schemas".to_string());
+                conv.allowed_tools
+                    .push("mcp__tidewave__search_package_docs".to_string());
+                conv.allowed_tools
+                    .push("mcp__tidewave__list_project_files".to_string());
+                conv.allowed_tools
+                    .push("mcp__tidewave__read_project_file".to_string());
+                conv.allowed_tools
+                    .push("mcp__tidewave__grep_project_files".to_string());
+                conv.allowed_tools
+                    .push("mcp__tidewave__execute_sql_query".to_string());
+                conv.allowed_tools
+                    .push("mcp__tidewave__project_eval".to_string());
+            }
+        }
     }
 
     conv
@@ -1335,6 +1403,7 @@ fn spawn_watchdog(session_name: &str, worktree_dir: &Path, cfg: &WatchdogConfig)
 /// ```text
 /// timeout 3600s env -u CLAUDECODE claude ...
 /// ```
+#[allow(clippy::too_many_arguments)]
 fn build_agent_command(
     timeout_cmd: &str,
     timeout_secs: u64,
@@ -1343,10 +1412,16 @@ fn build_agent_command(
     kickoff_file: &str,
     sandbox_command: Option<&str>,
     worktree_dir: &Path,
+    skip_permissions: bool,
 ) -> String {
+    let skip_flag = if skip_permissions {
+        " --dangerously-skip-permissions"
+    } else {
+        ""
+    };
     let claude_cmd = format!(
-        "env -u CLAUDECODE claude --model {} --allowedTools '{}' -- \"$(cat {})\"",
-        model, allowed_tools, kickoff_file
+        "env -u CLAUDECODE claude{} --model {} --allowedTools '{}' -- \"$(cat {})\"",
+        skip_flag, model, allowed_tools, kickoff_file
     );
     match sandbox_command {
         Some(cmd) => {
@@ -1381,8 +1456,17 @@ fn preflight_check(
     };
 
     // tmux — required for local (non-container) mode
-    if *container == ContainerMode::None && !command_available("tmux") {
-        missing.push(install_hint("tmux", &platform));
+    // On Windows, tmux is not available at all — bail early with a clear message.
+    if *container == ContainerMode::None {
+        if cfg!(target_os = "windows") {
+            bail!(
+                "Local kickoff mode requires tmux, which is not available on Windows.\n\
+                 Use `--container docker` for agent kickoff on Windows."
+            );
+        }
+        if !command_available("tmux") {
+            missing.push(install_hint("tmux", &platform));
+        }
     }
 
     // claude CLI — required for local mode
@@ -1614,6 +1698,7 @@ fn launch_local(
     timeout_cmd: &str,
     sandbox_command: Option<&str>,
     crosslink_dir: &Path,
+    skip_permissions: bool,
 ) -> Result<()> {
     // Create the tmux session
     let output = Command::new("tmux")
@@ -1642,7 +1727,13 @@ fn launch_local(
         "KICKOFF.md",
         sandbox_command,
         worktree_dir,
+        skip_permissions,
     );
+
+    // Write initial status sentinel BEFORE sending the command.
+    // This ensures we never have a worktree in limbo with no status.
+    std::fs::write(worktree_dir.join(".kickoff-status"), "LAUNCHING\n")
+        .context("Failed to write initial .kickoff-status")?;
 
     // Send the command to the tmux session
     let output = Command::new("tmux")
@@ -1651,9 +1742,14 @@ fn launch_local(
         .context("Failed to send command to tmux session")?;
 
     if !output.status.success() {
+        // Mark as failed before bailing
+        let _ = std::fs::write(worktree_dir.join(".kickoff-status"), "FAILED\n");
         let stderr = String::from_utf8_lossy(&output.stderr);
         bail!("Failed to send keys to tmux: {}", stderr.trim());
     }
+
+    // Update status to RUNNING now that the command has been sent
+    let _ = std::fs::write(worktree_dir.join(".kickoff-status"), "RUNNING\n");
 
     // Spawn watchdog sidecar to nudge idle agents
     let watchdog_cfg = read_watchdog_config(crosslink_dir);
@@ -1697,17 +1793,22 @@ fn launch_container(
     let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
     let host_auth = format!("{}/.claude", home);
 
-    // Get host UID/GID for remapping
-    let uid = Command::new("id")
-        .arg("-u")
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .unwrap_or_else(|_| "1000".to_string());
-    let gid = Command::new("id")
-        .arg("-g")
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .unwrap_or_else(|_| "1000".to_string());
+    // Get host UID/GID for remapping (skip on Windows — Docker Desktop handles user mapping)
+    let uid_gid = if cfg!(target_os = "windows") {
+        None
+    } else {
+        let uid = Command::new("id")
+            .arg("-u")
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .unwrap_or_else(|_| "1000".to_string());
+        let gid = Command::new("id")
+            .arg("-g")
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .unwrap_or_else(|_| "1000".to_string());
+        Some((uid, gid))
+    };
 
     let mut args = vec![
         "run".to_string(),
@@ -1726,11 +1827,17 @@ fn launch_container(
         // Environment
         "-e".to_string(),
         format!("AGENT_ID={}", agent_id),
-        "-e".to_string(),
-        format!("HOST_UID={}", uid),
-        "-e".to_string(),
-        format!("HOST_GID={}", gid),
     ];
+
+    // Pass UID/GID to container for user remapping (non-Windows only)
+    if let Some((uid, gid)) = &uid_gid {
+        args.extend([
+            "-e".to_string(),
+            format!("HOST_UID={}", uid),
+            "-e".to_string(),
+            format!("HOST_GID={}", gid),
+        ]);
+    }
 
     // Image and command
     args.push(image.to_string());
@@ -1913,6 +2020,7 @@ pub fn run(
                 preflight.timeout_cmd,
                 preflight.sandbox_command.as_deref(),
                 crosslink_dir,
+                opts.skip_permissions,
             )?;
 
             // 10. Report
@@ -3050,6 +3158,14 @@ pub struct PlanOpts<'a> {
 
 /// Main entry point: `crosslink kickoff plan`.
 pub fn plan(crosslink_dir: &Path, db: &Database, opts: &PlanOpts) -> Result<()> {
+    // Plan mode always uses tmux — reject on Windows early.
+    if cfg!(target_os = "windows") && !opts.dry_run {
+        bail!(
+            "Plan mode requires tmux, which is not available on Windows.\n\
+             Use `--container docker` for agent kickoff on Windows."
+        );
+    }
+
     // 1. Pre-flight: validate all required external commands
     let preflight = if !opts.dry_run {
         Some(preflight_check(
@@ -3133,6 +3249,7 @@ pub fn plan(crosslink_dir: &Path, db: &Database, opts: &PlanOpts) -> Result<()> 
         "PLAN_KICKOFF.md",
         preflight.sandbox_command.as_deref(),
         &worktree_dir,
+        false, // plan mode never skips permissions
     );
 
     let output = Command::new("tmux")
@@ -3821,6 +3938,7 @@ mod tests {
             quiet: false,
             design_doc: None,
             doc_path: None,
+            skip_permissions: false,
         };
         let prompt = build_prompt(&opts, 42, "feature/add-retry-logic", &conventions);
 
@@ -3852,6 +3970,7 @@ mod tests {
             quiet: false,
             design_doc: None,
             doc_path: None,
+            skip_permissions: false,
         };
         let prompt = build_prompt(&opts, 1, "feature/test-ci", &conventions);
 
@@ -3880,6 +3999,7 @@ mod tests {
             quiet: false,
             design_doc: None,
             doc_path: None,
+            skip_permissions: false,
         };
         let prompt = build_prompt(&opts, 1, "feature/test-thorough", &conventions);
 
@@ -4156,6 +4276,91 @@ mod tests {
     }
 
     #[test]
+    fn test_detect_conventions_elixir() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("mix.exs"),
+            r#"defmodule MyApp.MixProject do
+  use Mix.Project
+  defp deps do
+    [{:phoenix, "~> 1.7"}, {:credo, "~> 1.7", only: [:dev, :test]}, {:sobelow, "~> 0.13", only: :dev}]
+  end
+end"#,
+        )
+        .unwrap();
+
+        let conv = detect_conventions(dir.path());
+        assert_eq!(conv.test_command.as_deref(), Some("mix test"));
+        assert!(conv
+            .lint_commands
+            .contains(&"mix format --check-formatted".to_string()));
+        assert!(conv
+            .lint_commands
+            .contains(&"mix credo --strict".to_string()));
+        assert!(conv
+            .lint_commands
+            .contains(&"mix sobelow --config".to_string()));
+        assert!(conv.allowed_tools.contains(&"Bash(mix test *)".to_string()));
+        assert!(conv
+            .allowed_tools
+            .contains(&"Bash(mix credo *)".to_string()));
+        assert!(conv
+            .allowed_tools
+            .contains(&"Bash(mix sobelow *)".to_string()));
+        assert!(conv
+            .allowed_tools
+            .contains(&"Bash(mix phx.routes *)".to_string()));
+    }
+
+    #[test]
+    fn test_detect_conventions_elixir_minimal() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("mix.exs"),
+            "defmodule MyApp.MixProject do\n  use Mix.Project\nend",
+        )
+        .unwrap();
+
+        let conv = detect_conventions(dir.path());
+        assert_eq!(conv.test_command.as_deref(), Some("mix test"));
+        assert!(conv
+            .lint_commands
+            .contains(&"mix format --check-formatted".to_string()));
+        // No credo/sobelow in a minimal mix.exs
+        assert!(!conv
+            .lint_commands
+            .contains(&"mix credo --strict".to_string()));
+        assert!(!conv
+            .allowed_tools
+            .contains(&"mcp__tidewave__get_logs".to_string()));
+    }
+
+    #[test]
+    fn test_detect_conventions_elixir_with_tidewave() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("mix.exs"),
+            r#"defmodule MyApp.MixProject do
+  defp deps do
+    [{:tidewave, "~> 0.1", only: :dev}]
+  end
+end"#,
+        )
+        .unwrap();
+
+        let conv = detect_conventions(dir.path());
+        assert!(conv
+            .allowed_tools
+            .contains(&"mcp__tidewave__get_logs".to_string()));
+        assert!(conv
+            .allowed_tools
+            .contains(&"mcp__tidewave__get_docs".to_string()));
+        assert!(conv
+            .allowed_tools
+            .contains(&"mcp__tidewave__project_eval".to_string()));
+    }
+
+    #[test]
     fn test_detect_conventions_empty_dir() {
         let dir = tempfile::tempdir().unwrap();
 
@@ -4237,6 +4442,7 @@ mod tests {
             quiet: false,
             design_doc: None,
             doc_path: None,
+            skip_permissions: false,
         };
         let prompt = build_prompt(&opts, 1, "feature/test-local", &conventions);
 
@@ -4265,6 +4471,7 @@ mod tests {
             quiet: false,
             design_doc: None,
             doc_path: None,
+            skip_permissions: false,
         };
         let prompt = build_prompt(&opts, 1, "feature/test", &conventions);
 
@@ -4294,6 +4501,7 @@ mod tests {
             quiet: false,
             design_doc: None,
             doc_path: None,
+            skip_permissions: false,
         };
         let prompt = build_prompt(&opts, 999, "feature/test-refs", &conventions);
 
@@ -4323,6 +4531,7 @@ mod tests {
             quiet: false,
             design_doc: None,
             doc_path: None,
+            skip_permissions: false,
         };
         let prompt = build_prompt(&opts, 1, "feature/test-generic", &conventions);
 
@@ -4363,6 +4572,7 @@ mod tests {
             quiet: false,
             design_doc: Some(&doc),
             doc_path: None,
+            skip_permissions: false,
         };
         let prompt = build_prompt(&opts, 1, "feature/batch-retry", &conventions);
 
@@ -4503,6 +4713,7 @@ mod tests {
             quiet: false,
             design_doc: Some(&doc),
             doc_path: None,
+            skip_permissions: false,
         };
         let prompt = build_prompt(&opts, 1, "feature/auth", &conventions);
 
@@ -4669,6 +4880,7 @@ mod tests {
             quiet: false,
             design_doc: Some(&doc),
             doc_path: None,
+            skip_permissions: false,
         };
         let prompt = build_prompt(&opts, 1, "feature/test", &conventions);
         assert!(prompt.contains("Spec Validation"));
@@ -4707,6 +4919,7 @@ mod tests {
             quiet: false,
             design_doc: Some(&doc),
             doc_path: None,
+            skip_permissions: false,
         };
         let prompt = build_prompt(&opts, 1, "feature/test", &conventions);
         assert!(!prompt.contains("Spec Validation"));
@@ -4742,6 +4955,7 @@ mod tests {
             quiet: false,
             design_doc: Some(&doc),
             doc_path: None,
+            skip_permissions: false,
         };
         let prompt = build_prompt(&opts, 1, "feature/test", &conventions);
         let test_pos = prompt.find("Run tests").expect("should have test section");
@@ -5085,6 +5299,7 @@ mod tests {
             "KICKOFF.md",
             None,
             Path::new("/tmp/worktree"),
+            false,
         );
         assert_eq!(
             cmd,
@@ -5102,9 +5317,29 @@ mod tests {
             "KICKOFF.md",
             Some("bwrap --bind {{worktree}} /workspace --"),
             Path::new("/tmp/my-worktree"),
+            false,
         );
         assert!(cmd.starts_with("timeout 3600s bwrap --bind /tmp/my-worktree /workspace --"));
         assert!(cmd.contains("env -u CLAUDECODE claude"));
+    }
+
+    #[test]
+    fn test_build_agent_command_with_skip_permissions() {
+        let cmd = build_agent_command(
+            "timeout",
+            3600,
+            "opus",
+            "Read,Write",
+            "KICKOFF.md",
+            None,
+            Path::new("/tmp/worktree"),
+            true,
+        );
+        assert!(
+            cmd.contains("--dangerously-skip-permissions"),
+            "Should include skip permissions flag"
+        );
+        assert!(cmd.contains("claude --dangerously-skip-permissions --model opus"));
     }
 
     #[test]
@@ -5117,6 +5352,7 @@ mod tests {
             "PLAN_KICKOFF.md",
             None,
             Path::new("/tmp/worktree"),
+            false,
         );
         assert!(cmd.starts_with("gtimeout 1800s"));
         assert!(cmd.contains("$(cat PLAN_KICKOFF.md)"));
@@ -5378,6 +5614,7 @@ mod tests {
             quiet: false,
             design_doc: Some(&doc),
             doc_path: Some("test.md"),
+            skip_permissions: false,
         };
         let prompt = build_prompt(&opts, 1, "feature/test", &conventions);
 
@@ -5423,6 +5660,7 @@ mod tests {
             quiet: false,
             design_doc: Some(&doc),
             doc_path: Some("test.md"),
+            skip_permissions: false,
         };
         let prompt = build_prompt(&opts, 1, "feature/validated", &conventions);
 

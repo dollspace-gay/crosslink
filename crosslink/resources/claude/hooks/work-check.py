@@ -206,7 +206,7 @@ def main():
             "Create one first:\n"
             "  crosslink quick \"<describe the work>\" -p <priority> -l <label>\n\n"
             "Or pick an existing issue:\n"
-            "  crosslink list -s open\n"
+            "  crosslink issue list -s open\n"
             "  crosslink session work <id>\n\n"
             "--- INTERVENTION LOGGING ---\n"
             "If a human redirected you here, log the intervention:\n"
@@ -251,7 +251,7 @@ def main():
         "This single command creates an issue AND sets it as your active work item. "
         "After running it, your tool calls will succeed.\n\n"
         "If an issue already exists for this work, use:\n"
-        "  crosslink list -s open\n"
+        "  crosslink issue list -s open\n"
         "  crosslink session work <id>\n\n"
         "This is how the project tracks work. Comply, then continue.\n\n"
         "--- INTERVENTION LOGGING ---\n"
@@ -264,7 +264,7 @@ def main():
         "Reminder: No active crosslink issue. You should create one before making changes.\n\n"
         "  crosslink quick \"<describe what you are about to do>\" -p <priority> -l <label>\n\n"
         "Or pick an existing issue:\n"
-        "  crosslink list -s open\n"
+        "  crosslink issue list -s open\n"
         "  crosslink session work <id>"
     )
 

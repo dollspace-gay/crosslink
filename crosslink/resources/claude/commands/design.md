@@ -29,7 +29,7 @@ If no arguments are given, ask the user what feature they want to design.
 ### Phase 1: Explore & Interview (skip if `--continue`)
 
 1. **Gather context** from all available sources:
-   - If `--issue <id>`: run `crosslink show <id>` to read the issue
+   - If `--issue <id>`: run `crosslink issue show <id>` to read the issue
    - If `--gh-issue <number>`: run `gh issue view <number>`
    - Read architecture files (README.md, CLAUDE.md, ARCHITECTURE.md) if they exist
    - Search for related code using `Grep` and `Glob` — find modules, types, functions, and test patterns related to the feature
@@ -146,7 +146,7 @@ After validation:
 
 2. **If `--issue` was provided**, comment on the issue:
    ```bash
-   crosslink comment <id> "Design doc drafted: .design/<slug>.md" --kind plan
+   crosslink issue comment <id> "Design doc drafted: .design/<slug>.md" --kind plan
    ```
 
 ### Summary Output

@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash(crosslink *), Bash(git *), Bash(cargo *), Bash(npm *), Bash(npx *), Bash(uv *), Bash(ruff *), Bash(go *), Bash(ls *), Read, Grep
+allowed-tools: Bash(crosslink *), Bash(git *), Bash(cargo *), Bash(npm *), Bash(npx *), Bash(uv *), Bash(ruff *), Bash(go *), Bash(mix *), Bash(ls *), Read, Grep
 description: Codebase maintenance — dependency audit, lint health, dead code, test gaps, issue hygiene
 ---
 
@@ -8,7 +8,7 @@ description: Codebase maintenance — dependency audit, lint health, dead code, 
 - Project root: !`git rev-parse --show-toplevel`
 - Current branch: !`git branch --show-current`
 - Active session: !`crosslink session status`
-- Open issues: !`crosslink list -s open --json 2>/dev/null | grep -c '"id"' || crosslink list -s open 2>/dev/null | wc -l`
+- Open issues: !`crosslink issue list -s open --json 2>/dev/null | grep -c '"id"' || crosslink issue list -s open 2>/dev/null | wc -l`
 
 ## Your task
 
@@ -36,6 +36,12 @@ npm audit --audit-level=moderate 2>/dev/null || echo "npm audit not available"
 **Python** (if `pyproject.toml` or `requirements.txt` exists):
 ```bash
 uv pip list --outdated 2>/dev/null || pip list --outdated 2>/dev/null || echo "skip"
+```
+
+**Elixir** (if `mix.exs` exists):
+```bash
+mix hex.outdated 2>/dev/null || echo "mix hex.outdated not available"
+mix deps.audit 2>/dev/null || echo "mix deps.audit not available"
 ```
 
 Report: list any dependencies with known vulnerabilities or major version bumps available.
@@ -66,6 +72,12 @@ go vet ./... 2>/dev/null
 gofmt -l . 2>/dev/null
 ```
 
+**Elixir**:
+```bash
+mix format --check-formatted 2>&1
+mix credo --strict 2>&1
+```
+
 Count warnings and errors. If any are found, fix them.
 
 ### 3. Test suite health
@@ -76,6 +88,7 @@ Run the full test suite and assess health:
 **Node**: `npm test 2>&1`
 **Python**: `uv run pytest 2>/dev/null || pytest 2>/dev/null`
 **Go**: `go test ./... 2>/dev/null`
+**Elixir**: `mix test 2>&1`
 
 Report:
 - Total tests, passed, failed, skipped
@@ -98,7 +111,7 @@ Also search for:
 
 For each finding, decide:
 - **Fix now** if it's a quick cleanup (remove unused import, delete dead code)
-- **File issue** if it requires more work: `crosslink create "<description>" -p low --label maintenance`
+- **File issue** if it requires more work: `crosslink issue create "<description>" -p low --label maintenance`
 
 ### 5. Documentation freshness
 
@@ -115,7 +128,7 @@ Read the first 20 lines of each to assess whether they're current. Flag any that
 Audit the issue tracker:
 
 ```bash
-crosslink list -s open
+crosslink issue list -s open
 ```
 
 Check for:

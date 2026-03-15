@@ -835,8 +835,11 @@ fn extract_body(content: &str) -> &str {
     let after_first = after_first.trim_start_matches(['\r', '\n']);
     if let Some(end_idx) = after_first.find("\n---") {
         let after_closing = &after_first[end_idx + 4..];
-        // Skip the newline after the closing ---
-        after_closing.strip_prefix('\n').unwrap_or(after_closing)
+        // Skip the line ending after the closing --- (handles both \r\n and \n)
+        after_closing
+            .strip_prefix("\r\n")
+            .or_else(|| after_closing.strip_prefix('\n'))
+            .unwrap_or(after_closing)
     } else {
         content
     }
@@ -1125,6 +1128,17 @@ mod tests {
         let content = "# Just a heading\n\nNo frontmatter.\n";
         let body = extract_body(content);
         assert_eq!(body, content);
+    }
+
+    #[test]
+    fn test_extract_body_crlf() {
+        let content = "---\r\ntitle: Test\r\ntags: []\r\n---\r\n\r\n# Test\r\n\r\nBody text.\r\n";
+        let body = extract_body(content);
+        assert!(
+            body.starts_with("\r\n# Test") || body.starts_with("\n# Test"),
+            "got: {body:?}"
+        );
+        assert!(!body.contains("title: Test"));
     }
 
     // ==================== truncate Tests ====================
@@ -1437,8 +1451,7 @@ mod tests {
 
         // Simulate the add flow with from_doc
         let now = chrono::Utc::now().format("%Y-%m-%d").to_string();
-        let mut tags = Vec::new();
-        tags.push("design-doc".to_string());
+        let tags = vec!["design-doc".to_string()];
 
         let fm = PageFrontmatter {
             title: doc.title.clone(),

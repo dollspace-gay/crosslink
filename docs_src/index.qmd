@@ -5,7 +5,7 @@ sidebar: false
 ---
 
 ::: {.full-width-banner}
-![](../images/banner.svg){.hero-banner}
+![](assets/img/banner.svg){.hero-banner}
 :::
 
 ::: {.hero-section}

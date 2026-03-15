@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'docs_src/**'
+      - 'scripts/generate-*.py'
+      - 'scripts/brand.py'
+      - 'justfile'
 
   workflow_dispatch:
 
@@ -27,8 +30,11 @@ jobs:
       - name: Setup Quarto
         uses: quarto-dev/quarto-actions/setup@v2
 
+      - name: Install just
+        uses: extractions/setup-just@v2
+
       - name: Render
-        run: quarto render docs_src
+        run: just render-docs
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

@@ -1299,6 +1299,14 @@ mod tests {
     }
 
     #[test]
+    fn test_strip_frontmatter_crlf() {
+        let content = "---\r\ntitle: Test\r\ntags: [a]\r\n---\r\n\r\n# Body\r\nText here.";
+        let body = strip_frontmatter(content);
+        assert!(body.starts_with("# Body"), "got: {body:?}");
+        assert!(!body.contains("title: Test"));
+    }
+
+    #[test]
     fn test_render_markdown_lines_headings() {
         let body = "# H1 Title\n## H2 Title\n### H3 Title\nPlain text.";
         let lines = render_markdown_lines(body);

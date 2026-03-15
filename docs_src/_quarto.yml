@@ -1,6 +1,9 @@
 project:
   type: website
   output-dir: ../docs
+  resources:
+    - "assets/img/banner.svg"
+    - "assets/img/forecast-wordmark.svg"
 
 website:
   title: "crosslink"

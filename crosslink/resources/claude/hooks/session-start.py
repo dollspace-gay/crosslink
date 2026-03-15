@@ -135,7 +135,7 @@ def get_working_issue_id(session_status):
 
 
 def get_issue_labels(issue_id):
-    """Get labels for an issue via crosslink show --json."""
+    """Get labels for an issue via crosslink issue show --json."""
     output = run_crosslink(["show", issue_id, "--json"])
     if not output:
         return []
@@ -311,7 +311,7 @@ def main():
 - Use `crosslink session start` at the beginning of work
 - Use `crosslink session work <id>` to mark current focus
 - Use `crosslink session action "..."` to record breadcrumbs before context compression
-- Add comments as you discover things: `crosslink comment <id> "..."`
+- Add comments as you discover things: `crosslink issue comment <id> "..."`
 - End with handoff notes: `crosslink session end --notes "..."`
 - Use `crosslink locks list` to see which issues are claimed by agents
 - Use `crosslink sync` to refresh lock state from the coordination branch

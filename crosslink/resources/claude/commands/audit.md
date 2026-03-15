@@ -6,7 +6,7 @@ description: Full context dump for debugging — use when stuck or disoriented
 ## Context
 
 - Session status: !`crosslink session status`
-- Open issues: !`crosslink list -s open`
+- Open issues: !`crosslink issue list -s open`
 - Active locks: !`crosslink locks list 2>/dev/null || echo "(no locks)"`
 - Current branch: !`git branch --show-current`
 - Working tree: !`git status --short`
@@ -60,7 +60,7 @@ What issue are you working on? What was the last action?
 If working on an issue, get full details:
 
 ```bash
-crosslink show <issue-id>
+crosslink issue show <issue-id>
 ```
 
 Review all comments, especially plan and decision comments.
@@ -68,8 +68,8 @@ Review all comments, especially plan and decision comments.
 ### 6. Related issues and blockers
 
 ```bash
-crosslink blocked
-crosslink ready
+crosslink issue blocked
+crosslink issue ready
 ```
 
 Are there blocking dependencies? What's unblocked and available?
