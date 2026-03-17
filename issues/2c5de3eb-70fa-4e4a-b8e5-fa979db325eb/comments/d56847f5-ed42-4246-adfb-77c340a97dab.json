@@ -1,0 +1,8 @@
+{
+  "uuid": "d56847f5-ed42-4246-adfb-77c340a97dab",
+  "issue_uuid": "2c5de3eb-70fa-4e4a-b8e5-fa979db325eb",
+  "author": "anon-672704fb",
+  "content": "Read-only gap analysis comparing design doc for external --repo flag against existing codebase. Key areas: CLI args (main.rs), config system (config.rs), KnowledgeManager (knowledge.rs), IssueFile (issue_file.rs), MCP server (knowledge-server.py). Output: .kickoff-plan.json",
+  "created_at": "2026-03-17T22:38:00.509795Z",
+  "kind": "plan"
+}
