@@ -1,0 +1,10 @@
+{
+  "uuid": "c2c06f5a-8fdf-4334-b207-6dd3914c256e",
+  "issue_uuid": "07b6ea76-3521-4a6c-9af9-518d0b06dddf",
+  "author": "maxine--basel",
+  "content": "Design doc updated: all 3 open questions resolved. Q1: always show comments. Q2: in-memory only, permanently. Q3: HTTPS-first with SSH fallback via ls-remote probe. Added dual-TTL strategy (5min data, 24h URL resolution), --refresh flag, and AC-13 for protocol probe caching.",
+  "created_at": "2026-03-17T22:28:37.104492Z",
+  "kind": "decision",
+  "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgbMJQrcFvxUHGFzKhLs2qsfUDMqPDdJSAHuIKkxY6rD4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAYckdX1vAAxJiS16/9hfmkcX93M7TOw5W3IS3UbaUU+aJJqE6usyF+wi/VvwQb3y2jF/3mtuuUZWaCf+l8F+ZDg=="
+}
