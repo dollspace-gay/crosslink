@@ -1,0 +1,10 @@
+{
+  "uuid": "a635e5b7-ed99-4b8e-8207-3fc34a12f159",
+  "issue_uuid": "07b6ea76-3521-4a6c-9af9-518d0b06dddf",
+  "author": "maxine--basel",
+  "content": "Design doc drafted at .design/external-source-queries.md. Key architectural decisions: --repo flag (avoids --source collision), in-memory issue search from hub JSON, external cache under .crosslink/.external-cache/, new src/external.rs module, MCP in scope but REST API out of scope. 3 open questions remain.",
+  "created_at": "2026-03-17T22:17:13.337187Z",
+  "kind": "result",
+  "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgbMJQrcFvxUHGFzKhLs2qsfUDMqPDdJSAHuIKkxY6rD4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAD3EGCGMi1MT/KSY47vu86zLuUFNWWxuSNZbXtnjnT9Dzn+OjUYan38se4UmRauuv59jYZ7SuVY11ecAZ1WD1AA=="
+}
