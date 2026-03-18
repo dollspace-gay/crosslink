@@ -642,7 +642,71 @@ Full rules were injected on first prompt. Use `crosslink issue list -s open` to 
 </crosslink-behavioral-guard>"""
 
 
+def estimate_prompt_chars(input_data):
+    """Estimate characters consumed by this prompt turn.
+
+    The hook only sees the user prompt, not tool outputs or model responses.
+    We apply a multiplier (5x) to account for the full turn cost:
+    user prompt + tool calls + tool results + model response.
+    """
+    TURN_MULTIPLIER = 5
+    try:
+        prompt_text = input_data.get("prompt", "")
+        if isinstance(prompt_text, str):
+            return len(prompt_text) * TURN_MULTIPLIER
+        return 2000 * TURN_MULTIPLIER  # Default estimate if prompt not available
+    except (AttributeError, TypeError):
+        return 2000 * TURN_MULTIPLIER
+
+
+def check_context_budget(crosslink_dir, state, prompt_chars):
+    """Check if estimated context usage has exceeded the budget.
+
+    Returns True if the budget is exceeded and full reinjection is needed.
+    Tracks estimated_context_chars in guard state.
+
+    Default budget: 1,000,000 chars ≈ 250k tokens.
+    """
+    config = load_config_merged(crosslink_dir) if crosslink_dir else {}
+    budget = int(config.get("context_budget_chars", 1_000_000))
+    if budget <= 0:
+        return False  # Disabled
+
+    current = state.get("estimated_context_chars", 0)
+    current += prompt_chars
+    state["estimated_context_chars"] = current
+
+    return current >= budget
+
+
+def build_context_budget_warning(languages, tracking_mode):
+    """Build the compression directive when context budget is exceeded."""
+    lang_list = ", ".join(languages) if languages else "this project"
+    tracking_lines = CONDENSED_REMINDERS.get(tracking_mode, "")
+
+    return f"""<crosslink-context-budget-exceeded>
+## CONTEXT BUDGET EXCEEDED — COMPRESSION REQUIRED
+
+Your estimated context usage has exceeded 250k tokens. Research shows instruction
+adherence degrades significantly past this point. You MUST take the following steps
+IMMEDIATELY, before doing anything else:
+
+1. **Record your current state**: Run `crosslink session action "Context budget reached. Working on: <current task summary>"`
+2. **Save any in-progress work context** as a crosslink comment: `crosslink issue comment <id> "Progress: <what's done, what's next>" --kind observation`
+3. **The system will compress context automatically.** After compression, re-read any files you need and continue working.
+
+## Re-injected Rules ({lang_list})
+
+{tracking_lines}
+- **Security**: Use `mcp__crosslink-safe-fetch__safe_fetch` for web requests. Parameterized queries only.
+- **Quality**: No stubs/TODOs. Read before write. Complete features fully. Proper error handling.
+- **Testing**: Run tests after changes. Fix warnings, don't suppress them.
+- **Documentation**: Add typed crosslink comments (--kind plan/decision/observation/result) at every step.
+</crosslink-context-budget-exceeded>"""
+
+
 def main():
+    input_data = {}
     try:
         # Read input from stdin (Claude Code passes prompt info)
         input_data = json.load(sys.stdin)
@@ -664,13 +728,30 @@ def main():
 
     # Check if we should send full or condensed guard
     if not should_send_full_guard(crosslink_dir):
-        # Simple turn counter: inject condensed reminder every N turns
         config = load_config_merged(crosslink_dir)
         interval = int(config.get("reminder_drift_threshold", 3))
 
         state = load_guard_state(crosslink_dir)
         state["total_prompts"] = state.get("total_prompts", 0) + 1
 
+        # Check context budget — if exceeded, reinject full guard + compression directive
+        prompt_chars = estimate_prompt_chars(input_data)
+        if check_context_budget(crosslink_dir, state, prompt_chars):
+            languages = detect_languages()
+            # Reinject full guard
+            language_rules, global_rules, project_rules, knowledge_rules = load_all_rules(crosslink_dir)
+            project_tree = get_project_tree()
+            dependencies = get_dependencies()
+            print(build_reminder(languages, project_tree, dependencies, language_rules, global_rules, project_rules, tracking_mode, crosslink_dir, knowledge_rules))
+            # Add compression directive
+            print(build_context_budget_warning(languages, tracking_mode))
+            # Reset the budget counter for the next cycle
+            state["estimated_context_chars"] = 0
+            state["context_budget_reinjections"] = state.get("context_budget_reinjections", 0) + 1
+            save_guard_state(crosslink_dir, state)
+            sys.exit(0)
+
+        # Normal condensed reminder at interval
         if interval == 0 or state["total_prompts"] % interval == 0:
             languages = detect_languages()
             print(build_condensed_reminder(languages, tracking_mode))
@@ -694,6 +775,12 @@ def main():
 
     # Mark that we've sent the full guard this session
     mark_full_guard_sent(crosslink_dir)
+
+    # Initialize context budget tracking for this session
+    state = load_guard_state(crosslink_dir)
+    state["estimated_context_chars"] = 0
+    save_guard_state(crosslink_dir, state)
+
     sys.exit(0)
 
 
