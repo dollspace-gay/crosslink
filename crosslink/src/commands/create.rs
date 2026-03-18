@@ -135,28 +135,26 @@ pub fn run(
     }
 
     let id = if let Some(w) = writer {
-        w.create_issue(db, title, final_description.as_deref(), &final_priority)?
+        let id = w.create_issue(db, title, final_description.as_deref(), &final_priority)?;
+        if let Some(lbl) = template_label {
+            w.add_label(db, id, lbl)?;
+        }
+        for lbl in opts.labels {
+            w.add_label(db, id, lbl)?;
+        }
+        id
     } else {
-        db.create_issue(title, final_description.as_deref(), &final_priority)?
+        db.transaction(|| {
+            let id = db.create_issue(title, final_description.as_deref(), &final_priority)?;
+            if let Some(lbl) = template_label {
+                db.add_label(id, lbl)?;
+            }
+            for lbl in opts.labels {
+                db.add_label(id, lbl)?;
+            }
+            Ok(id)
+        })?
     };
-
-    // Auto-add label from template
-    if let Some(lbl) = template_label {
-        if let Some(w) = writer {
-            w.add_label(db, id, lbl)?;
-        } else {
-            db.add_label(id, lbl)?;
-        }
-    }
-
-    // Add user-specified labels
-    for lbl in opts.labels {
-        if let Some(w) = writer {
-            w.add_label(db, id, lbl)?;
-        } else {
-            db.add_label(id, lbl)?;
-        }
-    }
 
     if opts.defer_id && !opts.quiet {
         println!(
@@ -269,19 +267,20 @@ pub fn run_subissue(
     }
 
     let id = if let Some(w) = writer {
-        w.create_subissue(db, parent_id, title, description, priority)?
-    } else {
-        db.create_subissue(parent_id, title, description, priority)?
-    };
-
-    // Add user-specified labels
-    for lbl in opts.labels {
-        if let Some(w) = writer {
+        let id = w.create_subissue(db, parent_id, title, description, priority)?;
+        for lbl in opts.labels {
             w.add_label(db, id, lbl)?;
-        } else {
-            db.add_label(id, lbl)?;
         }
-    }
+        id
+    } else {
+        db.transaction(|| {
+            let id = db.create_subissue(parent_id, title, description, priority)?;
+            for lbl in opts.labels {
+                db.add_label(id, lbl)?;
+            }
+            Ok(id)
+        })?
+    };
 
     if opts.quiet {
         println!("{}", id);
