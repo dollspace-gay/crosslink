@@ -207,6 +207,35 @@ impl SharedWriter {
         Ok(())
     }
 
+    /// Hydrate hub JSON into SQLite with one retry on failure.
+    ///
+    /// If the first attempt fails, logs a warning and retries once. If the
+    /// retry also fails, warns the user to run `crosslink sync` manually
+    /// and returns `Ok(())` so the caller's write is not rolled back -- the
+    /// hub commit already landed, only local DB is stale.
+    fn hydrate_with_retry(&self, db: &Database) -> Result<()> {
+        match hydrate_to_sqlite(&self.cache_dir, db) {
+            Ok(_) => return Ok(()),
+            Err(first_err) => {
+                eprintln!(
+                    "Warning: hydration failed ({}), retrying once...",
+                    first_err
+                );
+            }
+        }
+        match hydrate_to_sqlite(&self.cache_dir, db) {
+            Ok(_) => Ok(()),
+            Err(retry_err) => {
+                eprintln!(
+                    "Warning: hydration retry failed ({}). \
+                     Local DB may be out of sync. Run `crosslink sync` to recover.",
+                    retry_err
+                );
+                Ok(())
+            }
+        }
+    }
+
     /// Check the current hub layout version.
     fn layout_version(&self) -> u32 {
         let meta_dir = self.sync.cache_path().join("meta");
@@ -425,11 +454,11 @@ impl SharedWriter {
 
         if outcome == PushOutcome::LocalOnly {
             self.rewrite_as_offline(uuid)?;
-            hydrate_to_sqlite(&self.cache_dir, db)?;
+            self.hydrate_with_retry(db)?;
             return db.get_issue_id_by_uuid(&uuid.to_string());
         }
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(display_id.get())
     }
 
@@ -499,11 +528,11 @@ impl SharedWriter {
 
         if outcome == PushOutcome::LocalOnly {
             self.rewrite_as_offline(uuid)?;
-            hydrate_to_sqlite(&self.cache_dir, db)?;
+            self.hydrate_with_retry(db)?;
             return db.get_issue_id_by_uuid(&uuid.to_string());
         }
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(display_id.get())
     }
 
@@ -549,7 +578,7 @@ impl SharedWriter {
             &format!("update issue #{}", display_id),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(())
     }
 
@@ -573,7 +602,7 @@ impl SharedWriter {
             &format!("close issue #{}", display_id),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(())
     }
 
@@ -596,7 +625,7 @@ impl SharedWriter {
             &format!("reopen issue #{}", display_id),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(())
     }
 
@@ -623,7 +652,7 @@ impl SharedWriter {
             &format!("delete issue #{}", display_id),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(())
     }
 
@@ -704,7 +733,7 @@ impl SharedWriter {
             &format!("comment on issue #{}", display_id),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(comment_id.get())
     }
 
@@ -787,7 +816,7 @@ impl SharedWriter {
             &format!("intervention on issue #{}", display_id),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(comment_id.get())
     }
 
@@ -813,7 +842,7 @@ impl SharedWriter {
             &format!("label issue #{} with {}", display_id, label),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(())
     }
 
@@ -839,7 +868,7 @@ impl SharedWriter {
             &format!("unlabel {} from issue #{}", label, display_id),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(())
     }
 
@@ -867,7 +896,7 @@ impl SharedWriter {
             &format!("block issue #{} on #{}", blocked_id, blocker_id),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(())
     }
 
@@ -893,7 +922,7 @@ impl SharedWriter {
             &format!("unblock issue #{} from #{}", blocked_id, blocker_id),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(())
     }
 
@@ -919,7 +948,7 @@ impl SharedWriter {
             &format!("relate issue #{} to #{}", issue_id, related_id),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(())
     }
 
@@ -945,7 +974,7 @@ impl SharedWriter {
             &format!("unrelate issue #{} from #{}", issue_id, related_id),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(())
     }
 
@@ -988,7 +1017,7 @@ impl SharedWriter {
             &format!("create milestone: {}", name),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(display_id.get())
     }
 
@@ -1010,7 +1039,7 @@ impl SharedWriter {
             &format!("close milestone #{}", milestone_id),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(())
     }
 
@@ -1038,7 +1067,7 @@ impl SharedWriter {
             &format!("delete milestone #{}", milestone_id),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(())
     }
 
@@ -1076,7 +1105,7 @@ impl SharedWriter {
             &format!("add {} issue(s) to milestone #{}", ids.len(), milestone_id),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(())
     }
 
@@ -1098,7 +1127,7 @@ impl SharedWriter {
             &format!("remove issue #{} from milestone", issue_id),
         )?;
 
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
         Ok(())
     }
 
@@ -1182,7 +1211,7 @@ impl SharedWriter {
         }
 
         // Re-hydrate with new positive IDs
-        hydrate_to_sqlite(&self.cache_dir, db)?;
+        self.hydrate_with_retry(db)?;
 
         // Record promoted UUIDs so they are never re-promoted (gh#313).
         let promoted_uuids: Vec<Uuid> = offline_info.iter().map(|(uuid, _)| *uuid).collect();
