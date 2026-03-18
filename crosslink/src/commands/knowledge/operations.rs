@@ -7,85 +7,6 @@ use crate::knowledge::{
     SyncOutcome,
 };
 
-use crate::KnowledgeCommands;
-
-pub fn dispatch(command: KnowledgeCommands, crosslink_dir: &Path, global_json: bool) -> Result<()> {
-    match command {
-        KnowledgeCommands::Add {
-            slug,
-            title,
-            tag,
-            source,
-            content,
-            from_doc,
-        } => add(
-            crosslink_dir,
-            &slug,
-            title.as_deref(),
-            &tag,
-            &source,
-            content.as_deref(),
-            from_doc.as_deref(),
-        ),
-        KnowledgeCommands::Show { slug } => show(crosslink_dir, &slug, global_json),
-        KnowledgeCommands::List {
-            tag,
-            contributor,
-            since,
-            json,
-        } => list(
-            crosslink_dir,
-            tag.as_deref(),
-            contributor.as_deref(),
-            since.as_deref(),
-            json,
-        ),
-        KnowledgeCommands::Edit {
-            slug,
-            append,
-            content,
-            replace_section,
-            append_to_section,
-            tag,
-            source,
-        } => edit(
-            crosslink_dir,
-            &slug,
-            append.as_deref(),
-            content.as_deref(),
-            replace_section.as_deref(),
-            append_to_section.as_deref(),
-            &tag,
-            &source,
-        ),
-        KnowledgeCommands::Remove { slug } => remove(crosslink_dir, &slug),
-        KnowledgeCommands::Import {
-            directory,
-            tag,
-            overwrite,
-            dry_run,
-        } => import(crosslink_dir, &directory, &tag, overwrite, dry_run),
-        KnowledgeCommands::Sync => sync(crosslink_dir),
-        KnowledgeCommands::Search {
-            query,
-            context,
-            source,
-            tag,
-            since,
-            contributor,
-        } => search(
-            crosslink_dir,
-            query.as_deref(),
-            context,
-            source.as_deref(),
-            global_json,
-            tag.as_deref(),
-            since.as_deref(),
-            contributor.as_deref(),
-        ),
-    }
-}
-
 /// Get the current agent ID, falling back to "unknown".
 fn current_agent_id(crosslink_dir: &Path) -> String {
     crate::identity::AgentConfig::load(crosslink_dir)
@@ -585,7 +506,7 @@ fn collect_md_files_recursive(dir: &Path, files: &mut Vec<std::path::PathBuf>) -
 }
 
 /// Infer a slug from a relative path. Subdirectory components become prefixes.
-/// e.g. `api/design.md` → `api-design`, `readme.md` → `readme`
+/// e.g. `api/design.md` -> `api-design`, `readme.md` -> `readme`
 fn infer_slug(rel_path: &Path) -> String {
     let stem = rel_path
         .file_stem()
@@ -606,7 +527,7 @@ fn infer_slug(rel_path: &Path) -> String {
 }
 
 /// Infer tags from directory components of a path.
-/// e.g. `arch/api/design.md` → `["arch", "api"]`
+/// e.g. `arch/api/design.md` -> `["arch", "api"]`
 fn infer_tags_from_path(rel_path: &Path) -> Vec<String> {
     let parent = rel_path.parent().unwrap_or(Path::new(""));
     parent
