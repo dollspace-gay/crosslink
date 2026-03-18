@@ -2,6 +2,7 @@ use anyhow::{bail, Context, Result};
 use chrono::Utc;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::identity::AgentConfig;
 use crate::locks::{Heartbeat, Keyring, LocksFile};
@@ -33,16 +34,53 @@ pub type GpgVerification = SignatureVerification;
 /// Read the configured tracker remote name from `.crosslink/hook-config.json`.
 ///
 /// Returns the value of `tracker_remote` if set, otherwise `"origin"`.
+/// When falling back to `"origin"`, emits a one-time stderr warning and
+/// checks whether the `origin` remote actually exists.
 pub fn read_tracker_remote(crosslink_dir: &Path) -> String {
+    static WARNED_DEFAULT_ORIGIN: AtomicBool = AtomicBool::new(false);
+
     let config_path = crosslink_dir.join("hook-config.json");
-    std::fs::read_to_string(&config_path)
+    let configured = std::fs::read_to_string(&config_path)
         .ok()
         .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
         .and_then(|v| {
             v.get("tracker_remote")
                 .and_then(|r| r.as_str().map(|s| s.to_string()))
-        })
-        .unwrap_or_else(|| "origin".to_string())
+        });
+
+    if let Some(remote) = configured {
+        return remote;
+    }
+
+    // Defaulting to "origin" — warn once.
+    if !WARNED_DEFAULT_ORIGIN.swap(true, Ordering::Relaxed) {
+        eprintln!(
+            "crosslink: no `tracker_remote` configured in .crosslink/hook-config.json; \
+             defaulting to \"origin\""
+        );
+
+        // Check whether the origin remote actually exists.
+        if let Some(repo_root) = crosslink_dir.parent() {
+            let origin_exists = Command::new("git")
+                .args(["remote", "get-url", "origin"])
+                .current_dir(repo_root)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+
+            if !origin_exists {
+                eprintln!(
+                    "crosslink: warning: remote \"origin\" does not exist; \
+                     sync operations will fail. Set `tracker_remote` in \
+                     .crosslink/hook-config.json"
+                );
+            }
+        }
+    }
+
+    "origin".to_string()
 }
 
 /// Manages synchronization with the `crosslink/hub` coordination branch.
