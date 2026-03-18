@@ -393,6 +393,11 @@ pub fn init(crosslink_dir: &Path, doc_path: &Path) -> Result<()> {
 /// If there are many requirements, split into phases of ~8 agents each.
 /// If no requirements, create a single phase with one agent per unknown section.
 fn propose_phases(doc: &DesignDoc) -> Vec<PhaseDefinition> {
+    // If the design doc has explicit layer/phase groups, use them as phase boundaries
+    if !doc.requirement_groups.is_empty() {
+        return propose_phases_from_groups(doc);
+    }
+
     let mut agents: Vec<AgentEntry> = Vec::new();
 
     // Build agent entries from requirements
@@ -464,6 +469,65 @@ fn propose_phases(doc: &DesignDoc) -> Vec<PhaseDefinition> {
             name,
             status: PhaseStatus::Pending,
             agents: chunk,
+            gate: None,
+            depends_on,
+            checkpoint: None,
+        });
+    }
+
+    phases
+}
+
+/// Build phases from explicit layer/phase groups in the design doc.
+fn propose_phases_from_groups(doc: &DesignDoc) -> Vec<PhaseDefinition> {
+    let mut phases = Vec::new();
+
+    for (i, group) in doc.requirement_groups.iter().enumerate() {
+        let agents: Vec<AgentEntry> = group
+            .items
+            .iter()
+            .map(|req| {
+                let slug = slugify_requirement(req);
+                AgentEntry {
+                    slug: slug.clone(),
+                    description: req.clone(),
+                    issue_id: None,
+                    agent_id: None,
+                    branch: Some(format!("feature/{}", slug)),
+                    status: AgentStatus::Planned,
+                    started_at: None,
+                    completed_at: None,
+                }
+            })
+            .collect();
+
+        // Sequential groups depend on previous phase; parallel groups depend on nothing
+        // (unless they're not the first phase, in which case they depend on the prior sequential)
+        let depends_on = if i > 0 && group.execution_hint != "parallel" {
+            vec![phases
+                .last()
+                .map(|p: &PhaseDefinition| p.name.clone())
+                .unwrap_or_default()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect()
+        } else if i > 0 {
+            // Parallel phases still depend on the last phase before them
+            if let Some(prev) = phases.last() {
+                vec![prev.name.clone()]
+            } else {
+                vec![]
+            }
+        } else {
+            vec![]
+        };
+
+        let name = format!("Phase {}: {}", i + 1, group.name);
+
+        phases.push(PhaseDefinition {
+            name,
+            status: PhaseStatus::Pending,
+            agents,
             gate: None,
             depends_on,
             checkpoint: None,
@@ -3477,6 +3541,7 @@ mod tests {
                 "REQ-1: Add login".to_string(),
                 "REQ-2: Add logout".to_string(),
             ],
+            requirement_groups: Vec::new(),
             acceptance_criteria: vec![],
             architecture: String::new(),
             open_questions: vec![],
@@ -3497,6 +3562,7 @@ mod tests {
             title: "Big Feature".to_string(),
             summary: String::new(),
             requirements: (1..=12).map(|i| format!("REQ-{}: Task {}", i, i)).collect(),
+            requirement_groups: Vec::new(),
             acceptance_criteria: vec![],
             architecture: String::new(),
             open_questions: vec![],
@@ -3519,6 +3585,7 @@ mod tests {
             title: "Simple Feature".to_string(),
             summary: String::new(),
             requirements: vec![],
+            requirement_groups: Vec::new(),
             acceptance_criteria: vec![],
             architecture: String::new(),
             open_questions: vec![],
@@ -3538,6 +3605,7 @@ mod tests {
             title: "AC Feature".to_string(),
             summary: String::new(),
             requirements: vec![],
+            requirement_groups: Vec::new(),
             acceptance_criteria: vec![
                 "AC-1: Widget renders".to_string(),
                 "AC-2: Widget responds to click".to_string(),
@@ -3551,6 +3619,57 @@ mod tests {
         let phases = propose_phases(&doc);
         assert_eq!(phases.len(), 1);
         assert_eq!(phases[0].agents.len(), 2);
+    }
+
+    #[test]
+    fn test_propose_phases_uses_requirement_groups() {
+        use crate::commands::design_doc::RequirementGroup;
+        let doc = DesignDoc {
+            title: "Layered Feature".to_string(),
+            summary: String::new(),
+            requirements: vec![
+                "REQ-1: Foundation item".to_string(),
+                "REQ-2: Backend item".to_string(),
+                "REQ-3: Delivery item".to_string(),
+            ],
+            requirement_groups: vec![
+                RequirementGroup {
+                    name: "Foundation".to_string(),
+                    execution_hint: "sequential".to_string(),
+                    items: vec!["REQ-1: Foundation item".to_string()],
+                },
+                RequirementGroup {
+                    name: "Backends".to_string(),
+                    execution_hint: "parallel".to_string(),
+                    items: vec!["REQ-2: Backend item".to_string()],
+                },
+                RequirementGroup {
+                    name: "Delivery".to_string(),
+                    execution_hint: "sequential".to_string(),
+                    items: vec!["REQ-3: Delivery item".to_string()],
+                },
+            ],
+            acceptance_criteria: vec![],
+            architecture: String::new(),
+            open_questions: vec![],
+            out_of_scope: vec![],
+            unknown_sections: vec![],
+        };
+
+        let phases = propose_phases(&doc);
+        assert_eq!(phases.len(), 3);
+        assert_eq!(phases[0].name, "Phase 1: Foundation");
+        assert_eq!(phases[0].agents.len(), 1);
+        assert!(phases[0].depends_on.is_empty());
+
+        assert_eq!(phases[1].name, "Phase 2: Backends");
+        assert_eq!(phases[1].agents.len(), 1);
+        // Parallel phase still depends on previous
+        assert_eq!(phases[1].depends_on, vec!["Phase 1: Foundation"]);
+
+        assert_eq!(phases[2].name, "Phase 3: Delivery");
+        assert_eq!(phases[2].agents.len(), 1);
+        assert_eq!(phases[2].depends_on, vec!["Phase 2: Backends"]);
     }
 
     #[test]
