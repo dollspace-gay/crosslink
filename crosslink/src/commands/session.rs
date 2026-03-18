@@ -25,6 +25,26 @@ fn load_agent_id(crosslink_dir: &std::path::Path) -> Option<String> {
         .map(|a| a.agent_id)
 }
 
+/// Best-effort lock release used when a subsequent DB update fails after a lock
+/// was freshly claimed.  Prevents orphaned locks.  Errors are intentionally
+/// swallowed — the caller will propagate the original DB error.
+fn release_lock_best_effort(crosslink_dir: &std::path::Path, issue_id: i64) {
+    if let Ok(Some(_agent)) = crate::identity::AgentConfig::load(crosslink_dir) {
+        if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
+            if sync.is_initialized() {
+                if sync.is_v2_layout() {
+                    if let Ok(Some(writer)) = crate::shared_writer::SharedWriter::new(crosslink_dir)
+                    {
+                        let _ = writer.release_lock_v2(issue_id);
+                    }
+                } else if let Ok(Some(agent)) = crate::identity::AgentConfig::load(crosslink_dir) {
+                    let _ = sync.release_lock(&agent, issue_id, false);
+                }
+            }
+        }
+    }
+}
+
 pub fn start(db: &Database, crosslink_dir: &std::path::Path) -> Result<()> {
     let agent_id = load_agent_id(crosslink_dir);
 
@@ -182,6 +202,10 @@ pub fn work(db: &Database, issue_id: i64, crosslink_dir: &std::path::Path) -> Re
     // Check lock status (handles auto-steal of stale locks if configured)
     crate::lock_check::enforce_lock(crosslink_dir, issue_id, db)?;
 
+    // Track whether we freshly claimed a lock so we can release it if the
+    // subsequent session-update DB write fails (prevents orphaned locks).
+    let mut freshly_claimed = false;
+
     // Atomically claim lock then set session — bail if another agent wins
     if let Ok(Some(agent)) = crate::identity::AgentConfig::load(crosslink_dir) {
         if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
@@ -191,6 +215,7 @@ pub fn work(db: &Database, issue_id: i64, crosslink_dir: &std::path::Path) -> Re
                     {
                         match writer.claim_lock_v2(issue_id, None) {
                             Ok(crate::shared_writer::LockClaimResult::Claimed) => {
+                                freshly_claimed = true;
                                 println!("Claimed lock on issue {}", format_issue_id(issue_id));
                             }
                             Ok(crate::shared_writer::LockClaimResult::AlreadyHeld) => {}
@@ -217,6 +242,7 @@ pub fn work(db: &Database, issue_id: i64, crosslink_dir: &std::path::Path) -> Re
                 } else {
                     match sync.claim_lock(&agent, issue_id, None, false) {
                         Ok(true) => {
+                            freshly_claimed = true;
                             println!("Claimed lock on issue {}", format_issue_id(issue_id));
                         }
                         Ok(false) => {} // Already held by self
@@ -233,8 +259,14 @@ pub fn work(db: &Database, issue_id: i64, crosslink_dir: &std::path::Path) -> Re
         }
     }
 
-    // Only reached if lock claim succeeded (or lock system not configured)
-    db.set_session_issue(session.id, issue_id)?;
+    // Only reached if lock claim succeeded (or lock system not configured).
+    // If the DB update fails, release the lock we just claimed to avoid orphans.
+    if let Err(e) = db.set_session_issue(session.id, issue_id) {
+        if freshly_claimed {
+            release_lock_best_effort(crosslink_dir, issue_id);
+        }
+        return Err(e);
+    }
     println!(
         "Now working on: {} {}",
         format_issue_id(issue.id),
