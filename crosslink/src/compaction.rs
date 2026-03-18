@@ -191,8 +191,14 @@ pub fn compact(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<C
 
     if all_events.is_empty() && watermark.is_some() {
         // Still run git-based skew detection even with no new events
-        let git_violations =
-            crate::clock_skew::detect_git_skew_violations(cache_dir).unwrap_or_default();
+        let git_violations = crate::clock_skew::detect_git_skew_violations(cache_dir)
+            .unwrap_or_else(|e| {
+                eprintln!(
+                    "warning: git skew detection failed during no-op compaction: {e}; \
+                     falling back to empty violations"
+                );
+                Vec::new()
+            });
         let git_skew_violations = git_violations.len();
         crate::clock_skew::write_skew_violations(cache_dir, &git_violations)?;
 
@@ -249,7 +255,13 @@ pub fn compact(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<C
 
     // Run git-based clock skew detection
     let git_violations =
-        crate::clock_skew::detect_git_skew_violations(cache_dir).unwrap_or_default();
+        crate::clock_skew::detect_git_skew_violations(cache_dir).unwrap_or_else(|e| {
+            eprintln!(
+                "warning: git skew detection failed during compaction: {e}; \
+                 falling back to empty violations"
+            );
+            Vec::new()
+        });
     let git_skew_violations = git_violations.len();
     crate::clock_skew::write_skew_violations(cache_dir, &git_violations)?;
 

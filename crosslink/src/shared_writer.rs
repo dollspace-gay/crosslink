@@ -172,7 +172,13 @@ impl SharedWriter {
 
     /// Derive the `.crosslink/` directory from the cache path.
     fn crosslink_dir(&self) -> &Path {
-        self.cache_dir.parent().unwrap_or(&self.cache_dir)
+        self.cache_dir.parent().unwrap_or_else(|| {
+            eprintln!(
+                "warning: cache_dir '{}' has no parent; falling back to cache_dir itself",
+                self.cache_dir.display()
+            );
+            &self.cache_dir
+        })
     }
 
     /// Path to the promoted-UUIDs tracking file (machine-local, not shared).
