@@ -27,8 +27,7 @@ pub fn truncate(s: &str, max: usize) -> String {
 
 /// Parse a heading line and return its level (1-6) and text.
 /// Returns None if the line is not a markdown heading.
-#[allow(dead_code)]
-pub(super) fn parse_heading(line: &str) -> Option<(usize, &str)> {
+pub fn parse_heading(line: &str) -> Option<(usize, &str)> {
     let trimmed = line.trim_end();
     if !trimmed.starts_with('#') {
         return None;
@@ -48,8 +47,7 @@ pub(super) fn parse_heading(line: &str) -> Option<(usize, &str)> {
 /// Find the line range of a section identified by its heading text.
 /// Returns (heading_line_idx, section_end_line_idx) where end is exclusive.
 /// The section extends from the heading line to the next heading of equal or higher level, or EOF.
-#[allow(dead_code)]
-pub(super) fn find_section_range(lines: &[&str], heading: &str) -> Result<(usize, usize)> {
+pub fn find_section_range(lines: &[&str], heading: &str) -> Result<(usize, usize)> {
     // Normalize the heading query: strip leading '#' chars if the user included them
     let query = heading.trim();
     let (query_level, query_text) = if query.starts_with('#') {
