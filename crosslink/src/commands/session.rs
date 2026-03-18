@@ -114,12 +114,17 @@ pub fn end(db: &Database, notes: Option<&str>, crosslink_dir: &std::path::Path) 
                         "Warning: Handoff notes saved locally but could not be synced to hub: {}",
                         e
                     );
-                    let _ = db.add_comment(issue_id, notes_text, "handoff");
+                    db.add_comment(issue_id, notes_text, "handoff").map_err(|e2| {
+                        anyhow::anyhow!(
+                            "Handoff notes lost: hub sync failed ({}) and local write also failed ({})",
+                            e, e2
+                        )
+                    })?;
                 }
             }
             _ => {
                 // Single-agent mode or hub unavailable — add locally
-                let _ = db.add_comment(issue_id, notes_text, "handoff");
+                db.add_comment(issue_id, notes_text, "handoff")?;
             }
         }
     }
