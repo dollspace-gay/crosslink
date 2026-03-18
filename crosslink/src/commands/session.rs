@@ -99,13 +99,8 @@ pub fn end(db: &Database, notes: Option<&str>, crosslink_dir: &std::path::Path) 
         }
     }
 
-    db.end_session(session.id, notes)?;
-    println!("Session #{} ended.", session.id);
-    if notes.is_some() {
-        println!("Handoff notes saved.");
-    }
-
-    // Write handoff notes as typed comment on active issue for hub sync
+    // Write handoff comment BEFORE ending the session so that if the
+    // comment write fails the session stays open and the user can retry.
     if let (Some(notes_text), Some(issue_id)) = (notes, session.active_issue_id) {
         match crate::shared_writer::SharedWriter::new(crosslink_dir) {
             Ok(Some(w)) => {
@@ -122,6 +117,12 @@ pub fn end(db: &Database, notes: Option<&str>, crosslink_dir: &std::path::Path) 
                 let _ = db.add_comment(issue_id, notes_text, "handoff");
             }
         }
+    }
+
+    db.end_session(session.id, notes)?;
+    println!("Session #{} ended.", session.id);
+    if notes.is_some() {
+        println!("Handoff notes saved.");
     }
 
     Ok(())
