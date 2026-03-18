@@ -393,6 +393,11 @@ pub fn init(crosslink_dir: &Path, doc_path: &Path) -> Result<()> {
 /// If there are many requirements, split into phases of ~8 agents each.
 /// If no requirements, create a single phase with one agent per unknown section.
 fn propose_phases(doc: &DesignDoc) -> Vec<PhaseDefinition> {
+    // If the design doc has explicit layer/phase groups, use them as phase boundaries
+    if !doc.requirement_groups.is_empty() {
+        return propose_phases_from_groups(doc);
+    }
+
     let mut agents: Vec<AgentEntry> = Vec::new();
 
     // Build agent entries from requirements
@@ -464,6 +469,65 @@ fn propose_phases(doc: &DesignDoc) -> Vec<PhaseDefinition> {
             name,
             status: PhaseStatus::Pending,
             agents: chunk,
+            gate: None,
+            depends_on,
+            checkpoint: None,
+        });
+    }
+
+    phases
+}
+
+/// Build phases from explicit layer/phase groups in the design doc.
+fn propose_phases_from_groups(doc: &DesignDoc) -> Vec<PhaseDefinition> {
+    let mut phases = Vec::new();
+
+    for (i, group) in doc.requirement_groups.iter().enumerate() {
+        let agents: Vec<AgentEntry> = group
+            .items
+            .iter()
+            .map(|req| {
+                let slug = slugify_requirement(req);
+                AgentEntry {
+                    slug: slug.clone(),
+                    description: req.clone(),
+                    issue_id: None,
+                    agent_id: None,
+                    branch: Some(format!("feature/{}", slug)),
+                    status: AgentStatus::Planned,
+                    started_at: None,
+                    completed_at: None,
+                }
+            })
+            .collect();
+
+        // Sequential groups depend on previous phase; parallel groups depend on nothing
+        // (unless they're not the first phase, in which case they depend on the prior sequential)
+        let depends_on = if i > 0 && group.execution_hint != "parallel" {
+            vec![phases
+                .last()
+                .map(|p: &PhaseDefinition| p.name.clone())
+                .unwrap_or_default()]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect()
+        } else if i > 0 {
+            // Parallel phases still depend on the last phase before them
+            if let Some(prev) = phases.last() {
+                vec![prev.name.clone()]
+            } else {
+                vec![]
+            }
+        } else {
+            vec![]
+        };
+
+        let name = format!("Phase {}: {}", i + 1, group.name);
+
+        phases.push(PhaseDefinition {
+            name,
+            status: PhaseStatus::Pending,
+            agents,
             gate: None,
             depends_on,
             checkpoint: None,
@@ -658,6 +722,309 @@ pub fn status(crosslink_dir: &Path, json: bool) -> Result<()> {
         println!();
     }
 
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// swarm plan editing commands
+// ---------------------------------------------------------------------------
+
+/// A loaded swarm plan with its sync manager, plan metadata, and phase definitions with paths.
+type LoadedPlan = (SyncManager, SwarmPlan, Vec<(String, PhaseDefinition)>);
+
+/// Helper: load the swarm plan, all phase definitions, and the sync manager.
+fn load_plan_and_phases(crosslink_dir: &Path) -> Result<LoadedPlan> {
+    let sync = SyncManager::new(crosslink_dir)?;
+    if !sync.is_initialized() {
+        bail!("Hub cache not initialized. Run `crosslink sync` first.");
+    }
+    sync.fetch()?;
+
+    let plan: SwarmPlan = read_hub_json(&sync, "swarm/plan.json")
+        .context("No swarm plan found. Run `crosslink swarm init --doc <file>` first.")?;
+
+    let mut phases = Vec::new();
+    for phase_name in &plan.phases {
+        let path = format!("swarm/phases/{}.json", slugify_phase(phase_name));
+        let phase: PhaseDefinition = read_hub_json(&sync, &path)
+            .with_context(|| format!("Failed to load phase: {}", phase_name))?;
+        phases.push((path, phase));
+    }
+
+    Ok((sync, plan, phases))
+}
+
+/// Helper: save modified phases and plan back to hub.
+fn save_plan_and_phases(
+    sync: &SyncManager,
+    plan: &SwarmPlan,
+    phases: &[(String, PhaseDefinition)],
+    message: &str,
+) -> Result<()> {
+    write_hub_json(sync, "swarm/plan.json", plan)?;
+    let mut paths = vec!["swarm/plan.json".to_string()];
+    for (path, phase) in phases {
+        write_hub_json(sync, path, phase)?;
+        paths.push(path.clone());
+    }
+    let path_refs: Vec<&str> = paths.iter().map(|s| s.as_str()).collect();
+    commit_hub_files(sync, &path_refs, message)?;
+    Ok(())
+}
+
+/// Move an agent from one phase to another.
+pub fn move_agent(crosslink_dir: &Path, agent_slug: &str, to_phase: &str) -> Result<()> {
+    let (sync, plan, mut phases) = load_plan_and_phases(crosslink_dir)?;
+
+    // Find and remove agent from source phase
+    let mut found_agent: Option<AgentEntry> = None;
+    let mut source_phase_name = String::new();
+    for (_path, phase) in &mut phases {
+        if let Some(pos) = phase.agents.iter().position(|a| a.slug == agent_slug) {
+            found_agent = Some(phase.agents.remove(pos));
+            source_phase_name = phase.name.clone();
+            break;
+        }
+    }
+
+    let agent = found_agent
+        .ok_or_else(|| anyhow::anyhow!("Agent '{}' not found in any phase", agent_slug))?;
+
+    // Find target phase and add agent
+    let target = phases
+        .iter_mut()
+        .find(|(_, p)| p.name == to_phase)
+        .ok_or_else(|| anyhow::anyhow!("Phase '{}' not found", to_phase))?;
+    target.1.agents.push(agent);
+
+    save_plan_and_phases(
+        &sync,
+        &plan,
+        &phases,
+        &format!(
+            "swarm: move {} from {} to {}",
+            agent_slug, source_phase_name, to_phase
+        ),
+    )?;
+    println!(
+        "Moved '{}' from '{}' to '{}'",
+        agent_slug, source_phase_name, to_phase
+    );
+    Ok(())
+}
+
+/// Merge two phases into one (keeps the first phase's name).
+pub fn merge_phases(crosslink_dir: &Path, phase_a: &str, phase_b: &str) -> Result<()> {
+    let (sync, mut plan, mut phases) = load_plan_and_phases(crosslink_dir)?;
+
+    let idx_a = phases
+        .iter()
+        .position(|(_, p)| p.name == phase_a)
+        .ok_or_else(|| anyhow::anyhow!("Phase '{}' not found", phase_a))?;
+    let idx_b = phases
+        .iter()
+        .position(|(_, p)| p.name == phase_b)
+        .ok_or_else(|| anyhow::anyhow!("Phase '{}' not found", phase_b))?;
+
+    // Move agents from B into A
+    let agents_b: Vec<AgentEntry> = phases[idx_b].1.agents.clone();
+    phases[idx_a].1.agents.extend(agents_b);
+
+    // Remove phase B from plan and phases list
+    let removed_path = phases[idx_b].0.clone();
+    phases.remove(idx_b);
+    plan.phases.retain(|p| p != phase_b);
+
+    // Delete the old phase file
+    let cache_file = sync.cache_path().join(&removed_path);
+    let _ = std::fs::remove_file(&cache_file);
+
+    save_plan_and_phases(
+        &sync,
+        &plan,
+        &phases,
+        &format!("swarm: merge '{}' into '{}'", phase_b, phase_a),
+    )?;
+    println!("Merged '{}' into '{}'", phase_b, phase_a);
+    Ok(())
+}
+
+/// Split a phase after a specific agent, creating a new phase.
+pub fn split_phase(crosslink_dir: &Path, phase_name: &str, after_agent: &str) -> Result<()> {
+    let (sync, mut plan, mut phases) = load_plan_and_phases(crosslink_dir)?;
+
+    let idx = phases
+        .iter()
+        .position(|(_, p)| p.name == phase_name)
+        .ok_or_else(|| anyhow::anyhow!("Phase '{}' not found", phase_name))?;
+
+    let split_pos = phases[idx]
+        .1
+        .agents
+        .iter()
+        .position(|a| a.slug == after_agent)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "Agent '{}' not found in phase '{}'",
+                after_agent,
+                phase_name
+            )
+        })?;
+
+    if split_pos + 1 >= phases[idx].1.agents.len() {
+        bail!(
+            "Agent '{}' is the last agent in '{}' — nothing to split off",
+            after_agent,
+            phase_name
+        );
+    }
+
+    // Split agents
+    let new_agents: Vec<AgentEntry> = phases[idx].1.agents.drain(split_pos + 1..).collect();
+    let new_name = format!("{} (split)", phase_name);
+    let new_path = format!("swarm/phases/{}.json", slugify_phase(&new_name));
+
+    let new_phase = PhaseDefinition {
+        name: new_name.clone(),
+        status: PhaseStatus::Pending,
+        agents: new_agents,
+        gate: None,
+        depends_on: vec![phase_name.to_string()],
+        checkpoint: None,
+    };
+
+    // Insert new phase right after the split phase
+    let insert_at = idx + 1;
+    phases.insert(insert_at, (new_path, new_phase));
+
+    // Update plan phase list
+    let plan_idx = plan
+        .phases
+        .iter()
+        .position(|p| p == phase_name)
+        .unwrap_or(plan.phases.len());
+    plan.phases.insert(plan_idx + 1, new_name.clone());
+
+    save_plan_and_phases(
+        &sync,
+        &plan,
+        &phases,
+        &format!("swarm: split '{}' after '{}'", phase_name, after_agent),
+    )?;
+    println!(
+        "Split '{}' after '{}' — new phase: '{}'",
+        phase_name, after_agent, new_name
+    );
+    Ok(())
+}
+
+/// Remove an agent from the swarm plan.
+pub fn remove_agent(crosslink_dir: &Path, agent_slug: &str) -> Result<()> {
+    let (sync, plan, mut phases) = load_plan_and_phases(crosslink_dir)?;
+
+    let mut removed = false;
+    let mut from_phase = String::new();
+    for (_path, phase) in &mut phases {
+        if let Some(pos) = phase.agents.iter().position(|a| a.slug == agent_slug) {
+            phase.agents.remove(pos);
+            from_phase = phase.name.clone();
+            removed = true;
+            break;
+        }
+    }
+
+    if !removed {
+        bail!("Agent '{}' not found in any phase", agent_slug);
+    }
+
+    save_plan_and_phases(
+        &sync,
+        &plan,
+        &phases,
+        &format!("swarm: remove agent '{}'", agent_slug),
+    )?;
+    println!("Removed '{}' from '{}'", agent_slug, from_phase);
+    Ok(())
+}
+
+/// Reorder a phase to a new position (1-based).
+pub fn reorder_phase(crosslink_dir: &Path, phase_name: &str, position: usize) -> Result<()> {
+    let (sync, mut plan, mut phases) = load_plan_and_phases(crosslink_dir)?;
+
+    if position == 0 || position > phases.len() {
+        bail!("Position {} is out of range (1-{})", position, phases.len());
+    }
+
+    let current_idx = phases
+        .iter()
+        .position(|(_, p)| p.name == phase_name)
+        .ok_or_else(|| anyhow::anyhow!("Phase '{}' not found", phase_name))?;
+
+    let target_idx = position - 1;
+    if current_idx == target_idx {
+        println!("Phase '{}' is already at position {}", phase_name, position);
+        return Ok(());
+    }
+
+    let entry = phases.remove(current_idx);
+    phases.insert(target_idx, entry);
+
+    // Update plan phase order to match
+    plan.phases = phases.iter().map(|(_, p)| p.name.clone()).collect();
+
+    save_plan_and_phases(
+        &sync,
+        &plan,
+        &phases,
+        &format!("swarm: reorder '{}' to position {}", phase_name, position),
+    )?;
+    println!("Moved '{}' to position {}", phase_name, position);
+    Ok(())
+}
+
+/// Rename a phase.
+pub fn rename_phase(crosslink_dir: &Path, old_name: &str, new_name: &str) -> Result<()> {
+    let (sync, mut plan, mut phases) = load_plan_and_phases(crosslink_dir)?;
+
+    let idx = phases
+        .iter()
+        .position(|(_, p)| p.name == old_name)
+        .ok_or_else(|| anyhow::anyhow!("Phase '{}' not found", old_name))?;
+
+    // Update the phase name
+    phases[idx].1.name = new_name.to_string();
+
+    // Update depends_on references in other phases
+    for (_path, phase) in &mut phases {
+        for dep in &mut phase.depends_on {
+            if dep == old_name {
+                *dep = new_name.to_string();
+            }
+        }
+    }
+
+    // Write new phase file, remove old one
+    let old_path = phases[idx].0.clone();
+    let new_path = format!("swarm/phases/{}.json", slugify_phase(new_name));
+    phases[idx].0 = new_path;
+
+    let old_cache_file = sync.cache_path().join(&old_path);
+    let _ = std::fs::remove_file(&old_cache_file);
+
+    // Update plan phase list
+    for p in &mut plan.phases {
+        if p == old_name {
+            *p = new_name.to_string();
+        }
+    }
+
+    save_plan_and_phases(
+        &sync,
+        &plan,
+        &phases,
+        &format!("swarm: rename '{}' to '{}'", old_name, new_name),
+    )?;
+    println!("Renamed '{}' to '{}'", old_name, new_name);
     Ok(())
 }
 
@@ -3477,6 +3844,7 @@ mod tests {
                 "REQ-1: Add login".to_string(),
                 "REQ-2: Add logout".to_string(),
             ],
+            requirement_groups: Vec::new(),
             acceptance_criteria: vec![],
             architecture: String::new(),
             open_questions: vec![],
@@ -3497,6 +3865,7 @@ mod tests {
             title: "Big Feature".to_string(),
             summary: String::new(),
             requirements: (1..=12).map(|i| format!("REQ-{}: Task {}", i, i)).collect(),
+            requirement_groups: Vec::new(),
             acceptance_criteria: vec![],
             architecture: String::new(),
             open_questions: vec![],
@@ -3519,6 +3888,7 @@ mod tests {
             title: "Simple Feature".to_string(),
             summary: String::new(),
             requirements: vec![],
+            requirement_groups: Vec::new(),
             acceptance_criteria: vec![],
             architecture: String::new(),
             open_questions: vec![],
@@ -3538,6 +3908,7 @@ mod tests {
             title: "AC Feature".to_string(),
             summary: String::new(),
             requirements: vec![],
+            requirement_groups: Vec::new(),
             acceptance_criteria: vec![
                 "AC-1: Widget renders".to_string(),
                 "AC-2: Widget responds to click".to_string(),
@@ -3551,6 +3922,57 @@ mod tests {
         let phases = propose_phases(&doc);
         assert_eq!(phases.len(), 1);
         assert_eq!(phases[0].agents.len(), 2);
+    }
+
+    #[test]
+    fn test_propose_phases_uses_requirement_groups() {
+        use crate::commands::design_doc::RequirementGroup;
+        let doc = DesignDoc {
+            title: "Layered Feature".to_string(),
+            summary: String::new(),
+            requirements: vec![
+                "REQ-1: Foundation item".to_string(),
+                "REQ-2: Backend item".to_string(),
+                "REQ-3: Delivery item".to_string(),
+            ],
+            requirement_groups: vec![
+                RequirementGroup {
+                    name: "Foundation".to_string(),
+                    execution_hint: "sequential".to_string(),
+                    items: vec!["REQ-1: Foundation item".to_string()],
+                },
+                RequirementGroup {
+                    name: "Backends".to_string(),
+                    execution_hint: "parallel".to_string(),
+                    items: vec!["REQ-2: Backend item".to_string()],
+                },
+                RequirementGroup {
+                    name: "Delivery".to_string(),
+                    execution_hint: "sequential".to_string(),
+                    items: vec!["REQ-3: Delivery item".to_string()],
+                },
+            ],
+            acceptance_criteria: vec![],
+            architecture: String::new(),
+            open_questions: vec![],
+            out_of_scope: vec![],
+            unknown_sections: vec![],
+        };
+
+        let phases = propose_phases(&doc);
+        assert_eq!(phases.len(), 3);
+        assert_eq!(phases[0].name, "Phase 1: Foundation");
+        assert_eq!(phases[0].agents.len(), 1);
+        assert!(phases[0].depends_on.is_empty());
+
+        assert_eq!(phases[1].name, "Phase 2: Backends");
+        assert_eq!(phases[1].agents.len(), 1);
+        // Parallel phase still depends on previous
+        assert_eq!(phases[1].depends_on, vec!["Phase 1: Foundation"]);
+
+        assert_eq!(phases[2].name, "Phase 3: Delivery");
+        assert_eq!(phases[2].agents.len(), 1);
+        assert_eq!(phases[2].depends_on, vec!["Phase 2: Backends"]);
     }
 
     #[test]

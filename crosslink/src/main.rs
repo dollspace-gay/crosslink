@@ -1460,6 +1460,50 @@ enum SwarmCommands {
         #[arg(long, value_name = "SLUGS")]
         agents: Option<String>,
     },
+    /// Move an agent to a different phase
+    #[command(name = "move")]
+    MoveAgent {
+        /// Agent slug to move
+        agent: String,
+        /// Target phase name
+        #[arg(long, value_name = "PHASE")]
+        to_phase: String,
+    },
+    /// Merge two phases into one
+    MergePhases {
+        /// First phase name
+        phase_a: String,
+        /// Second phase name
+        phase_b: String,
+    },
+    /// Split a phase after a specific agent
+    SplitPhase {
+        /// Phase name to split
+        phase: String,
+        /// Split after this agent slug
+        #[arg(long, value_name = "SLUG")]
+        after: String,
+    },
+    /// Remove an agent from the plan
+    RemoveAgent {
+        /// Agent slug to remove
+        agent: String,
+    },
+    /// Reorder a phase to a new position
+    Reorder {
+        /// Phase name to move
+        phase: String,
+        /// New position (1-based)
+        #[arg(long)]
+        position: usize,
+    },
+    /// Rename a phase
+    RenamePhase {
+        /// Current phase name
+        old: String,
+        /// New phase name
+        new: String,
+    },
     /// Continue a paused pipeline (e.g., after human checkpoint)
     ReviewContinue,
     /// Show pipeline status
@@ -2390,6 +2434,24 @@ fn main() -> Result<()> {
                     dry_run,
                     agents,
                 } => commands::swarm::merge(&crosslink_dir, &branch, dry_run, agents.as_deref()),
+                SwarmCommands::MoveAgent { agent, to_phase } => {
+                    commands::swarm::move_agent(&crosslink_dir, &agent, &to_phase)
+                }
+                SwarmCommands::MergePhases { phase_a, phase_b } => {
+                    commands::swarm::merge_phases(&crosslink_dir, &phase_a, &phase_b)
+                }
+                SwarmCommands::SplitPhase { phase, after } => {
+                    commands::swarm::split_phase(&crosslink_dir, &phase, &after)
+                }
+                SwarmCommands::RemoveAgent { agent } => {
+                    commands::swarm::remove_agent(&crosslink_dir, &agent)
+                }
+                SwarmCommands::Reorder { phase, position } => {
+                    commands::swarm::reorder_phase(&crosslink_dir, &phase, position)
+                }
+                SwarmCommands::RenamePhase { old, new } => {
+                    commands::swarm::rename_phase(&crosslink_dir, &old, &new)
+                }
                 SwarmCommands::ReviewContinue => commands::swarm::review_continue(&crosslink_dir),
                 SwarmCommands::ReviewStatus => commands::swarm::review_status(&crosslink_dir),
                 SwarmCommands::Pipeline {
