@@ -174,6 +174,11 @@ pub fn run(
 
     // Set as active session work item
     if opts.work {
+        // Track whether we newly claimed a lock so we can release it if the
+        // subsequent session update fails (CL-409 atomicity guarantee).
+        let mut claimed_v2 = false;
+        let mut claimed_v1 = false;
+
         // Check lock status before allowing work on this issue
         if let Some(dir) = opts.crosslink_dir {
             crate::lock_check::enforce_lock(dir, id, db)?;
@@ -192,6 +197,7 @@ pub fn run(
                                                 format_issue_id(id)
                                             );
                                         }
+                                        claimed_v2 = true;
                                     }
                                     Ok(crate::shared_writer::LockClaimResult::AlreadyHeld) => {}
                                     Ok(crate::shared_writer::LockClaimResult::Contended {
@@ -217,6 +223,7 @@ pub fn run(
                                             format_issue_id(id)
                                         );
                                     }
+                                    claimed_v1 = true;
                                 }
                                 Ok(false) => {}
                                 Err(e) => eprintln!("Warning: Could not auto-claim lock: {}", e),
@@ -233,7 +240,33 @@ pub fn run(
                 .map(|a| a.agent_id)
         });
         if let Ok(Some(session)) = db.get_current_session_for_agent(agent_id.as_deref()) {
-            db.set_session_issue(session.id, id)?;
+            if let Err(e) = db.set_session_issue(session.id, id) {
+                // Release the lock we just claimed to avoid an orphaned lock (CL-409).
+                if let Some(dir) = opts.crosslink_dir {
+                    if claimed_v2 {
+                        if let Ok(Some(writer)) = SharedWriter::new(dir) {
+                            if let Err(rel_err) = writer.release_lock_v2(id) {
+                                eprintln!(
+                                    "Warning: Failed to release lock after session update error: {}",
+                                    rel_err
+                                );
+                            }
+                        }
+                    } else if claimed_v1 {
+                        if let Ok(Some(agent)) = crate::identity::AgentConfig::load(dir) {
+                            if let Ok(sync) = crate::sync::SyncManager::new(dir) {
+                                if let Err(rel_err) = sync.release_lock(&agent, id, false) {
+                                    eprintln!(
+                                        "Warning: Failed to release lock after session update error: {}",
+                                        rel_err
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                return Err(e);
+            }
             if !opts.quiet {
                 println!("Now working on: {} {}", format_issue_id(id), title);
             }
@@ -295,6 +328,11 @@ pub fn run_subissue(
 
     // Set as active session work item
     if opts.work {
+        // Track whether we newly claimed a lock so we can release it if the
+        // subsequent session update fails (CL-409 atomicity guarantee).
+        let mut claimed_v2 = false;
+        let mut claimed_v1 = false;
+
         // Check lock status before allowing work on this issue
         if let Some(dir) = opts.crosslink_dir {
             crate::lock_check::enforce_lock(dir, id, db)?;
@@ -313,6 +351,7 @@ pub fn run_subissue(
                                                 format_issue_id(id)
                                             );
                                         }
+                                        claimed_v2 = true;
                                     }
                                     Ok(crate::shared_writer::LockClaimResult::AlreadyHeld) => {}
                                     Ok(crate::shared_writer::LockClaimResult::Contended {
@@ -338,6 +377,7 @@ pub fn run_subissue(
                                             format_issue_id(id)
                                         );
                                     }
+                                    claimed_v1 = true;
                                 }
                                 Ok(false) => {}
                                 Err(e) => eprintln!("Warning: Could not auto-claim lock: {}", e),
@@ -354,7 +394,33 @@ pub fn run_subissue(
                 .map(|a| a.agent_id)
         });
         if let Ok(Some(session)) = db.get_current_session_for_agent(agent_id.as_deref()) {
-            db.set_session_issue(session.id, id)?;
+            if let Err(e) = db.set_session_issue(session.id, id) {
+                // Release the lock we just claimed to avoid an orphaned lock (CL-409).
+                if let Some(dir) = opts.crosslink_dir {
+                    if claimed_v2 {
+                        if let Ok(Some(writer)) = SharedWriter::new(dir) {
+                            if let Err(rel_err) = writer.release_lock_v2(id) {
+                                eprintln!(
+                                    "Warning: Failed to release lock after session update error: {}",
+                                    rel_err
+                                );
+                            }
+                        }
+                    } else if claimed_v1 {
+                        if let Ok(Some(agent)) = crate::identity::AgentConfig::load(dir) {
+                            if let Ok(sync) = crate::sync::SyncManager::new(dir) {
+                                if let Err(rel_err) = sync.release_lock(&agent, id, false) {
+                                    eprintln!(
+                                        "Warning: Failed to release lock after session update error: {}",
+                                        rel_err
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                return Err(e);
+            }
             if !opts.quiet {
                 println!("Now working on: {} {}", format_issue_id(id), title);
             }

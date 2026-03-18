@@ -182,6 +182,14 @@ pub fn work(db: &Database, issue_id: i64, crosslink_dir: &std::path::Path) -> Re
     // Check lock status (handles auto-steal of stale locks if configured)
     crate::lock_check::enforce_lock(crosslink_dir, issue_id, db)?;
 
+    // Track whether we newly claimed a lock so we can release it if the
+    // subsequent session update fails (atomicity guarantee).
+    enum ClaimedVia {
+        SharedWriter,
+        SyncManager,
+    }
+    let mut claimed: Option<ClaimedVia> = None;
+
     // Atomically claim lock then set session — bail if another agent wins
     if let Ok(Some(agent)) = crate::identity::AgentConfig::load(crosslink_dir) {
         if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
@@ -192,6 +200,7 @@ pub fn work(db: &Database, issue_id: i64, crosslink_dir: &std::path::Path) -> Re
                         match writer.claim_lock_v2(issue_id, None) {
                             Ok(crate::shared_writer::LockClaimResult::Claimed) => {
                                 println!("Claimed lock on issue {}", format_issue_id(issue_id));
+                                claimed = Some(ClaimedVia::SharedWriter);
                             }
                             Ok(crate::shared_writer::LockClaimResult::AlreadyHeld) => {}
                             Ok(crate::shared_writer::LockClaimResult::Contended {
@@ -218,6 +227,7 @@ pub fn work(db: &Database, issue_id: i64, crosslink_dir: &std::path::Path) -> Re
                     match sync.claim_lock(&agent, issue_id, None, false) {
                         Ok(true) => {
                             println!("Claimed lock on issue {}", format_issue_id(issue_id));
+                            claimed = Some(ClaimedVia::SyncManager);
                         }
                         Ok(false) => {} // Already held by self
                         Err(e) => {
@@ -233,8 +243,40 @@ pub fn work(db: &Database, issue_id: i64, crosslink_dir: &std::path::Path) -> Re
         }
     }
 
-    // Only reached if lock claim succeeded (or lock system not configured)
-    db.set_session_issue(session.id, issue_id)?;
+    // Only reached if lock claim succeeded (or lock system not configured).
+    // If the session update fails, release the lock we just claimed to avoid
+    // an orphaned lock (CL-409).
+    if let Err(e) = db.set_session_issue(session.id, issue_id) {
+        if let Some(via) = claimed {
+            match via {
+                ClaimedVia::SharedWriter => {
+                    if let Ok(Some(writer)) = crate::shared_writer::SharedWriter::new(crosslink_dir)
+                    {
+                        if let Err(rel_err) = writer.release_lock_v2(issue_id) {
+                            eprintln!(
+                                "Warning: Failed to release lock after session update error: {}",
+                                rel_err
+                            );
+                        }
+                    }
+                }
+                ClaimedVia::SyncManager => {
+                    if let Ok(Some(agent)) = crate::identity::AgentConfig::load(crosslink_dir) {
+                        if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
+                            if let Err(rel_err) = sync.release_lock(&agent, issue_id, false) {
+                                eprintln!(
+                                    "Warning: Failed to release lock after session update error: {}",
+                                    rel_err
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return Err(e);
+    }
+
     println!(
         "Now working on: {} {}",
         format_issue_id(issue.id),
