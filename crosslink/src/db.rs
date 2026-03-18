@@ -134,36 +134,52 @@ impl Database {
     }
 
     /// Run a migration statement, logging unexpected errors.
-    /// Expected errors (duplicate column, table already exists) are silently ignored.
+    /// Expected idempotent errors (duplicate column, table/index already exists) are
+    /// logged at debug level rather than silently swallowed, so operators can trace
+    /// which migrations were skipped.
     fn migrate(&self, sql: &str) {
         if let Err(e) = self.conn.execute(sql, []) {
             let msg = e.to_string();
-            if !msg.contains("duplicate column") && !msg.contains("already exists") {
+            if msg.contains("duplicate column") || msg.contains("already exists") {
+                eprintln!("debug: migration skipped (already applied): {}", sql.trim());
+            } else {
                 eprintln!("warning: migration error ({}): {}", sql.trim(), msg);
             }
         }
     }
 
     /// Run a batch migration statement, logging unexpected errors.
+    /// Expected idempotent errors are logged at debug level for traceability.
     fn migrate_batch(&self, sql: &str) {
         if let Err(e) = self.conn.execute_batch(sql) {
             let msg = e.to_string();
-            if !msg.contains("duplicate column") && !msg.contains("already exists") {
+            if msg.contains("duplicate column") || msg.contains("already exists") {
+                eprintln!("debug: migration batch skipped (already applied)");
+            } else {
                 eprintln!("warning: migration batch error: {}", msg);
             }
         }
     }
 
     fn init_schema(&self) -> Result<()> {
-        // Check if we need to initialize
-        let version: i32 = self
+        // Read the current schema version via PRAGMA user_version.
+        // If the read fails, warn and default to 0 so migrations still run,
+        // but the warning makes the root cause visible instead of silently
+        // re-running every migration on each DB open.
+        let version: i32 = match self
             .conn
-            .query_row(
-                "SELECT COALESCE(MAX(user_version), 0) FROM pragma_user_version",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap_or(0);
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+        {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!(
+                    "warning: failed to read PRAGMA user_version ({}), defaulting to 0 — \
+                     all migrations will re-run",
+                    e
+                );
+                0
+            }
+        };
 
         if version < SCHEMA_VERSION {
             self.conn.execute_batch(
