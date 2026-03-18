@@ -33,16 +33,53 @@ pub type GpgVerification = SignatureVerification;
 /// Read the configured tracker remote name from `.crosslink/hook-config.json`.
 ///
 /// Returns the value of `tracker_remote` if set, otherwise `"origin"`.
+/// When falling back to `"origin"`, emits a one-time warning to stderr and
+/// checks whether the `origin` remote actually exists.
 pub fn read_tracker_remote(crosslink_dir: &Path) -> String {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    static WARNED: AtomicBool = AtomicBool::new(false);
+
     let config_path = crosslink_dir.join("hook-config.json");
-    std::fs::read_to_string(&config_path)
+    let configured = std::fs::read_to_string(&config_path)
         .ok()
         .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
         .and_then(|v| {
             v.get("tracker_remote")
                 .and_then(|r| r.as_str().map(|s| s.to_string()))
-        })
-        .unwrap_or_else(|| "origin".to_string())
+        });
+
+    match configured {
+        Some(remote) => remote,
+        None => {
+            if !WARNED.swap(true, Ordering::Relaxed) {
+                eprintln!(
+                    "warning: no `tracker_remote` configured in .crosslink/hook-config.json; defaulting to \"origin\""
+                );
+
+                // Check whether "origin" actually exists as a git remote.
+                if let Some(repo_root) = crosslink_dir.parent() {
+                    let origin_exists = Command::new("git")
+                        .args(["remote", "get-url", "origin"])
+                        .current_dir(repo_root)
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .status()
+                        .map(|s| s.success())
+                        .unwrap_or(false);
+
+                    if !origin_exists {
+                        eprintln!(
+                            "warning: git remote \"origin\" does not exist; \
+                             set `tracker_remote` in .crosslink/hook-config.json \
+                             or add an \"origin\" remote"
+                        );
+                    }
+                }
+            }
+            "origin".to_string()
+        }
+    }
 }
 
 /// Manages synchronization with the `crosslink/hub` coordination branch.
