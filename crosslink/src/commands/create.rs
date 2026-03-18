@@ -283,7 +283,7 @@ pub fn run(
                         release_lock_best_effort(dir, id);
                     }
                 }
-                return Err(e.into());
+                return Err(e);
             }
             if !opts.quiet {
                 println!("Now working on: {} {}", format_issue_id(id), title);
@@ -426,7 +426,7 @@ pub fn run_subissue(
                         release_lock_best_effort(dir, id);
                     }
                 }
-                return Err(e.into());
+                return Err(e);
             }
             if !opts.quiet {
                 println!("Now working on: {} {}", format_issue_id(id), title);

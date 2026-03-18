@@ -313,7 +313,7 @@ pub fn work(db: &Database, issue_id: i64, crosslink_dir: &std::path::Path) -> Re
         if freshly_claimed {
             release_lock_best_effort(crosslink_dir, issue_id);
         }
-        return Err(e.into());
+        return Err(e);
     }
     println!(
         "Now working on: {} {}",
