@@ -271,13 +271,11 @@ struct ActiveSwarmRef {
 ///
 /// For legacy layouts (single `swarm/plan.json`), base is `"swarm"`.
 /// For multi-swarm layouts, base is `"swarm/{uuid}"`.
-#[allow(dead_code)]
 struct SwarmContext {
     pub base: String,
     pub is_legacy: bool,
 }
 
-#[allow(dead_code)]
 impl SwarmContext {
     fn plan_path(&self) -> String {
         format!("{}/plan.json", self.base)
@@ -301,10 +299,6 @@ impl SwarmContext {
 
     fn history_path(&self) -> String {
         format!("{}/history/cost-log.json", self.base)
-    }
-
-    fn merge_plan_path(&self) -> String {
-        format!("{}/merge-plan.json", self.base)
     }
 }
 
@@ -707,7 +701,7 @@ pub fn status(crosslink_dir: &Path, json: bool) -> Result<()> {
     if json {
         let mut phases_json = Vec::new();
         for phase_name in &plan.phases {
-            let phase_file = format!("swarm/phases/{}.json", slugify_phase(phase_name));
+            let phase_file = ctx.phase_path(phase_name);
             let phase: PhaseDefinition = match read_hub_json(&sync, &phase_file) {
                 Ok(p) => p,
                 Err(_) => continue,
@@ -733,7 +727,7 @@ pub fn status(crosslink_dir: &Path, json: bool) -> Result<()> {
     println!();
 
     for phase_name in &plan.phases {
-        let phase_file = format!("swarm/phases/{}.json", slugify_phase(phase_name));
+        let phase_file = ctx.phase_path(phase_name);
         let phase: PhaseDefinition = match read_hub_json(&sync, &phase_file) {
             Ok(p) => p,
             Err(_) => {
@@ -841,7 +835,7 @@ pub fn status(crosslink_dir: &Path, json: bool) -> Result<()> {
     let mut all_merged = true;
 
     for phase_name in &plan.phases {
-        let phase_file = format!("swarm/phases/{}.json", slugify_phase(phase_name));
+        let phase_file = ctx.phase_path(phase_name);
         let phase: PhaseDefinition = match read_hub_json(&sync, &phase_file) {
             Ok(p) => p,
             Err(_) => continue,
@@ -1068,9 +1062,10 @@ pub fn split_phase(crosslink_dir: &Path, phase_name: &str, after_agent: &str) ->
     }
 
     // Split agents
+    let ctx = resolve_swarm(&sync)?;
     let new_agents: Vec<AgentEntry> = phases[idx].1.agents.drain(split_pos + 1..).collect();
     let new_name = format!("{} (split)", phase_name);
-    let new_path = format!("swarm/phases/{}.json", slugify_phase(&new_name));
+    let new_path = ctx.phase_path(&new_name);
 
     let new_phase = PhaseDefinition {
         name: new_name.clone(),
@@ -1192,8 +1187,9 @@ pub fn rename_phase(crosslink_dir: &Path, old_name: &str, new_name: &str) -> Res
     }
 
     // Write new phase file, remove old one
+    let ctx = resolve_swarm(&sync)?;
     let old_path = phases[idx].0.clone();
-    let new_path = format!("swarm/phases/{}.json", slugify_phase(new_name));
+    let new_path = ctx.phase_path(new_name);
     phases[idx].0 = new_path;
 
     let old_cache_file = sync.cache_path().join(&old_path);
@@ -1228,13 +1224,15 @@ pub fn archive(crosslink_dir: &Path) -> Result<()> {
     }
     sync.fetch()?;
 
-    let plan_path = sync.cache_path().join("swarm/plan.json");
+    let ctx = resolve_swarm(&sync)?;
+    let plan_path_str = ctx.plan_path();
+    let plan_path = sync.cache_path().join(&plan_path_str);
     if !plan_path.exists() {
         bail!("No active swarm plan to archive.");
     }
 
     let plan: SwarmPlan =
-        read_hub_json(&sync, "swarm/plan.json").context("Failed to read swarm plan")?;
+        read_hub_json(&sync, &plan_path_str).context("Failed to read swarm plan")?;
 
     // Create archive directory with timestamp
     let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S").to_string();
@@ -1251,7 +1249,7 @@ pub fn archive(crosslink_dir: &Path) -> Result<()> {
     std::fs::write(&archive_plan, &plan_json)?;
 
     // Copy phase files to archive
-    let phases_dir = sync.cache_path().join("swarm/phases");
+    let phases_dir = sync.cache_path().join(format!("{}/phases", ctx.base));
     if phases_dir.is_dir() {
         let archive_phases = sync.cache_path().join(format!("{}/phases", archive_prefix));
         std::fs::create_dir_all(&archive_phases)?;
@@ -1265,7 +1263,7 @@ pub fn archive(crosslink_dir: &Path) -> Result<()> {
     }
 
     // Copy checkpoints to archive
-    let checkpoints_dir = sync.cache_path().join("swarm/checkpoints");
+    let checkpoints_dir = sync.cache_path().join(ctx.checkpoints_dir());
     if checkpoints_dir.is_dir() {
         let archive_cp = sync
             .cache_path()
@@ -1280,10 +1278,15 @@ pub fn archive(crosslink_dir: &Path) -> Result<()> {
         }
     }
 
-    // Remove active swarm files
+    // Remove active swarm files and pointer
     let _ = std::fs::remove_file(&plan_path);
     let _ = std::fs::remove_dir_all(&phases_dir);
     let _ = std::fs::remove_dir_all(&checkpoints_dir);
+    let _ = std::fs::remove_file(sync.cache_path().join("swarm/active.json"));
+    // For multi-swarm, remove the UUID directory itself if empty
+    if !ctx.is_legacy {
+        let _ = std::fs::remove_dir_all(sync.cache_path().join(ctx.base));
+    }
 
     // Stage, commit, push
     let cache = sync.cache_path();
@@ -1322,14 +1325,19 @@ pub fn reset(crosslink_dir: &Path, no_archive: bool) -> Result<()> {
     }
     sync.fetch()?;
 
-    let plan_path = sync.cache_path().join("swarm/plan.json");
+    let ctx = resolve_swarm(&sync)?;
+    let plan_path = sync.cache_path().join(ctx.plan_path());
     if !plan_path.exists() {
         bail!("No active swarm plan to reset.");
     }
 
     let _ = std::fs::remove_file(&plan_path);
-    let _ = std::fs::remove_dir_all(sync.cache_path().join("swarm/phases"));
-    let _ = std::fs::remove_dir_all(sync.cache_path().join("swarm/checkpoints"));
+    let _ = std::fs::remove_dir_all(sync.cache_path().join(format!("{}/phases", ctx.base)));
+    let _ = std::fs::remove_dir_all(sync.cache_path().join(ctx.checkpoints_dir()));
+    let _ = std::fs::remove_file(sync.cache_path().join("swarm/active.json"));
+    if !ctx.is_legacy {
+        let _ = std::fs::remove_dir_all(sync.cache_path().join(ctx.base));
+    }
 
     let cache = sync.cache_path();
     let _ = std::process::Command::new("git")
@@ -1358,13 +1366,19 @@ pub fn list_swarms(crosslink_dir: &Path) -> Result<()> {
     }
     sync.fetch()?;
 
-    let plan_path = sync.cache_path().join("swarm/plan.json");
-    if plan_path.exists() {
-        if let Ok(plan) = read_hub_json::<SwarmPlan>(&sync, "swarm/plan.json") {
-            println!("Active: {} (created {})", plan.title, plan.created_at);
+    match resolve_swarm(&sync) {
+        Ok(ctx) => {
+            if let Ok(plan) = read_hub_json::<SwarmPlan>(&sync, &ctx.plan_path()) {
+                let mode = if ctx.is_legacy { " (legacy)" } else { "" };
+                println!(
+                    "Active: {} (created {}){}",
+                    plan.title, plan.created_at, mode
+                );
+            }
         }
-    } else {
-        println!("No active swarm.");
+        Err(_) => {
+            println!("No active swarm.");
+        }
     }
 
     let archive_dir = sync.cache_path().join("swarm/archive");
@@ -1583,7 +1597,8 @@ pub fn resume(crosslink_dir: &Path) -> Result<()> {
         bail!("Hub cache not initialized. Run `crosslink sync` first.");
     }
 
-    let plan: SwarmPlan = read_hub_json(&sync, "swarm/plan.json")
+    let ctx = resolve_swarm(&sync)?;
+    let plan: SwarmPlan = read_hub_json(&sync, &ctx.plan_path())
         .context("No swarm plan found. Run `crosslink swarm init --doc <file>` first.")?;
 
     let root = crosslink_dir
@@ -1591,7 +1606,7 @@ pub fn resume(crosslink_dir: &Path) -> Result<()> {
         .ok_or_else(|| anyhow::anyhow!("Cannot determine repo root"))?;
 
     // Find the latest checkpoint
-    let checkpoint_dir = sync.cache_path().join("swarm/checkpoints");
+    let checkpoint_dir = sync.cache_path().join(ctx.checkpoints_dir());
     let latest_checkpoint = find_latest_checkpoint(&checkpoint_dir);
 
     if let Some(ref cp) = latest_checkpoint {
@@ -1608,7 +1623,7 @@ pub fn resume(crosslink_dir: &Path) -> Result<()> {
     let mut completed_count = 0;
 
     for phase_name in &plan.phases {
-        let phase_file = format!("swarm/phases/{}.json", slugify_phase(phase_name));
+        let phase_file = ctx.phase_path(phase_name);
         let phase: PhaseDefinition = match read_hub_json(&sync, &phase_file) {
             Ok(p) => p,
             Err(_) => continue,
@@ -2169,8 +2184,9 @@ pub fn checkpoint(
         handoff_notes: notes.map(|s| s.to_string()),
     };
 
+    let ctx = resolve_swarm(&sync)?;
     let cp_slug = slugify_phase(&phase.name);
-    let cp_path = format!("swarm/checkpoints/{}.json", cp_slug);
+    let cp_path = ctx.checkpoint_path(&cp_slug);
     write_hub_json(&sync, &cp_path, &cp)?;
 
     // Mark phase completed
@@ -2196,7 +2212,7 @@ pub fn checkpoint(
     }
 
     // Check if there's a next phase
-    let plan: SwarmPlan = read_hub_json(&sync, "swarm/plan.json")?;
+    let plan: SwarmPlan = read_hub_json(&sync, &ctx.plan_path())?;
     let current_idx = plan
         .phases
         .iter()
@@ -2238,10 +2254,12 @@ pub fn config_budget(crosslink_dir: &Path, budget_window: &str, model: &str) -> 
         model: model.to_string(),
     };
 
-    write_hub_json(&sync, "swarm/budget.json", &config)?;
+    let ctx = resolve_swarm(&sync)?;
+    let budget_path = ctx.budget_path();
+    write_hub_json(&sync, &budget_path, &config)?;
     commit_hub_files(
         &sync,
-        &["swarm/budget.json"],
+        &[&budget_path],
         &format!("swarm: set budget {}  model={}", budget_window, model),
     )?;
 
@@ -2353,15 +2371,16 @@ pub fn estimate(crosslink_dir: &Path, phase_slug: &str) -> Result<()> {
         bail!("Hub cache not initialized. Run `crosslink sync` first.");
     }
 
+    let ctx = resolve_swarm(&sync)?;
     let (phase, _) = load_phase(&sync, phase_slug)?;
 
     let budget_config: BudgetConfig =
-        read_hub_json(&sync, "swarm/budget.json").unwrap_or(BudgetConfig {
+        read_hub_json(&sync, &ctx.budget_path()).unwrap_or(BudgetConfig {
             budget_window_s: 18000, // default 5h
             model: "opus".to_string(),
         });
 
-    let cost_log: CostLog = read_hub_json(&sync, "swarm/history/cost-log.json").unwrap_or_default();
+    let cost_log: CostLog = read_hub_json(&sync, &ctx.history_path()).unwrap_or_default();
 
     let (total_cost, agent_estimates) =
         estimate_phase_cost(&phase, &cost_log, &budget_config.model);
@@ -2441,15 +2460,16 @@ pub fn launch_budget_aware(
         bail!("Hub cache not initialized. Run `crosslink sync` first.");
     }
 
+    let ctx = resolve_swarm(&sync)?;
     let (phase, _) = load_phase(&sync, phase_slug)?;
 
     let budget_config: BudgetConfig =
-        read_hub_json(&sync, "swarm/budget.json").unwrap_or(BudgetConfig {
+        read_hub_json(&sync, &ctx.budget_path()).unwrap_or(BudgetConfig {
             budget_window_s: 18000,
             model: "opus".to_string(),
         });
 
-    let cost_log: CostLog = read_hub_json(&sync, "swarm/history/cost-log.json").unwrap_or_default();
+    let cost_log: CostLog = read_hub_json(&sync, &ctx.history_path()).unwrap_or_default();
 
     let planned_count = phase
         .agents
@@ -2515,8 +2535,8 @@ pub fn harvest_costs(crosslink_dir: &Path) -> Result<()> {
         return Ok(());
     }
 
-    let mut cost_log: CostLog =
-        read_hub_json(&sync, "swarm/history/cost-log.json").unwrap_or_default();
+    let ctx = resolve_swarm(&sync)?;
+    let mut cost_log: CostLog = read_hub_json(&sync, &ctx.history_path()).unwrap_or_default();
 
     let existing_ids: std::collections::HashSet<String> = cost_log
         .observations
@@ -2597,10 +2617,11 @@ pub fn harvest_costs(crosslink_dir: &Path) -> Result<()> {
     // Recompute model estimates from observations
     recompute_model_estimates(&mut cost_log);
 
-    write_hub_json(&sync, "swarm/history/cost-log.json", &cost_log)?;
+    let history_path = ctx.history_path();
+    write_hub_json(&sync, &history_path, &cost_log)?;
     commit_hub_files(
         &sync,
-        &["swarm/history/cost-log.json"],
+        &[&history_path],
         &format!("swarm: harvest {} cost observations", new_observations),
     )?;
 
@@ -2743,11 +2764,12 @@ pub fn plan(crosslink_dir: &Path, budget_window: Option<&str>) -> Result<()> {
         bail!("Hub cache not initialized. Run `crosslink sync` first.");
     }
 
-    let swarm_plan: SwarmPlan = read_hub_json(&sync, "swarm/plan.json")
+    let ctx = resolve_swarm(&sync)?;
+    let swarm_plan: SwarmPlan = read_hub_json(&sync, &ctx.plan_path())
         .context("No swarm plan found. Run `crosslink swarm init --doc <file>` first.")?;
 
     let budget_config: BudgetConfig =
-        read_hub_json(&sync, "swarm/budget.json").unwrap_or(BudgetConfig {
+        read_hub_json(&sync, &ctx.budget_path()).unwrap_or(BudgetConfig {
             budget_window_s: 18000,
             model: "opus".to_string(),
         });
@@ -2758,12 +2780,12 @@ pub fn plan(crosslink_dir: &Path, budget_window: Option<&str>) -> Result<()> {
         budget_config.budget_window_s
     };
 
-    let cost_log: CostLog = read_hub_json(&sync, "swarm/history/cost-log.json").unwrap_or_default();
+    let cost_log: CostLog = read_hub_json(&sync, &ctx.history_path()).unwrap_or_default();
 
     // Estimate each phase
     let mut phase_estimates: Vec<(String, u64, usize)> = Vec::new();
     for phase_name in &swarm_plan.phases {
-        let phase_file = format!("swarm/phases/{}.json", slugify_phase(phase_name));
+        let phase_file = ctx.phase_path(phase_name);
         let phase: PhaseDefinition = match read_hub_json(&sync, &phase_file) {
             Ok(p) => p,
             Err(_) => continue,
