@@ -1363,14 +1363,28 @@ enum SwarmCommands {
         #[arg(long, value_name = "PATH")]
         doc: PathBuf,
     },
-    /// Show current swarm status (agents, phases, progress)
+    /// Show current swarm status (agents, phases, progress, next steps)
     Status,
     /// Reconstruct state and show next steps for resuming
     Resume,
+    /// Archive the current swarm and clear the active slot
+    Archive,
+    /// Reset the active swarm (archives by default)
+    Reset {
+        /// Delete without archiving
+        #[arg(long)]
+        no_archive: bool,
+    },
+    /// List active and archived swarms
+    #[command(name = "list")]
+    ListSwarms,
     /// Launch all planned agents for a phase
     Launch {
         /// Phase slug (e.g. "phase-1")
         phase: String,
+        /// Retry only previously failed agents
+        #[arg(long)]
+        retry_failed: bool,
         /// Check budget before launching; block if insufficient
         #[arg(long)]
         budget_aware: bool,
@@ -2361,13 +2375,27 @@ fn main() -> Result<()> {
                 SwarmCommands::Init { doc } => commands::swarm::init(&crosslink_dir, &doc),
                 SwarmCommands::Status => commands::swarm::status(&crosslink_dir, cli.json),
                 SwarmCommands::Resume => commands::swarm::resume(&crosslink_dir),
+                SwarmCommands::Archive => commands::swarm::archive(&crosslink_dir),
+                SwarmCommands::Reset { no_archive } => {
+                    commands::swarm::reset(&crosslink_dir, no_archive)
+                }
+                SwarmCommands::ListSwarms => commands::swarm::list_swarms(&crosslink_dir),
                 SwarmCommands::Launch {
                     phase,
                     budget_aware,
+                    retry_failed,
                 } => {
                     let db = get_db()?;
                     let writer = get_writer(&crosslink_dir);
-                    if budget_aware {
+                    if retry_failed {
+                        commands::swarm::launch_retry_failed(
+                            &crosslink_dir,
+                            &db,
+                            writer.as_ref(),
+                            &phase,
+                            cli.quiet,
+                        )
+                    } else if budget_aware {
                         commands::swarm::launch_budget_aware(
                             &crosslink_dir,
                             &db,
