@@ -284,7 +284,9 @@ pub fn bootstrap(
                 String::from_utf8_lossy(&o.stderr).trim()
             );
         }
-        Err(e) => eprintln!("Warning: could not push agent registration to hub: {e} — will be pushed on next sync"),
+        Err(e) => eprintln!(
+            "Warning: could not push agent registration to hub: {e} — will be pushed on next sync"
+        ),
         Ok(_) => {}
     }
 
