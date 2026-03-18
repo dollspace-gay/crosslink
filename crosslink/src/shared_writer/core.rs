@@ -30,6 +30,7 @@ pub(super) struct HubWriteLock {
 
 impl Drop for HubWriteLock {
     fn drop(&mut self) {
+        // INTENTIONAL: lock cleanup in Drop is best-effort — stale locks are detected by PID liveness check
         let _ = std::fs::remove_file(&self.path);
     }
 }
@@ -48,6 +49,7 @@ pub(super) fn acquire_hub_lock(lock_path: &Path) -> Result<HubWriteLock> {
         {
             Ok(mut f) => {
                 use std::io::Write;
+                // INTENTIONAL: PID write is best-effort — lock is held by file existence, PID is advisory
                 let _ = writeln!(f, "{}", std::process::id());
                 return Ok(HubWriteLock {
                     path: lock_path.to_path_buf(),
@@ -64,6 +66,7 @@ pub(super) fn acquire_hub_lock(lock_path: &Path) -> Result<HubWriteLock> {
                             .map(|o| o.status.success())
                             .unwrap_or(false);
                         if !alive {
+                            // INTENTIONAL: stale lock removal is best-effort — retry loop will re-attempt
                             let _ = std::fs::remove_file(lock_path);
                             continue;
                         }
@@ -71,7 +74,7 @@ pub(super) fn acquire_hub_lock(lock_path: &Path) -> Result<HubWriteLock> {
                 }
 
                 if start.elapsed() > max_wait {
-                    // Force-break stale lock after timeout
+                    // INTENTIONAL: force-break stale lock after timeout is best-effort — retry loop will re-attempt
                     let _ = std::fs::remove_file(lock_path);
                     continue;
                 }
@@ -274,6 +277,7 @@ impl SharedWriter {
             self.resolve_ssh_key_path(),
             self.agent.ssh_fingerprint.as_ref(),
         ) {
+            // INTENTIONAL: event signing is best-effort — unsigned events are still valid
             let _ = crate::events::sign_event(&mut envelope, &key_path, fingerprint);
         }
 
@@ -301,6 +305,7 @@ impl SharedWriter {
             // Stage event log + compaction output
             let rel_log = format!("agents/{}/events.log", self.agent.agent_id);
             self.git_in_cache(&["add", &rel_log])?;
+            // INTENTIONAL: staging compaction dirs is best-effort — they may not exist yet
             let _ = self.git_in_cache(&["add", "checkpoint/"]);
             let _ = self.git_in_cache(&["add", "issues/"]);
             let _ = self.git_in_cache(&["add", "locks/"]);
@@ -341,9 +346,7 @@ impl SharedWriter {
                         if attempt < MAX_RETRIES - 1 {
                             // Bail if local has diverged too far -- sign of a rebase loop
                             self.check_divergence()?;
-                            // Reset commit AND working directory -- the prepare
-                            // closure re-generates content on the next iteration,
-                            // so losing working dir changes is safe.
+                            // INTENTIONAL: reset is best-effort — the prepare closure re-generates content on retry
                             let _ = self.git_in_cache(&["reset", "--hard", "HEAD~1"]);
                             self.git_in_cache(&[
                                 "pull",
@@ -653,6 +656,7 @@ impl SharedWriter {
             // Stage
             for path in &paths {
                 if write_set.use_git_rm {
+                    // INTENTIONAL: git rm is best-effort — file may already be untracked
                     let _ = self.git_in_cache(&["rm", "--cached", "--ignore-unmatch", path]);
                 } else {
                     self.git_in_cache(&["add", path])?;
@@ -699,6 +703,7 @@ impl SharedWriter {
                         if attempt < MAX_RETRIES - 1 {
                             // Bail if local has diverged too far -- sign of a rebase loop
                             self.check_divergence()?;
+                            // INTENTIONAL: reset is best-effort — prepare closure re-reads fresh state on retry
                             let _ = self.git_in_cache(&["reset", "--hard", "HEAD~1"]);
                             let rebase_result = self.git_in_cache(&[
                                 "pull",
@@ -712,6 +717,7 @@ impl SharedWriter {
                                     || re_str.contains("rebase")
                                     || re_str.contains("could not apply")
                                 {
+                                    // INTENTIONAL: abort and reset are best-effort conflict recovery — retry loop continues
                                     let _ = self.git_in_cache(&["rebase", "--abort"]);
                                     let remote_ref =
                                         format!("{}/{}", remote, crate::sync::HUB_BRANCH);

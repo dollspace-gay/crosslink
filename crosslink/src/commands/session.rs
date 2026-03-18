@@ -119,11 +119,12 @@ pub fn end(db: &Database, notes: Option<&str>, crosslink_dir: &std::path::Path) 
                         "Warning: Handoff notes saved locally but could not be synced to hub: {}",
                         e
                     );
+                    // INTENTIONAL: local fallback comment is best-effort — notes were already printed to user
                     let _ = db.add_comment(issue_id, notes_text, "handoff");
                 }
             }
             _ => {
-                // Single-agent mode or hub unavailable — add locally
+                // INTENTIONAL: local comment is best-effort — single-agent mode or hub unavailable
                 let _ = db.add_comment(issue_id, notes_text, "handoff");
             }
         }

@@ -171,6 +171,7 @@ pub async fn create_knowledge_page(
 
     // Commit the new page so it's tracked in git.
     let commit_msg = format!("Add knowledge page: {}", body.slug);
+    // INTENTIONAL: commit failure is non-fatal — the page was written to disk and will be committed on next sync
     let _ = km.commit(&commit_msg);
 
     let response = KnowledgePage {

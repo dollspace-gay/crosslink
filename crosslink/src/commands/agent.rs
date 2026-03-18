@@ -43,6 +43,7 @@ pub fn run(command: AgentCommands, crosslink_dir: &Path) -> Result<()> {
             // Ensure the agent directory exists on the hub branch
             let cl_dir = target_path.join(".crosslink");
             if let Ok(s) = sync::SyncManager::new(&cl_dir) {
+                // INTENTIONAL: agent dir creation on hub is best-effort — will be created on next sync
                 let _ = s.ensure_agent_dir(&identity);
             }
             Ok(())
@@ -103,6 +104,7 @@ pub fn init(
 
                 // Configure signing on the hub cache worktree
                 if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
+                    // INTENTIONAL: signing config is best-effort — commits will be unsigned if this fails
                     let _ = sync.configure_signing(crosslink_dir);
                 }
             }
@@ -233,6 +235,7 @@ pub fn bootstrap(
     // Step 6: Initialize hub cache
     let sync = crate::sync::SyncManager::new(&crosslink_dir)?;
     sync.init_cache()?;
+    // INTENTIONAL: fetch is best-effort — bootstrap proceeds with local state if offline
     let _ = sync.fetch();
 
     // Step 7: Create agent directory on hub
@@ -267,7 +270,7 @@ pub fn bootstrap(
         &format!("bootstrap: register agent '{}'", agent_id),
     ])?;
 
-    // Best-effort push
+    // INTENTIONAL: push is best-effort — agent registration will be pushed on next sync
     let remote = crate::sync::read_tracker_remote(&crosslink_dir);
     let _ = Command::new("git")
         .current_dir(cache)
@@ -284,6 +287,7 @@ pub fn bootstrap(
     }
 
     // Step 9: Configure signing (after key is published)
+    // INTENTIONAL: signing config is best-effort — commits will be unsigned if this fails
     let _ = sync.configure_signing(&crosslink_dir);
 
     // Step 10: Print summary
@@ -320,6 +324,7 @@ pub fn status(crosslink_dir: &Path) -> Result<()> {
 
             // Show locked issues (best-effort)
             if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
+                // INTENTIONAL: init and fetch are best-effort — status display works with stale data
                 let _ = sync.init_cache();
                 let _ = sync.fetch();
                 if let Ok(locks) = sync.read_locks_auto() {

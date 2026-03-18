@@ -57,6 +57,7 @@ pub fn archive(crosslink_dir: &Path) -> Result<()> {
             for entry in entries.flatten() {
                 let name = entry.file_name();
                 let dest = archive_phases.join(&name);
+                // INTENTIONAL: archive copy is best-effort — partial archive is acceptable
                 let _ = std::fs::copy(entry.path(), dest);
             }
         }
@@ -73,12 +74,13 @@ pub fn archive(crosslink_dir: &Path) -> Result<()> {
             for entry in entries.flatten() {
                 let name = entry.file_name();
                 let dest = archive_cp.join(&name);
+                // INTENTIONAL: archive copy is best-effort — partial archive is acceptable
                 let _ = std::fs::copy(entry.path(), dest);
             }
         }
     }
 
-    // Remove active swarm files and pointer
+    // INTENTIONAL: swarm file cleanup is best-effort — partial removal is acceptable, git commit tracks the state
     let _ = std::fs::remove_file(&plan_path);
     let _ = std::fs::remove_dir_all(&phases_dir);
     let _ = std::fs::remove_dir_all(&checkpoints_dir);
@@ -88,7 +90,7 @@ pub fn archive(crosslink_dir: &Path) -> Result<()> {
         let _ = std::fs::remove_dir_all(sync.cache_path().join(ctx.base));
     }
 
-    // Stage, commit, push
+    // INTENTIONAL: stage/commit/push are best-effort — archive is saved locally even if push fails
     let cache = sync.cache_path();
     let _ = std::process::Command::new("git")
         .current_dir(cache)
@@ -131,6 +133,7 @@ pub fn reset(crosslink_dir: &Path, no_archive: bool) -> Result<()> {
         bail!("No active swarm plan to reset.");
     }
 
+    // INTENTIONAL: swarm file cleanup is best-effort — partial removal is acceptable, git commit tracks the state
     let _ = std::fs::remove_file(&plan_path);
     let _ = std::fs::remove_dir_all(sync.cache_path().join(format!("{}/phases", ctx.base)));
     let _ = std::fs::remove_dir_all(sync.cache_path().join(ctx.checkpoints_dir()));
@@ -139,6 +142,7 @@ pub fn reset(crosslink_dir: &Path, no_archive: bool) -> Result<()> {
         let _ = std::fs::remove_dir_all(sync.cache_path().join(ctx.base));
     }
 
+    // INTENTIONAL: stage/commit/push are best-effort — reset is saved locally even if push fails
     let cache = sync.cache_path();
     let _ = std::process::Command::new("git")
         .current_dir(cache)

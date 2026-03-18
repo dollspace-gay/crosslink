@@ -321,7 +321,7 @@ pub fn sync_cmd(crosslink_dir: &Path, db: &Database) -> Result<()> {
         Err(e) => eprintln!("Warning: could not publish agent key: {}", e),
     }
 
-    // Configure SSH signing in the cache worktree (if agent has a key)
+    // INTENTIONAL: signing config is best-effort — sync proceeds with unsigned commits if this fails
     let _ = sync.configure_signing(crosslink_dir);
 
     // Upgrade v1 layouts to v2 if needed (migrates inline comments to standalone files)

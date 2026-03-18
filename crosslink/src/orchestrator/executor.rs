@@ -141,6 +141,7 @@ impl OrchestratorExecutor {
                     "high",
                 )
                 .context("Failed to create phase parent issue")?;
+            // INTENTIONAL: label failures are non-fatal — the issue was created successfully
             let _ = db.add_label(phase_issue_id, "orchestrator");
             let _ = db.add_label(phase_issue_id, "phase");
             phase_issues.insert(phase.id.clone(), phase_issue_id);
@@ -164,6 +165,7 @@ impl OrchestratorExecutor {
                     )
                     .context("Failed to create stage subissue")?;
 
+                // INTENTIONAL: label/milestone failures are non-fatal — the issue was created successfully
                 let _ = db.add_label(issue_id, "orchestrator");
                 let _ = db.add_label(issue_id, "stage");
 
@@ -182,6 +184,7 @@ impl OrchestratorExecutor {
                 let blocked_id = stage_issue_map[&stage.id];
                 for dep_id in &stage.depends_on {
                     if let Some(&blocker_id) = stage_issue_map.get(dep_id) {
+                        // INTENTIONAL: dependency failures are non-fatal — execution proceeds without the graph edge
                         let _ = db.add_dependency(blocked_id, blocker_id);
                     }
                 }
@@ -373,6 +376,7 @@ impl OrchestratorExecutor {
 
         // Close the stage's crosslink issue.
         if let Some(issue_id) = self.snapshot.dag.get(stage_id).and_then(|n| n.issue_id) {
+            // INTENTIONAL: close failure is non-fatal — execution proceeds regardless
             let _ = db.close_issue(issue_id);
         }
 
@@ -381,11 +385,10 @@ impl OrchestratorExecutor {
         // Check if the phase is complete (all stages in this phase are done).
         let phase_complete = self.check_phase_complete(&phase_id);
         if phase_complete {
-            // Close the phase milestone.
+            // INTENTIONAL: close failures are non-fatal — execution proceeds regardless
             if let Some(&milestone_id) = self.snapshot.phase_milestones.get(&phase_id) {
                 let _ = db.close_milestone(milestone_id);
             }
-            // Close the phase parent issue.
             if let Some(&phase_issue_id) = self.snapshot.phase_issues.get(&phase_id) {
                 let _ = db.close_issue(phase_issue_id);
             }
@@ -573,6 +576,7 @@ impl OrchestratorExecutor {
 
     /// Broadcast a WebSocket event through the given sender.
     pub fn broadcast_event(tx: &broadcast::Sender<WsEvent>, event: WsExecutionProgressEvent) {
+        // INTENTIONAL: broadcast failure is harmless when no WebSocket subscribers are connected
         let _ = tx.send(WsEvent::ExecutionProgress(event));
     }
 

@@ -26,6 +26,7 @@ impl SyncManager {
 
         // 1. Remove old worktree if it exists
         if has_old_local_cache {
+            // INTENTIONAL: worktree removal is best-effort — fallback below handles the case where it fails
             let _ = self.git_in_repo(&[
                 "worktree",
                 "remove",
@@ -34,8 +35,8 @@ impl SyncManager {
             ]);
             // Fallback: if worktree remove fails, just delete the directory
             if old_cache.exists() {
+                // INTENTIONAL: dir cleanup and worktree prune are best-effort during migration
                 let _ = std::fs::remove_dir_all(&old_cache);
-                // Clean up stale worktree reference
                 let _ = self.git_in_repo(&["worktree", "prune"]);
             }
         }
@@ -89,6 +90,7 @@ impl SyncManager {
             .git_in_repo(&["rev-parse", "--verify", OLD_BRANCH])
             .is_ok()
         {
+            // INTENTIONAL: old branch deletion is best-effort — leftover branch is harmless
             let _ = self.git_in_repo(&["branch", "-D", OLD_BRANCH]);
         }
 

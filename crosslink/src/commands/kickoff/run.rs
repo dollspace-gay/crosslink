@@ -60,7 +60,7 @@ pub fn run(
                 "medium",
             )?
         };
-        // Add the feature label
+        // INTENTIONAL: label failure is non-fatal — the issue was created successfully
         if let Some(w) = writer {
             let _ = w.add_label(db, id, "feature");
         } else {

@@ -119,6 +119,7 @@ impl SharedWriter {
                 if let Ok(mut issue) = read_issue_file(&path) {
                     issue.display_id = None;
                     if let Ok(json) = serde_json::to_string_pretty(&issue) {
+                        // INTENTIONAL: reverting display_id on disk is best-effort — offline issues will be re-assigned on next push
                         let _ = std::fs::write(&path, json);
                     }
                 }
@@ -126,6 +127,7 @@ impl SharedWriter {
             // Revert counter
             if let Ok(mut counters) = self.read_counters() {
                 counters.next_display_id -= count;
+                // INTENTIONAL: counter revert is best-effort — counters will be corrected on next push
                 let _ = self.write_counters_to_cache(&counters);
             }
             // Amend the commit to reflect reverted state
@@ -134,7 +136,7 @@ impl SharedWriter {
             }
             if let Err(e) = self.git_in_cache(&["commit", "--amend", "--no-edit"]) {
                 eprintln!("Warning: failed to commit reverted state: {}", e);
-                // Last resort: clean dirty state so we don't poison future syncs
+                // INTENTIONAL: last-resort dirty state cleanup is best-effort — prevents poisoning future syncs
                 let _ = self.sync.clean_dirty_state();
             }
             return Ok(vec![]);
@@ -266,7 +268,7 @@ impl SharedWriter {
             ]) {
                 eprintln!("Warning: failed to commit rewritten references: {}", e);
             }
-            // Best-effort push
+            // INTENTIONAL: push is best-effort — rewritten references will be pushed on next sync
             let _ = self.git_in_cache(&["push", self.sync.remote(), crate::sync::HUB_BRANCH]);
         }
 

@@ -343,6 +343,7 @@ pub(super) fn init_worktree_agent(
     if wt_crosslink.exists() {
         // Only init if not already configured
         if AgentConfig::load(&wt_crosslink)?.is_none() {
+            // INTENTIONAL: agent init failure is non-fatal — agent can still work without its own identity
             let _ = super::super::agent::init(
                 &wt_crosslink,
                 &agent_id,
@@ -362,6 +363,7 @@ pub(super) fn init_worktree_agent(
 
                         let agent_json = wt_crosslink.join("agent.json");
                         if let Ok(json) = serde_json::to_string_pretty(&child_config) {
+                            // INTENTIONAL: agent config write is best-effort — agent can work with inherited config
                             let _ = std::fs::write(&agent_json, json);
                         }
 
@@ -487,13 +489,13 @@ pub(super) fn launch_local(
         .context("Failed to send command to tmux session")?;
 
     if !output.status.success() {
-        // Mark as failed before bailing
+        // INTENTIONAL: status file write is best-effort — used for monitoring, not control flow
         let _ = std::fs::write(worktree_dir.join(".kickoff-status"), "FAILED\n");
         let stderr = String::from_utf8_lossy(&output.stderr);
         bail!("Failed to send keys to tmux: {}", stderr.trim());
     }
 
-    // Update status to RUNNING now that the command has been sent
+    // INTENTIONAL: status file write is best-effort — used for monitoring, not control flow
     let _ = std::fs::write(worktree_dir.join(".kickoff-status"), "RUNNING\n");
 
     // Spawn watchdog sidecar to nudge idle agents

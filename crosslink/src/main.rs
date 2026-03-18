@@ -1133,9 +1133,6 @@ enum KnowledgeCommands {
         /// Add source URL (repeatable)
         #[arg(long)]
         source: Vec<String>,
-        /// Replace content from a document file
-        #[arg(long, value_name = "PATH")]
-        from_doc: Option<PathBuf>,
     },
     /// Remove a knowledge page
     Remove {
@@ -1366,38 +1363,14 @@ enum SwarmCommands {
         #[arg(long, value_name = "PATH")]
         doc: PathBuf,
     },
-    /// Show current swarm status (agents, phases, progress, next steps)
+    /// Show current swarm status (agents, phases, progress)
     Status,
     /// Reconstruct state and show next steps for resuming
     Resume,
-    /// Sync agent statuses from live worktree state into phase JSON
-    SyncStatus,
-    /// Associate an external agent/branch with a swarm slot
-    Adopt {
-        /// Agent slug or branch name of the external agent
-        agent: String,
-        /// Swarm slot slug to assign the agent to
-        #[arg(long, value_name = "SLUG")]
-        slot: String,
-    },
-    /// Archive the current swarm and clear the active slot
-    Archive,
-    /// Reset the active swarm (archives by default)
-    Reset {
-        /// Delete without archiving
-        #[arg(long)]
-        no_archive: bool,
-    },
-    /// List active and archived swarms
-    #[command(name = "list")]
-    ListSwarms,
     /// Launch all planned agents for a phase
     Launch {
         /// Phase slug (e.g. "phase-1")
         phase: String,
-        /// Retry only previously failed agents
-        #[arg(long)]
-        retry_failed: bool,
         /// Check budget before launching; block if insufficient
         #[arg(long)]
         budget_aware: bool,
@@ -1486,50 +1459,6 @@ enum SwarmCommands {
         /// Agent slugs to merge (default: all completed agents from current swarm)
         #[arg(long, value_name = "SLUGS")]
         agents: Option<String>,
-    },
-    /// Move an agent to a different phase
-    #[command(name = "move")]
-    MoveAgent {
-        /// Agent slug to move
-        agent: String,
-        /// Target phase name
-        #[arg(long, value_name = "PHASE")]
-        to_phase: String,
-    },
-    /// Merge two phases into one
-    MergePhases {
-        /// First phase name
-        phase_a: String,
-        /// Second phase name
-        phase_b: String,
-    },
-    /// Split a phase after a specific agent
-    SplitPhase {
-        /// Phase name to split
-        phase: String,
-        /// Split after this agent slug
-        #[arg(long, value_name = "SLUG")]
-        after: String,
-    },
-    /// Remove an agent from the plan
-    RemoveAgent {
-        /// Agent slug to remove
-        agent: String,
-    },
-    /// Reorder a phase to a new position
-    Reorder {
-        /// Phase name to move
-        phase: String,
-        /// New position (1-based)
-        #[arg(long)]
-        position: usize,
-    },
-    /// Rename a phase
-    RenamePhase {
-        /// Current phase name
-        old: String,
-        /// New phase name
-        new: String,
     },
     /// Continue a paused pipeline (e.g., after human checkpoint)
     ReviewContinue,
@@ -1908,12 +1837,12 @@ fn dispatch_issue(action: IssueCommands, quiet: bool, json: bool) -> Result<()> 
 
         IssueCommands::Blocked => {
             let db = get_db()?;
-            commands::deps::list_blocked(&db, json)
+            commands::deps::list_blocked(&db)
         }
 
         IssueCommands::Ready => {
             let db = get_db()?;
-            commands::deps::list_ready(&db, json)
+            commands::deps::list_ready(&db)
         }
 
         IssueCommands::Relate { id, related } => {
@@ -1938,12 +1867,12 @@ fn dispatch_issue(action: IssueCommands, quiet: bool, json: bool) -> Result<()> 
         IssueCommands::Next => {
             let db = get_db()?;
             let crosslink_dir = find_crosslink_dir()?;
-            commands::next::run(&db, &crosslink_dir, json)
+            commands::next::run(&db, &crosslink_dir)
         }
 
         IssueCommands::Tree { status } => {
             let db = get_db()?;
-            commands::tree::run(&db, Some(&status), json)
+            commands::tree::run(&db, Some(&status))
         }
 
         IssueCommands::Tested => {
@@ -2250,7 +2179,7 @@ fn main() -> Result<()> {
         Commands::Session { action } => {
             let db = get_db()?;
             let crosslink_dir = find_crosslink_dir()?;
-            commands::session::run(action, &db, &crosslink_dir, cli.json)
+            commands::session::run(action, &db, &crosslink_dir)
         }
 
         Commands::Daemon { action } => match action {
@@ -2296,6 +2225,7 @@ fn main() -> Result<()> {
             match agent {
                 Some(agent) => {
                     let sync = crate::sync::SyncManager::new(&crosslink_dir)?;
+                    // INTENTIONAL: cache init is best-effort — push_heartbeat below will report the real error
                     let _ = sync.init_cache();
                     let db = get_db()?;
                     let active_issue = db
@@ -2386,33 +2316,15 @@ fn main() -> Result<()> {
             let crosslink_dir = find_crosslink_dir()?;
             match action {
                 SwarmCommands::Init { doc } => commands::swarm::init(&crosslink_dir, &doc),
-                SwarmCommands::Status => commands::swarm::status(&crosslink_dir, cli.json),
+                SwarmCommands::Status => commands::swarm::status(&crosslink_dir),
                 SwarmCommands::Resume => commands::swarm::resume(&crosslink_dir),
-                SwarmCommands::SyncStatus => commands::swarm::sync_status(&crosslink_dir),
-                SwarmCommands::Adopt { agent, slot } => {
-                    commands::swarm::adopt(&crosslink_dir, &agent, &slot)
-                }
-                SwarmCommands::Archive => commands::swarm::archive(&crosslink_dir),
-                SwarmCommands::Reset { no_archive } => {
-                    commands::swarm::reset(&crosslink_dir, no_archive)
-                }
-                SwarmCommands::ListSwarms => commands::swarm::list_swarms(&crosslink_dir),
                 SwarmCommands::Launch {
                     phase,
                     budget_aware,
-                    retry_failed,
                 } => {
                     let db = get_db()?;
                     let writer = get_writer(&crosslink_dir);
-                    if retry_failed {
-                        commands::swarm::launch_retry_failed(
-                            &crosslink_dir,
-                            &db,
-                            writer.as_ref(),
-                            &phase,
-                            cli.quiet,
-                        )
-                    } else if budget_aware {
+                    if budget_aware {
                         commands::swarm::launch_budget_aware(
                             &crosslink_dir,
                             &db,
@@ -2479,24 +2391,6 @@ fn main() -> Result<()> {
                     dry_run,
                     agents,
                 } => commands::swarm::merge(&crosslink_dir, &branch, dry_run, agents.as_deref()),
-                SwarmCommands::MoveAgent { agent, to_phase } => {
-                    commands::swarm::move_agent(&crosslink_dir, &agent, &to_phase)
-                }
-                SwarmCommands::MergePhases { phase_a, phase_b } => {
-                    commands::swarm::merge_phases(&crosslink_dir, &phase_a, &phase_b)
-                }
-                SwarmCommands::SplitPhase { phase, after } => {
-                    commands::swarm::split_phase(&crosslink_dir, &phase, &after)
-                }
-                SwarmCommands::RemoveAgent { agent } => {
-                    commands::swarm::remove_agent(&crosslink_dir, &agent)
-                }
-                SwarmCommands::Reorder { phase, position } => {
-                    commands::swarm::reorder_phase(&crosslink_dir, &phase, position)
-                }
-                SwarmCommands::RenamePhase { old, new } => {
-                    commands::swarm::rename_phase(&crosslink_dir, &old, &new)
-                }
                 SwarmCommands::ReviewContinue => commands::swarm::review_continue(&crosslink_dir),
                 SwarmCommands::ReviewStatus => commands::swarm::review_status(&crosslink_dir),
                 SwarmCommands::Pipeline {
