@@ -336,6 +336,7 @@ impl Database {
 
             // Migration v13: Add driver_key_fingerprint to comments for audit trail
             if version < 13 {
+                // INTENTIONAL: ALTER TABLE ADD COLUMN fails if the column already exists (idempotent migration)
                 let _ = self.conn.execute(
                     "ALTER TABLE comments ADD COLUMN driver_key_fingerprint TEXT",
                     [],

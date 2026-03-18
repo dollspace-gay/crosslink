@@ -272,6 +272,7 @@ impl SharedWriter {
             self.resolve_ssh_key_path(),
             self.agent.ssh_fingerprint.as_ref(),
         ) {
+            // INTENTIONAL: signing failure is non-fatal — unsigned events are still valid
             let _ = crate::events::sign_event(&mut envelope, &key_path, fingerprint);
         }
 
@@ -295,6 +296,7 @@ impl SharedWriter {
             // Stage event log + compaction output
             let rel_log = format!("agents/{}/events.log", self.agent.agent_id);
             self.git_in_cache(&["add", &rel_log])?;
+            // INTENTIONAL: staging directories is best-effort — they may not exist if compaction produced no output
             let _ = self.git_in_cache(&["add", "checkpoint/"]);
             let _ = self.git_in_cache(&["add", "issues/"]);
             let _ = self.git_in_cache(&["add", "locks/"]);
@@ -335,9 +337,8 @@ impl SharedWriter {
                         if attempt < MAX_RETRIES - 1 {
                             // Bail if local has diverged too far — sign of a rebase loop
                             self.check_divergence()?;
-                            // Reset commit AND working directory — the prepare
-                            // closure re-generates content on the next iteration,
-                            // so losing working dir changes is safe.
+                            // INTENTIONAL: reset failure is non-fatal — the pull --rebase below
+                            // will reconcile state; the prepare closure re-generates content on retry
                             let _ = self.git_in_cache(&["reset", "--hard", "HEAD~1"]);
                             self.git_in_cache(&[
                                 "pull",
@@ -1160,6 +1161,7 @@ impl SharedWriter {
                 if let Ok(mut issue) = read_issue_file(&path) {
                     issue.display_id = None;
                     if let Ok(json) = serde_json::to_string_pretty(&issue) {
+                        // INTENTIONAL: offline revert is best-effort — display IDs will be re-assigned on next sync
                         let _ = std::fs::write(&path, json);
                     }
                 }
@@ -1167,6 +1169,7 @@ impl SharedWriter {
             // Revert counter
             if let Ok(mut counters) = self.read_counters() {
                 counters.next_display_id -= count;
+                // INTENTIONAL: counter revert is best-effort — will be corrected on next sync
                 let _ = self.write_counters_to_cache(&counters);
             }
             // Amend the commit to reflect reverted state
@@ -1175,7 +1178,7 @@ impl SharedWriter {
             }
             if let Err(e) = self.git_in_cache(&["commit", "--amend", "--no-edit"]) {
                 eprintln!("Warning: failed to commit reverted state: {}", e);
-                // Last resort: clean dirty state so we don't poison future syncs
+                // INTENTIONAL: last-resort dirty state cleanup — prevents poisoning future syncs
                 let _ = self.sync.clean_dirty_state();
             }
             return Ok(vec![]);
@@ -1307,7 +1310,7 @@ impl SharedWriter {
             ]) {
                 eprintln!("Warning: failed to commit rewritten references: {}", e);
             }
-            // Best-effort push
+            // INTENTIONAL: push is best-effort — rewritten references will be pushed on next sync
             let _ = self.git_in_cache(&["push", self.sync.remote(), crate::sync::HUB_BRANCH]);
         }
 
@@ -1622,6 +1625,7 @@ impl SharedWriter {
             // Stage
             for path in &paths {
                 if write_set.use_git_rm {
+                    // INTENTIONAL: rm --cached with --ignore-unmatch is inherently best-effort
                     let _ = self.git_in_cache(&["rm", "--cached", "--ignore-unmatch", path]);
                 } else {
                     self.git_in_cache(&["add", path])?;
@@ -1668,6 +1672,8 @@ impl SharedWriter {
                         if attempt < MAX_RETRIES - 1 {
                             // Bail if local has diverged too far — sign of a rebase loop
                             self.check_divergence()?;
+                            // INTENTIONAL: reset failure is non-fatal — the pull --rebase below
+                            // will reconcile state; the prepare closure re-generates content on retry
                             let _ = self.git_in_cache(&["reset", "--hard", "HEAD~1"]);
                             self.git_in_cache(&[
                                 "pull",
@@ -1740,6 +1746,7 @@ impl SharedWriter {
             Some(lock) => {
                 // We lost — clean up by emitting LockReleased
                 let release = crate::events::Event::LockReleased { issue_display_id };
+                // INTENTIONAL: cleanup release is best-effort — lock contention was already resolved
                 let _ = self.emit_compact_push(
                     release,
                     &format!("release lock on #{} (contention cleanup)", issue_display_id),

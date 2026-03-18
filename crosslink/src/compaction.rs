@@ -64,10 +64,12 @@ impl CompactionLockGuard {
             let is_self = info.agent_id == agent_id;
 
             if is_stale || (force && is_self) {
+                // INTENTIONAL: lock file removal is best-effort — try_create below handles the race
                 let _ = fs::remove_file(&path);
                 return Self::try_create(&path, agent_id).map(Some).or(Ok(None));
             }
         } else if force {
+            // INTENTIONAL: lock file removal is best-effort — try_create below handles the race
             let _ = fs::remove_file(&path);
             return Self::try_create(&path, agent_id).map(Some).or(Ok(None));
         }
@@ -112,6 +114,7 @@ impl CompactionLockGuard {
 
 impl Drop for CompactionLockGuard {
     fn drop(&mut self) {
+        // INTENTIONAL: lock cleanup in Drop is best-effort — stale locks are handled on next acquisition
         let _ = fs::remove_file(&self.path);
     }
 }

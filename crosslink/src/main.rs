@@ -2225,6 +2225,7 @@ fn main() -> Result<()> {
             match agent {
                 Some(agent) => {
                     let sync = crate::sync::SyncManager::new(&crosslink_dir)?;
+                    // INTENTIONAL: cache init is best-effort — push_heartbeat below will report the real error
                     let _ = sync.init_cache();
                     let db = get_db()?;
                     let active_issue = db

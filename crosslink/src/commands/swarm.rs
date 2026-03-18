@@ -3197,7 +3197,7 @@ pub fn merge(
             eprintln!("  This agent's changes need manual resolution.");
             failed.push(slug.clone());
 
-            // Abort any partial apply
+            // INTENTIONAL: checkout to abort partial apply is best-effort — next iteration starts fresh
             let _ = std::process::Command::new("git")
                 .current_dir(repo_root)
                 .args(["checkout", "."])

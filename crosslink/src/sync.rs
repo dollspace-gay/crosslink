@@ -110,6 +110,7 @@ impl SyncManager {
 
         // 1. Remove old worktree if it exists
         if has_old_local_cache {
+            // INTENTIONAL: migration cleanup is best-effort — we proceed with the new branch either way
             let _ = self.git_in_repo(&[
                 "worktree",
                 "remove",
@@ -119,7 +120,6 @@ impl SyncManager {
             // Fallback: if worktree remove fails, just delete the directory
             if old_cache.exists() {
                 let _ = std::fs::remove_dir_all(&old_cache);
-                // Clean up stale worktree reference
                 let _ = self.git_in_repo(&["worktree", "prune"]);
             }
         }
@@ -173,6 +173,7 @@ impl SyncManager {
             .git_in_repo(&["rev-parse", "--verify", OLD_BRANCH])
             .is_ok()
         {
+            // INTENTIONAL: old branch deletion is best-effort during migration
             let _ = self.git_in_repo(&["branch", "-D", OLD_BRANCH]);
         }
 
@@ -400,6 +401,7 @@ impl SyncManager {
         )?;
 
         // Commit the migration
+        // INTENTIONAL: staging is best-effort — we check for actual changes before committing
         let _ = self.git_in_cache(&["add", "-A"]);
         let has_changes = self.git_in_cache(&["diff", "--cached", "--quiet"]).is_err();
         if has_changes {
@@ -431,7 +433,8 @@ impl SyncManager {
                 if stdout.trim().is_empty() {
                     return Ok(false);
                 }
-                // Dirty state found — stage and commit to recover
+                // INTENTIONAL: dirty state recovery is best-effort — staging or committing may fail
+                // if the worktree is in a truly broken state, but we should not block the caller
                 let _ = self.git_in_cache(&["add", "-A"]);
                 let _ = self.git_in_cache(&[
                     "commit",
@@ -695,8 +698,9 @@ impl SyncManager {
                                     );
                                     failed += 1;
                                 } else {
-                                    // Can't verify without allowed_signers — count as signed but unverifiable
-                                    let _ = fingerprint; // acknowledge the signature exists
+                                    // INTENTIONAL: suppress unused variable warning — we acknowledge the
+                                    // signature exists but can't verify without allowed_signers
+                                    let _ = fingerprint;
                                     unsigned += 1;
                                 }
                             }
@@ -810,6 +814,7 @@ impl SyncManager {
                 // Bail if local has diverged too far — sign of a rebase loop
                 self.check_divergence()?;
 
+                // INTENTIONAL: conflict recovery is best-effort — heartbeat data is ephemeral
                 let _ = self.clean_dirty_state();
                 let _ = self.git_in_cache(&["pull", "--rebase", &self.remote, HUB_BRANCH]);
                 if let Err(retry_err) = self.git_in_cache(&["push", &self.remote, HUB_BRANCH]) {
@@ -1154,7 +1159,7 @@ impl SyncManager {
                 Err(e) => {
                     let err_str = e.to_string();
                     if err_str.contains("Push failed after") && attempt < 2 {
-                        // Push conflict — pull latest and re-check lock ownership
+                        // INTENTIONAL: pull failure is non-fatal — the retry loop will catch persistent failures
                         let _ = self.git_in_cache(&["pull", "--rebase", &self.remote, HUB_BRANCH]);
                         continue;
                     }
@@ -1230,6 +1235,7 @@ impl SyncManager {
                         if attempt < 2 {
                             // Bail if local has diverged too far — sign of a rebase loop
                             self.check_divergence()?;
+                            // INTENTIONAL: pull failure is non-fatal — the retry loop will catch persistent failures
                             let _ =
                                 self.git_in_cache(&["pull", "--rebase", &self.remote, HUB_BRANCH]);
                             continue;
@@ -1297,6 +1303,7 @@ impl SyncManager {
                         if attempt < 2 {
                             // Bail if local has diverged too far — sign of a rebase loop
                             self.check_divergence()?;
+                            // INTENTIONAL: pull failure is non-fatal — the retry loop will catch persistent failures
                             let _ =
                                 self.git_in_cache(&["pull", "--rebase", &self.remote, HUB_BRANCH]);
                             continue;
@@ -1404,6 +1411,7 @@ impl SyncManager {
             } else {
                 "--local"
             };
+            // INTENTIONAL: git config failures are non-fatal — commits may use the global config instead
             let _ = Command::new("git")
                 .current_dir(&self.cache_dir)
                 .args(["config", scope_flag, "user.email", "crosslink@localhost"])

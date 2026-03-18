@@ -1600,6 +1600,7 @@ fn init_worktree_agent(worktree_dir: &Path, crosslink_dir: &Path, slug: &str) ->
     if wt_crosslink.exists() {
         // Only init if not already configured
         if AgentConfig::load(&wt_crosslink)?.is_none() {
+            // INTENTIONAL: agent init failure is non-fatal — kickoff proceeds without agent identity
             let _ = super::agent::init(
                 &wt_crosslink,
                 &agent_id,
@@ -1619,6 +1620,7 @@ fn init_worktree_agent(worktree_dir: &Path, crosslink_dir: &Path, slug: &str) ->
 
                         let agent_json = wt_crosslink.join("agent.json");
                         if let Ok(json) = serde_json::to_string_pretty(&child_config) {
+                            // INTENTIONAL: config write is best-effort — agent functions without SSH key info
                             let _ = std::fs::write(&agent_json, json);
                         }
 
@@ -1742,13 +1744,13 @@ fn launch_local(
         .context("Failed to send command to tmux session")?;
 
     if !output.status.success() {
-        // Mark as failed before bailing
+        // INTENTIONAL: status file write is best-effort — we bail immediately after anyway
         let _ = std::fs::write(worktree_dir.join(".kickoff-status"), "FAILED\n");
         let stderr = String::from_utf8_lossy(&output.stderr);
         bail!("Failed to send keys to tmux: {}", stderr.trim());
     }
 
-    // Update status to RUNNING now that the command has been sent
+    // INTENTIONAL: status file write is best-effort — kickoff proceeds regardless
     let _ = std::fs::write(worktree_dir.join(".kickoff-status"), "RUNNING\n");
 
     // Spawn watchdog sidecar to nudge idle agents
@@ -1911,7 +1913,7 @@ pub fn run(
                 "medium",
             )?
         };
-        // Add the feature label
+        // INTENTIONAL: label failure is non-fatal — the issue was created successfully
         if let Some(w) = writer {
             let _ = w.add_label(db, id, "feature");
         } else {
@@ -2879,6 +2881,7 @@ fn truncate_str(s: &str, max: usize) -> String {
 pub fn logs(crosslink_dir: &Path, agent: &str, lines: usize) -> Result<()> {
     // Read the agent's event log from the hub branch
     if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
+        // INTENTIONAL: init and fetch are best-effort — logs command works with cached data if offline
         let _ = sync.init_cache();
         let _ = sync.fetch();
         let cache = sync.cache_path();
