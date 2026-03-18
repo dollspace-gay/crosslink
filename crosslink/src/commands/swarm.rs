@@ -508,6 +508,7 @@ fn slugify_phase(name: &str) -> String {
 // ---------------------------------------------------------------------------
 
 /// Resolved runtime status of an agent, combining phase definition + worktree state.
+#[derive(Serialize)]
 struct ResolvedAgent {
     slug: String,
     description: String,
@@ -517,7 +518,7 @@ struct ResolvedAgent {
 }
 
 /// Display the current state of the swarm.
-pub fn status(crosslink_dir: &Path) -> Result<()> {
+pub fn status(crosslink_dir: &Path, json: bool) -> Result<()> {
     let sync = SyncManager::new(crosslink_dir)?;
     if !sync.is_initialized() {
         bail!("Hub cache not initialized. Run `crosslink sync` first.");
@@ -529,6 +530,31 @@ pub fn status(crosslink_dir: &Path) -> Result<()> {
     let root = crosslink_dir
         .parent()
         .ok_or_else(|| anyhow::anyhow!("Cannot determine repo root"))?;
+
+    if json {
+        let mut phases_json = Vec::new();
+        for phase_name in &plan.phases {
+            let phase_file = format!("swarm/phases/{}.json", slugify_phase(phase_name));
+            let phase: PhaseDefinition = match read_hub_json(&sync, &phase_file) {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+            let resolved = resolve_agents(&phase, root);
+            phases_json.push(serde_json::json!({
+                "name": phase.name,
+                "status": phase.status,
+                "gate": phase.gate,
+                "depends_on": phase.depends_on,
+                "agents": resolved,
+            }));
+        }
+        let output = serde_json::json!({
+            "title": plan.title,
+            "phases": phases_json,
+        });
+        println!("{}", serde_json::to_string_pretty(&output)?);
+        return Ok(());
+    }
 
     println!("Swarm: {}", plan.title);
     println!();

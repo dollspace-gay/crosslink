@@ -2315,7 +2315,7 @@ fn main() -> Result<()> {
             let crosslink_dir = find_crosslink_dir()?;
             match action {
                 SwarmCommands::Init { doc } => commands::swarm::init(&crosslink_dir, &doc),
-                SwarmCommands::Status => commands::swarm::status(&crosslink_dir),
+                SwarmCommands::Status => commands::swarm::status(&crosslink_dir, cli.json),
                 SwarmCommands::Resume => commands::swarm::resume(&crosslink_dir),
                 SwarmCommands::Launch {
                     phase,
