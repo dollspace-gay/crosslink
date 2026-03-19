@@ -15,6 +15,9 @@ mod smoke {
     // Adversarial tests
     mod adversarial; // boundary, corruption, injection, concurrency
 
+    // Concurrency and network-partition tests
+    mod concurrency;
+
     // TUI + proptest
     mod tui_proptest; // TUI renders, proptest extensions
 }
