@@ -92,13 +92,10 @@ pub fn dispatch(
             }
             run(crosslink_dir, db, writer, &opts)
         }
-        KickoffCommands::Status { agent } => {
-            if agent.is_none() {
-                // No agent specified — show pipeline status overview
-                return pipeline_status_overview(crosslink_dir, json);
-            }
-            status(crosslink_dir, &agent.unwrap())
-        }
+        KickoffCommands::Status { agent } => match agent {
+            None => pipeline_status_overview(crosslink_dir, json),
+            Some(ref id) => status(crosslink_dir, id),
+        },
         KickoffCommands::Logs { agent, lines } => logs(crosslink_dir, &agent, lines),
         KickoffCommands::Stop { agent, force } => stop(crosslink_dir, &agent, force),
         KickoffCommands::Plan {
