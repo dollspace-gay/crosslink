@@ -1,0 +1,8 @@
+{
+  "uuid": "919c5688-15de-438f-9752-f635536aeb69",
+  "issue_uuid": "f14f72f9-5c65-4549-9ee5-433b8d4a6e46",
+  "author": "agent-217-kickoff-ux",
+  "content": "Plan: Implementing unified design-plan-run flow. Key changes: (1) New pipeline.rs module for PipelineState types, doc_hash computation, staleness checks. (2) New design_cmd.rs for 'crosslink design' foreground Claude sessions. (3) New wizard.rs for ratatui interactive wizard (4 screens: source→stage→config→launch). (4) Updates to mod.rs dispatch for new command routing. (5) Updates to main.rs for Design command + updated KickoffCommands. (6) Updates to prompt.rs for plan context injection. (7) Updates to plan.rs and run.rs for pipeline state tracking. (8) Updates to monitor.rs for pipeline status view. (9) Updates to design.md skill template for pipeline state creation. (10) .gitignore updates for *.pipeline.json and *.plan.json.",
+  "created_at": "2026-03-19T01:47:23.474572Z",
+  "kind": "plan"
+}
