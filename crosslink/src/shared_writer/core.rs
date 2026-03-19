@@ -669,6 +669,11 @@ impl SharedWriter {
         let _lock_guard = acquire_hub_lock(&lock_path)?;
 
         for attempt in 0..MAX_RETRIES {
+            // Recover from broken git states before attempting write (#454, #455, #456)
+            if let Err(e) = self.hub_health_check() {
+                tracing::warn!("hub health check failed (non-fatal): {}", e);
+            }
+
             // (Re-)generate content -- reads fresh counters/files after rebase
             let write_set = prepare(self)?;
 
@@ -698,7 +703,14 @@ impl SharedWriter {
                         if let Some(uuid_dir) = rel_path.strip_suffix("/issue.json") {
                             let v1_path = self.cache_dir.join(format!("{}.json", uuid_dir));
                             if v1_path.exists() {
-                                let _ = std::fs::remove_file(&v1_path);
+                                // INTENTIONAL: stale V1 file cleanup is best-effort — V2 file is the source of truth
+                                if let Err(e) = std::fs::remove_file(&v1_path) {
+                                    tracing::debug!(
+                                        "failed to remove stale V1 file {}: {}",
+                                        v1_path.display(),
+                                        e
+                                    );
+                                }
                             }
                         }
                     }
@@ -723,7 +735,17 @@ impl SharedWriter {
                     // disk but the commit fails (#427). --force handles
                     // modified files; --ignore-unmatch handles retries where
                     // the file is already gone.
-                    let _ = self.git_in_cache(&["rm", "--force", "--ignore-unmatch", path]);
+                    // -r enables recursive removal for V2 directories (#460)
+                    // INTENTIONAL: git rm is best-effort — --ignore-unmatch handles missing files on retry
+                    if let Err(e) =
+                        self.git_in_cache(&["rm", "-r", "--force", "--ignore-unmatch", path])
+                    {
+                        tracing::debug!(
+                            "git rm for '{}' did not succeed (may be already removed): {}",
+                            path,
+                            e
+                        );
+                    }
                 } else {
                     self.git_in_cache(&["add", path])?;
                 }
@@ -746,7 +768,14 @@ impl SharedWriter {
                 // them from HEAD to prevent split state (#427).
                 if write_set.use_git_rm {
                     for path in &paths {
-                        let _ = self.git_in_cache(&["checkout", "HEAD", "--", path]);
+                        // INTENTIONAL: restoring files after failed commit is best-effort — prevents split state (#427)
+                        if let Err(e) = self.git_in_cache(&["checkout", "HEAD", "--", path]) {
+                            tracing::warn!(
+                                "failed to restore '{}' from HEAD after commit failure: {}",
+                                path,
+                                e
+                            );
+                        }
                     }
                 }
                 commit_result?;
@@ -818,6 +847,12 @@ impl SharedWriter {
     /// Delegates to `SyncManager::check_divergence` via the shared `sync` field.
     pub(super) fn check_divergence(&self) -> Result<()> {
         self.sync.check_divergence()
+    }
+
+    /// Run hub health checks to recover from broken git states.
+    /// Delegates to `SyncManager::hub_health_check` via the shared `sync` field.
+    pub(super) fn hub_health_check(&self) -> Result<()> {
+        self.sync.hub_health_check()
     }
 
     /// Run a git command in the cache worktree.

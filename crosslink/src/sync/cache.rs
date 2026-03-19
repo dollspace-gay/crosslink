@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use std::time::Duration;
 
 use super::core::SyncManager;
 use super::HUB_BRANCH;
@@ -136,6 +137,79 @@ impl SyncManager {
         Ok(migrated)
     }
 
+    /// Detect and recover from broken git states in the hub cache worktree.
+    ///
+    /// Checks for three failure modes that can leave the cache unusable:
+    /// 1. **Mid-rebase state** — `.git/rebase-merge/` or `.git/rebase-apply/`
+    ///    directories left behind by an interrupted rebase. Cleared with
+    ///    `git rebase --abort`.
+    /// 2. **Detached HEAD** — HEAD is not attached to the hub branch.
+    ///    Re-attached with `git checkout crosslink/hub`.
+    /// 3. **Stale index.lock** — a leftover `index.lock` file older than 30
+    ///    seconds, indicating a crashed git process. Removed to unblock
+    ///    subsequent git operations.
+    ///
+    /// All recovery operations are best-effort: if any individual check or
+    /// fix fails, we log a warning and continue rather than failing the
+    /// caller's operation.
+    pub fn hub_health_check(&self) -> Result<()> {
+        if !self.cache_dir.exists() {
+            return Ok(());
+        }
+
+        // Resolve the actual git directory for the cache worktree.
+        // In a linked worktree, `.git` is a file pointing elsewhere.
+        let git_dir = match self.git_in_cache(&["rev-parse", "--git-dir"]) {
+            Ok(output) => {
+                let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let path = std::path::PathBuf::from(&raw);
+                // git rev-parse may return a relative path; resolve against cache_dir
+                if path.is_absolute() {
+                    path
+                } else {
+                    self.cache_dir.join(path)
+                }
+            }
+            Err(_) => {
+                // Cannot determine git dir — skip health checks
+                return Ok(());
+            }
+        };
+
+        // Fix 1: Mid-rebase state (#454)
+        let rebase_merge = git_dir.join("rebase-merge");
+        let rebase_apply = git_dir.join("rebase-apply");
+        if rebase_merge.exists() || rebase_apply.exists() {
+            tracing::warn!("hub cache is stuck in mid-rebase state, aborting rebase to recover");
+            // INTENTIONAL: rebase --abort is best-effort recovery — failure is non-fatal
+            let _ = self.git_in_cache(&["rebase", "--abort"]);
+        }
+
+        // Fix 2: Detached HEAD (#455)
+        let symbolic_ref_result = self.git_in_cache(&["symbolic-ref", "HEAD"]);
+        if symbolic_ref_result.is_err() {
+            tracing::warn!("hub cache HEAD is detached, re-attaching to {}", HUB_BRANCH);
+            // INTENTIONAL: checkout is best-effort recovery — failure is non-fatal
+            let _ = self.git_in_cache(&["checkout", HUB_BRANCH]);
+        }
+
+        // Fix 3: Stale index.lock (#456)
+        let index_lock = git_dir.join("index.lock");
+        if index_lock.exists() {
+            let is_stale = std::fs::metadata(&index_lock)
+                .and_then(|m| m.modified())
+                .map(|mtime| mtime.elapsed().unwrap_or(Duration::ZERO) > Duration::from_secs(30))
+                .unwrap_or(false);
+            if is_stale {
+                tracing::warn!("removing stale index.lock from hub cache (older than 30s)");
+                // INTENTIONAL: lock removal is best-effort recovery — failure is non-fatal
+                let _ = std::fs::remove_file(&index_lock);
+            }
+        }
+
+        Ok(())
+    }
+
     /// Detect and resolve dirty hub cache state.
     ///
     /// If the cache has modified/untracked files (e.g. from a failed push retry
@@ -171,6 +245,9 @@ impl SyncManager {
     /// pushed yet. Only resets to the remote when there are definitively no
     /// unpushed commits.
     pub fn fetch(&self) -> Result<()> {
+        // Recover from broken git states before attempting fetch (#454, #455, #456)
+        self.hub_health_check()?;
+
         // Try fetching from remote. If no remote is configured, this is a no-op.
         let fetch_result = self.git_in_cache(&["fetch", &self.remote, HUB_BRANCH]);
         if let Err(e) = &fetch_result {
@@ -252,7 +329,10 @@ impl SyncManager {
             // Rebase failed (likely a conflict). Abort to restore pre-rebase
             // state so local-only commits are preserved rather than lost.
             // The user can resolve manually or the next push will retry. (#430)
-            let _ = self.git_in_cache(&["rebase", "--abort"]);
+            // INTENTIONAL: rebase --abort is best-effort recovery — preserves local commits even if abort fails
+            if let Err(abort_err) = self.git_in_cache(&["rebase", "--abort"]) {
+                tracing::warn!("rebase --abort failed during recovery: {}", abort_err);
+            }
             tracing::warn!(
                 "rebase onto {} failed ({}); aborted to preserve local commits",
                 remote_ref,

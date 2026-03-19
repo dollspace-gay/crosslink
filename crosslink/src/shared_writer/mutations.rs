@@ -259,26 +259,32 @@ impl SharedWriter {
 
         let _ = self.write_commit_push(
             |writer| {
-                let rel_path = writer.issue_rel_path(&uuid);
-                // Don't delete the file here — let `git rm` in the staging
-                // loop handle both index and disk removal atomically. This
-                // prevents split state where the file is gone from disk but
-                // the commit fails, causing a later hydration to silently
-                // drop the issue from SQLite (#427).
-                let mut files = vec![(rel_path, vec![])];
-                // Also stage stale V1 flat file for removal if on V2 (#428)
                 if writer.layout_version() >= 2 {
-                    let v1_rel = format!("issues/{}.json", uuid);
-                    let v1_path = writer.cache_dir.join(&v1_rel);
-                    if v1_path.exists() {
-                        files.push((v1_rel, vec![]));
+                    // V2: remove the entire issue directory (issue.json + comments/)
+                    // to prevent orphaned comment files (#460).
+                    let issue_dir = writer.cache_dir.join("issues").join(uuid.to_string());
+                    if issue_dir.exists() {
+                        // INTENTIONAL: dir removal is best-effort — git rm -r handles the index
+                        let _ = std::fs::remove_dir_all(&issue_dir);
                     }
+                    // Also remove stale V1 flat file if present (#428)
+                    let v1_path = writer.cache_dir.join(format!("issues/{}.json", uuid));
+                    if v1_path.exists() {
+                        let _ = std::fs::remove_file(&v1_path);
+                    }
+                    Ok(WriteSet {
+                        files: vec![(format!("issues/{}", uuid), vec![])],
+                        counters: None,
+                        use_git_rm: true,
+                    })
+                } else {
+                    // V1: remove the single flat file
+                    Ok(WriteSet {
+                        files: vec![(format!("issues/{}.json", uuid), vec![])],
+                        counters: None,
+                        use_git_rm: true,
+                    })
                 }
-                Ok(WriteSet {
-                    files,
-                    counters: None,
-                    use_git_rm: true,
-                })
             },
             &format!("delete issue #{}", display_id),
         )?;

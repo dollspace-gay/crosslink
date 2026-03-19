@@ -124,7 +124,27 @@ impl SyncManager {
             match self
                 .commit_and_push_locks(&format!("{}: claim lock on #{}", agent.agent_id, issue_id))
             {
-                Ok(()) => return Ok(true),
+                Ok(()) => {
+                    // Verify our claim survived any rebase during push (#458)
+                    let verified = LocksFile::load(&self.cache_dir.join("locks.json"))?;
+                    match verified.get_lock(issue_id) {
+                        Some(lock) if lock.agent_id == agent.agent_id => {}
+                        Some(lock) => {
+                            bail!(
+                                "Lock claim for issue {} was overwritten during push by '{}'. Retry.",
+                                crate::utils::format_issue_id(issue_id),
+                                lock.agent_id
+                            );
+                        }
+                        None => {
+                            bail!(
+                                "Lock claim for issue {} was lost during push. Retry.",
+                                crate::utils::format_issue_id(issue_id)
+                            );
+                        }
+                    }
+                    return Ok(true);
+                }
                 Err(e) => {
                     let err_str = e.to_string();
                     if err_str.contains("Push failed after") && attempt < 2 {
@@ -171,6 +191,16 @@ impl SyncManager {
             "{}: release lock on #{}",
             agent.agent_id, issue_id
         ))?;
+
+        // Verify the release survived any rebase during push (#458)
+        let verified = LocksFile::load(&self.cache_dir.join("locks.json"))?;
+        if let Some(lock) = verified.get_lock(issue_id) {
+            bail!(
+                "Lock release for issue {} was undone during push — now held by '{}'. Retry.",
+                crate::utils::format_issue_id(issue_id),
+                lock.agent_id
+            );
+        }
 
         Ok(true)
     }
