@@ -671,6 +671,18 @@ impl SharedWriter {
                         std::fs::create_dir_all(parent)?;
                     }
                     std::fs::write(&full, content)?;
+
+                    // Clean up stale V1 flat file when writing V2 directory
+                    // format, preventing both from coexisting (#428).
+                    // V2 path: issues/{uuid}/issue.json → stale V1: issues/{uuid}.json
+                    if rel_path.ends_with("/issue.json") {
+                        if let Some(uuid_dir) = rel_path.strip_suffix("/issue.json") {
+                            let v1_path = self.cache_dir.join(format!("{}.json", uuid_dir));
+                            if v1_path.exists() {
+                                let _ = std::fs::remove_file(&v1_path);
+                            }
+                        }
+                    }
                 }
             }
             if let Some(ref c) = write_set.counters {
