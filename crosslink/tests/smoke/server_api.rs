@@ -19,7 +19,7 @@ use std::time::Duration;
 ///
 /// Uses `Connection: close` so the server closes the socket after responding,
 /// which avoids having to handle chunked transfer-encoding or keep-alive.
-fn http_request(port: u16, method: &str, path: &str, body: Option<&str>) -> (u16, String) {
+pub fn http_request(port: u16, method: &str, path: &str, body: Option<&str>) -> (u16, String) {
     let mut stream =
         TcpStream::connect(format!("127.0.0.1:{}", port)).expect("Failed to connect to server");
     stream.set_read_timeout(Some(Duration::from_secs(10))).ok();
@@ -109,7 +109,7 @@ fn decode_chunked(raw: &str) -> String {
 }
 
 /// Parse the response body as JSON. Panics with a helpful message on failure.
-fn parse_json(body: &str) -> serde_json::Value {
+pub fn parse_json(body: &str) -> serde_json::Value {
     serde_json::from_str(body).unwrap_or_else(|e| {
         panic!(
             "Failed to parse JSON: {}\nBody was: {:?}",
