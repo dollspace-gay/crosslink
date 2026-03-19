@@ -1,0 +1,8 @@
+{
+  "uuid": "6688e7e0-b7d6-472a-8db5-29d4b24a6c5e",
+  "issue_uuid": "f14f72f9-5c65-4549-9ee5-433b8d4a6e46",
+  "author": "agent-217-kickoff-ux",
+  "content": "Implementation complete for unified design-plan-run pipeline UX. Commit b484241 on feature/kickoff-pipeline-ux-unified-design-plan-run-flow-3538. 3 new files (pipeline.rs, wizard.rs, design_cmd.rs), 11 modified files. 2205 lines added. All 1633 tests pass, clippy clean, fmt clean. 19/19 acceptance criteria validated.",
+  "created_at": "2026-03-19T02:31:15.708820Z",
+  "kind": "result"
+}
