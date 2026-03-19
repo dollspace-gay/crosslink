@@ -19,19 +19,22 @@
       "agent_id": "maxine--basel",
       "claimed_at": "2026-03-18T23:48:44.626976Z"
     },
-    "217": {
-      "agent_id": "agent-217-kickoff-ux",
-      "claimed_at": "2026-03-19T01:44:17.744287Z"
-    },
     "231": {
       "agent_id": "maxine--basel--config-system-overhaul-2e70",
       "claimed_at": "2026-03-19T18:19:12.276803Z"
     }
   },
   "issues": {},
+  "unsigned_event_warnings": [
+    {
+      "agent_id": "agent-217-kickoff-ux",
+      "agent_seq": 2,
+      "timestamp": "2026-03-19T19:07:38.206342Z"
+    }
+  ],
   "watermark": {
-    "timestamp": "2026-03-19T18:19:12.276803Z",
-    "agent_id": "maxine--basel--config-system-overhaul-2e70",
-    "agent_seq": 1
+    "timestamp": "2026-03-19T19:07:38.206342Z",
+    "agent_id": "agent-217-kickoff-ux",
+    "agent_seq": 2
   }
 }
