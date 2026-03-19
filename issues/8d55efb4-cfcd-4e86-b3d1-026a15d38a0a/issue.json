@@ -1,0 +1,10 @@
+{
+  "uuid": "8d55efb4-cfcd-4e86-b3d1-026a15d38a0a",
+  "display_id": 229,
+  "title": "Promotion --amend revert creates ghost commits",
+  "status": "open",
+  "priority": "critical",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-19T18:14:36.515162610Z",
+  "updated_at": "2026-03-19T18:14:36.515162610Z"
+}
