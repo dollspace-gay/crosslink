@@ -256,18 +256,25 @@ impl SharedWriter {
     pub fn delete_issue(&self, db: &Database, display_id: i64) -> Result<()> {
         let issue = self.load_issue_by_id(display_id, db)?;
         let uuid = issue.uuid;
-        let rel_path = format!("issues/{}.json", uuid);
 
         let _ = self.write_commit_push(
             |writer| {
+                let rel_path = writer.issue_rel_path(&uuid);
                 // Remove the file from disk (may already be gone on retry)
                 let path = writer.issue_path(&uuid);
                 if path.exists() {
                     std::fs::remove_file(&path)?;
                 }
+                // Also remove stale V1 flat file if we're on V2 (#428)
+                if writer.layout_version() >= 2 {
+                    let v1_path = writer.cache_dir.join(format!("issues/{}.json", uuid));
+                    if v1_path.exists() {
+                        let _ = std::fs::remove_file(&v1_path);
+                    }
+                }
                 // Include the path so the staging loop can `git rm` it
                 Ok(WriteSet {
-                    files: vec![(rel_path.clone(), vec![])],
+                    files: vec![(rel_path, vec![])],
                     counters: None,
                     use_git_rm: true,
                 })

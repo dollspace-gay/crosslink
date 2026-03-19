@@ -65,11 +65,32 @@ pub struct HydrationStats {
 /// 4. Re-inserts everything from the JSON files in a single transaction
 ///
 /// Sessions are NOT touched — they are machine-local state.
+///
+/// **Data-loss guard (#427):** If JSON has significantly fewer issues than
+/// SQLite, hydration is skipped to avoid wiping SQLite-only issues that
+/// haven't been synced to JSON yet (e.g. after `init --force`).
 pub fn hydrate_to_sqlite(cache_dir: &Path, db: &Database) -> Result<HydrationStats> {
     let issues_dir = cache_dir.join("issues");
     let issue_files = read_all_issue_files(&issues_dir)?;
 
     if issue_files.is_empty() {
+        return Ok(HydrationStats::default());
+    }
+
+    // Data-loss guard: refuse to hydrate when JSON would wipe a significant
+    // portion of existing SQLite data. This catches the case where JSON is
+    // stale/empty (e.g. after `init --force`) but SQLite has real issues (#427).
+    let sqlite_count = db.get_issue_count().unwrap_or(0);
+    let json_count = issue_files.len() as i64;
+    if sqlite_count > 0 && json_count < sqlite_count / 2 && sqlite_count - json_count > 3 {
+        tracing::warn!(
+            "hydration skipped: JSON has {} issues but SQLite has {} — \
+             refusing to clear SQLite to avoid data loss. \
+             Run `crosslink sync` to reconcile, or `crosslink integrity hydration --repair` \
+             to force re-hydration. (#427)",
+            json_count,
+            sqlite_count
+        );
         return Ok(HydrationStats::default());
     }
 

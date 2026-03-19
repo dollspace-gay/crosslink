@@ -620,12 +620,21 @@ impl SharedWriter {
 
     /// Resolve an issue ID (positive or negative) to its UUID.
     ///
-    /// For positive IDs, scans issue files by display_id.
+    /// For positive IDs, scans issue files by display_id first, then falls
+    /// back to SQLite if the JSON cache doesn't have the issue (#427).
     /// For negative IDs, looks up the UUID from SQLite.
     pub(super) fn resolve_uuid(&self, id: i64, db: &Database) -> Result<Uuid> {
         if id >= 0 {
-            let issue = self.load_issue_by_display_id(id)?;
-            Ok(issue.uuid)
+            match self.load_issue_by_display_id(id) {
+                Ok(issue) => Ok(issue.uuid),
+                Err(_) => {
+                    // JSON cache miss — fall back to SQLite (#427)
+                    let uuid_str = db.get_issue_uuid_by_id(id)?;
+                    uuid_str.parse().with_context(|| {
+                        format!("Invalid UUID for issue #{} from SQLite fallback", id)
+                    })
+                }
+            }
         } else {
             let uuid_str = db.get_issue_uuid_by_id(id)?;
             uuid_str
