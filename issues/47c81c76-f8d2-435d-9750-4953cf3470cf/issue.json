@@ -1,6 +1,6 @@
 {
   "uuid": "47c81c76-f8d2-435d-9750-4953cf3470cf",
-  "display_id": 234,
+  "display_id": 235,
   "title": "Fix smoke tests: auto-build dashboard and update stale assertions",
   "status": "open",
   "priority": "high",
