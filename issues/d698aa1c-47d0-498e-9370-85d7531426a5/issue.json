@@ -1,0 +1,10 @@
+{
+  "uuid": "d698aa1c-47d0-498e-9370-85d7531426a5",
+  "display_id": 221,
+  "title": "Fix local issues rendering as #-n instead of Ln",
+  "status": "open",
+  "priority": "high",
+  "created_by": "anon-295fd0bb",
+  "created_at": "2026-03-19T15:31:35.458850318Z",
+  "updated_at": "2026-03-19T15:31:35.458850318Z"
+}
