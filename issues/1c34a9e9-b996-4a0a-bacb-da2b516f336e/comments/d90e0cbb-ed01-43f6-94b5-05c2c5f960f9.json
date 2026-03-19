@@ -1,0 +1,8 @@
+{
+  "uuid": "d90e0cbb-ed01-43f6-94b5-05c2c5f960f9",
+  "issue_uuid": "1c34a9e9-b996-4a0a-bacb-da2b516f336e",
+  "author": "anon-295fd0bb",
+  "content": "build.rs already auto-discovers rules/ via generate_rules_file(). Applying the same pattern to commands/ so new skills are automatically picked up without editing init.rs.",
+  "created_at": "2026-03-19T16:06:22.312522013Z",
+  "kind": "decision"
+}
