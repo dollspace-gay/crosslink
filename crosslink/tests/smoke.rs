@@ -5,6 +5,7 @@ mod smoke {
     mod cli_data; // import/export, archive, knowledge
     mod cli_infra; // config, sync, migrate, integrity, compact, prune
     mod cli_tooling; // cpitd, workflow, context, style, design_doc, mc
+    mod lifecycle; // timer roundtrip, session lifecycle, intervene, issue tree, daemon/swarm/kickoff
 
     // Server tests
     mod server_api; // REST endpoints + WebSocket
