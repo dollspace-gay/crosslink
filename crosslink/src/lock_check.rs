@@ -192,17 +192,17 @@ pub fn enforce_lock(crosslink_dir: &Path, issue_id: i64, db: &Database) -> Resul
                 }
 
                 tracing::warn!(
-                    "Issue #{} is locked by '{}' but the lock appears STALE. Proceeding.",
-                    issue_id,
+                    "Issue {} is locked by '{}' but the lock appears STALE. Proceeding.",
+                    crate::utils::format_issue_id(issue_id),
                     agent_id
                 );
                 Ok(())
             } else {
                 bail!(
-                    "Issue #{} is locked by agent '{}'. \
+                    "Issue {} is locked by agent '{}'. \
                      Use 'crosslink locks check {}' for details. \
                      Ask the human to release it or wait for the lock to expire.",
-                    issue_id,
+                    crate::utils::format_issue_id(issue_id),
                     agent_id,
                     issue_id
                 )

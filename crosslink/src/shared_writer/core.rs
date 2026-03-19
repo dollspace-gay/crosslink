@@ -600,7 +600,10 @@ impl SharedWriter {
                 }
             }
         }
-        bail!("Issue #{} not found in shared cache", display_id)
+        bail!(
+            "Issue {} not found in shared cache",
+            crate::utils::format_issue_id(display_id)
+        )
     }
 
     /// Load an issue by ID, supporting both positive (real) and negative (offline) IDs.

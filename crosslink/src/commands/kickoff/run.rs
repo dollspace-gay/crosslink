@@ -41,7 +41,7 @@ pub fn run(
     let issue_id = if let Some(id) = opts.issue {
         // Verify the issue exists
         if db.get_issue(id)?.is_none() {
-            bail!("Issue #{} not found", id);
+            bail!("Issue {} not found", crate::utils::format_issue_id(id));
         }
         id
     } else {
