@@ -232,6 +232,20 @@ enum Commands {
         #[command(subcommand)]
         action: KickoffCommands,
     },
+    /// Launch a foreground Claude session for design document authoring
+    Design {
+        /// Feature description (e.g. "add batch retry logic")
+        description: Option<String>,
+        /// Pull context from a crosslink issue
+        #[arg(long)]
+        issue: Option<i64>,
+        /// Pull context from a GitHub issue
+        #[arg(long = "gh-issue")]
+        gh_issue: Option<i64>,
+        /// Resume iteration on an existing draft (.design/<slug>.md)
+        #[arg(long = "continue", value_name = "SLUG")]
+        continue_slug: Option<String>,
+    },
     /// Multi-agent swarm coordination (plan, status, resume)
     Swarm {
         #[command(subcommand)]
@@ -1245,10 +1259,10 @@ enum KickoffCommands {
         #[arg(long)]
         skip_permissions: bool,
     },
-    /// Check status of a running kickoff agent
+    /// Check status of a running kickoff agent (no args = pipeline overview)
     Status {
-        /// Agent ID or branch name
-        agent: String,
+        /// Agent ID or branch name (omit for pipeline overview)
+        agent: Option<String>,
     },
     /// Tail an agent's event log
     Logs {
@@ -1322,6 +1336,39 @@ enum KickoffCommands {
         /// Output as JSON
         #[arg(long)]
         json: bool,
+    },
+    /// Interactive pipeline wizard or direct launch from a design doc
+    #[command(alias = "go")]
+    Launch {
+        /// Path to design document (skips source selection in wizard)
+        doc: Option<PathBuf>,
+        /// Run gap analysis (plan mode) — non-interactive
+        #[arg(long)]
+        plan: bool,
+        /// Run implementation — non-interactive
+        #[arg(long)]
+        run: bool,
+        /// Verification level: local, ci, thorough
+        #[arg(long, default_value = "local")]
+        verify: String,
+        /// LLM model to use
+        #[arg(long, default_value = "opus")]
+        model: String,
+        /// Max runtime (e.g. "1h", "30m")
+        #[arg(long, default_value = "1h")]
+        timeout: String,
+        /// Container runtime: none, docker, podman
+        #[arg(long, default_value = "none")]
+        container: String,
+        /// Existing issue to work on
+        #[arg(long)]
+        issue: Option<i64>,
+        /// Print the prompt without launching
+        #[arg(long = "dry-run")]
+        dry_run: bool,
+        /// Pass --dangerously-skip-permissions to the claude CLI
+        #[arg(long)]
+        skip_permissions: bool,
     },
 }
 
@@ -2382,6 +2429,17 @@ fn main() -> Result<()> {
                 cli.json,
             )
         }
+        Commands::Design {
+            description,
+            issue,
+            gh_issue,
+            continue_slug,
+        } => commands::design_cmd::run(
+            description.as_deref(),
+            issue,
+            gh_issue,
+            continue_slug.as_deref(),
+        ),
         Commands::Swarm { action } => {
             let crosslink_dir = find_crosslink_dir()?;
             match action {
