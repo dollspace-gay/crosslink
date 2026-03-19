@@ -99,7 +99,7 @@ impl SharedWriter {
                     let mut issue = read_issue_file(&path)?;
                     issue.display_id = Some(start_id + i as i64);
                     let json = serde_json::to_vec_pretty(&issue)?;
-                    files.push((format!("issues/{}.json", uuid), json));
+                    files.push((writer.issue_rel_path(uuid), json));
                 }
 
                 Ok(WriteSet {
