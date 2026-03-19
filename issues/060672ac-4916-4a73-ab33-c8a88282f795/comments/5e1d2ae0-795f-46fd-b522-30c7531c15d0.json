@@ -1,0 +1,8 @@
+{
+  "uuid": "5e1d2ae0-795f-46fd-b522-30c7531c15d0",
+  "issue_uuid": "060672ac-4916-4a73-ab33-c8a88282f795",
+  "author": "anon-295fd0bb",
+  "content": "GH #428: 6 interacting bugs cause V1/V2 layout coexistence. Plan: (1) fix promote_offline_issues to use issue_rel_path, (2) add UUID dedup to read_all_issue_files preferring V2, (3) make compaction respect layout version, (4) detect V2 layout from directory structure when version.json is missing, (5) add V1 cleanup after V2 writes, (6) write version.json during compaction if missing.",
+  "created_at": "2026-03-19T14:25:31.867263008Z",
+  "kind": "plan"
+}
