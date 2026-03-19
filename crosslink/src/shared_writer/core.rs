@@ -707,8 +707,13 @@ impl SharedWriter {
             // Stage
             for path in &paths {
                 if write_set.use_git_rm {
-                    // INTENTIONAL: git rm is best-effort — file may already be untracked
-                    let _ = self.git_in_cache(&["rm", "--cached", "--ignore-unmatch", path]);
+                    // Use `git rm` (not --cached) so files are removed from
+                    // both the index AND the working directory atomically.
+                    // This prevents split state where the file is gone from
+                    // disk but the commit fails (#427). --force handles
+                    // modified files; --ignore-unmatch handles retries where
+                    // the file is already gone.
+                    let _ = self.git_in_cache(&["rm", "--force", "--ignore-unmatch", path]);
                 } else {
                     self.git_in_cache(&["add", path])?;
                 }
@@ -726,6 +731,13 @@ impl SharedWriter {
                 let err_str = e.to_string();
                 if err_str.contains("nothing to commit") || err_str.contains("no changes added") {
                     return Ok(PushOutcome::Pushed);
+                }
+                // Commit failed — if we were deleting files (git rm), restore
+                // them from HEAD to prevent split state (#427).
+                if write_set.use_git_rm {
+                    for path in &paths {
+                        let _ = self.git_in_cache(&["checkout", "HEAD", "--", path]);
+                    }
                 }
                 commit_result?;
             }

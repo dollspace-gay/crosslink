@@ -260,21 +260,22 @@ impl SharedWriter {
         let _ = self.write_commit_push(
             |writer| {
                 let rel_path = writer.issue_rel_path(&uuid);
-                // Remove the file from disk (may already be gone on retry)
-                let path = writer.issue_path(&uuid);
-                if path.exists() {
-                    std::fs::remove_file(&path)?;
-                }
-                // Also remove stale V1 flat file if we're on V2 (#428)
+                // Don't delete the file here — let `git rm` in the staging
+                // loop handle both index and disk removal atomically. This
+                // prevents split state where the file is gone from disk but
+                // the commit fails, causing a later hydration to silently
+                // drop the issue from SQLite (#427).
+                let mut files = vec![(rel_path, vec![])];
+                // Also stage stale V1 flat file for removal if on V2 (#428)
                 if writer.layout_version() >= 2 {
-                    let v1_path = writer.cache_dir.join(format!("issues/{}.json", uuid));
+                    let v1_rel = format!("issues/{}.json", uuid);
+                    let v1_path = writer.cache_dir.join(&v1_rel);
                     if v1_path.exists() {
-                        let _ = std::fs::remove_file(&v1_path);
+                        files.push((v1_rel, vec![]));
                     }
                 }
-                // Include the path so the staging loop can `git rm` it
                 Ok(WriteSet {
-                    files: vec![(rel_path, vec![])],
+                    files,
                     counters: None,
                     use_git_rm: true,
                 })
