@@ -688,7 +688,7 @@ pub fn run(db: &Database, crosslink_dir: &Path) -> anyhow::Result<()> {
         let _ = sync_mgr.fetch();
         let _ = hydrate_to_sqlite(sync_mgr.cache_path(), db);
     }
-    eprintln!(" done.");
+    tracing::info!("TUI startup sync done.");
 
     let _guard = TerminalGuard::new();
 

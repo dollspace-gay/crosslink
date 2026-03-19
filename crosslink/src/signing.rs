@@ -479,8 +479,8 @@ impl AllowedSigners {
 
             // Validate principal: non-empty, no control characters
             if principal.is_empty() || principal.chars().any(|c| c.is_control()) {
-                eprintln!(
-                    "warning: skipping allowed_signers entry with invalid principal: {}",
+                tracing::warn!(
+                    "skipping allowed_signers entry with invalid principal: {}",
                     principal
                 );
                 pending_metadata = None;
@@ -492,8 +492,8 @@ impl AllowedSigners {
                 .iter()
                 .any(|prefix| public_key.starts_with(prefix))
             {
-                eprintln!(
-                    "warning: skipping allowed_signers entry with unrecognized key type for principal '{}': {}",
+                tracing::warn!(
+                    "skipping allowed_signers entry with unrecognized key type for principal '{}': {}",
                     principal,
                     public_key.split_whitespace().next().unwrap_or("<empty>")
                 );
