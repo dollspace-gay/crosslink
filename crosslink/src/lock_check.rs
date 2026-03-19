@@ -140,7 +140,7 @@ fn auto_steal_if_configured(
                 stale_agent_id, stale_minutes, auto_steal_threshold
             );
             if let Err(e) = writer.add_comment(db, issue_id, &comment, "system") {
-                eprintln!("Warning: could not add audit comment for lock steal: {e}");
+                tracing::warn!("could not add audit comment for lock steal: {e}");
             }
         } else {
             return Ok(false);
@@ -174,24 +174,27 @@ pub fn enforce_lock(crosslink_dir: &Path, issue_id: i64, db: &Database) -> Resul
             if stale {
                 match auto_steal_if_configured(crosslink_dir, issue_id, &agent_id, db) {
                     Ok(true) => {
-                        eprintln!(
+                        tracing::info!(
                             "Auto-stole stale lock on issue #{} from '{}'.",
-                            issue_id, agent_id
+                            issue_id,
+                            agent_id
                         );
                         return Ok(());
                     }
                     Ok(false) => {}
                     Err(e) => {
-                        eprintln!(
-                            "Warning: Auto-steal of stale lock on #{} failed: {}. Proceeding.",
-                            issue_id, e
+                        tracing::warn!(
+                            "Auto-steal of stale lock on #{} failed: {}. Proceeding.",
+                            issue_id,
+                            e
                         );
                     }
                 }
 
-                eprintln!(
-                    "Warning: Issue #{} is locked by '{}' but the lock appears STALE. Proceeding.",
-                    issue_id, agent_id
+                tracing::warn!(
+                    "Issue #{} is locked by '{}' but the lock appears STALE. Proceeding.",
+                    issue_id,
+                    agent_id
                 );
                 Ok(())
             } else {

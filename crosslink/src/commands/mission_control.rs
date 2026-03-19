@@ -210,11 +210,7 @@ pub fn run(crosslink_dir: &Path, layout: &str) -> Result<()> {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!(
-                "Warning: failed to add pane for {}: {}",
-                agent.slug,
-                stderr.trim()
-            );
+            tracing::warn!("failed to add pane for {}: {}", agent.slug, stderr.trim());
             continue;
         }
 

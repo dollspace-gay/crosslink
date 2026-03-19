@@ -175,7 +175,7 @@ impl SharedWriter {
     /// Derive the `.crosslink/` directory from the cache path.
     pub(super) fn crosslink_dir(&self) -> &Path {
         self.cache_dir.parent().unwrap_or_else(|| {
-            eprintln!("Warning: cache_dir has no parent, falling back to cache_dir itself");
+            tracing::warn!("cache_dir has no parent, falling back to cache_dir itself");
             &self.cache_dir
         })
     }
@@ -189,15 +189,12 @@ impl SharedWriter {
         match crate::hydration::hydrate_to_sqlite(&self.cache_dir, db) {
             Ok(_) => Ok(()),
             Err(first_err) => {
-                eprintln!(
-                    "Warning: hydration failed ({}), retrying once...",
-                    first_err
-                );
+                tracing::warn!("hydration failed ({}), retrying once...", first_err);
                 match crate::hydration::hydrate_to_sqlite(&self.cache_dir, db) {
                     Ok(_) => Ok(()),
                     Err(retry_err) => {
-                        eprintln!(
-                            "Warning: hydration retry failed ({}). Run `crosslink sync` to recover.",
+                        tracing::warn!(
+                            "hydration retry failed ({}). Run `crosslink sync` to recover.",
                             retry_err
                         );
                         Ok(())
@@ -366,8 +363,8 @@ impl SharedWriter {
                     if err_str.contains("Could not resolve host")
                         || err_str.contains("Could not read from remote")
                     {
-                        eprintln!(
-                            "Warning: push failed (offline), changes saved locally only: {}",
+                        tracing::warn!(
+                            "push failed (offline), changes saved locally only: {}",
                             message
                         );
                         return Ok(PushOutcome::LocalOnly);
@@ -386,8 +383,8 @@ impl SharedWriter {
                             ])?;
                             continue;
                         }
-                        eprintln!(
-                            "Warning: push failed after {} retries (conflict), changes saved locally only: {}",
+                        tracing::warn!(
+                            "push failed after {} retries (conflict), changes saved locally only: {}",
                             MAX_RETRIES, message
                         );
                         return Ok(PushOutcome::LocalOnly);
@@ -720,8 +717,8 @@ impl SharedWriter {
                     if err_str.contains("Could not resolve host")
                         || err_str.contains("Could not read from remote")
                     {
-                        eprintln!(
-                            "Warning: push failed (offline), changes saved locally only: {}",
+                        tracing::warn!(
+                            "push failed (offline), changes saved locally only: {}",
                             message
                         );
                         return Ok(PushOutcome::LocalOnly);
@@ -757,8 +754,8 @@ impl SharedWriter {
                             continue;
                         }
                         // All retries exhausted -- keep as local-only
-                        eprintln!(
-                            "Warning: push failed after {} retries (conflict), changes saved locally only: {}",
+                        tracing::warn!(
+                            "push failed after {} retries (conflict), changes saved locally only: {}",
                             MAX_RETRIES, message
                         );
                         return Ok(PushOutcome::LocalOnly);

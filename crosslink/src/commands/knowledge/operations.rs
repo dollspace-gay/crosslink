@@ -30,9 +30,8 @@ fn ensure_initialized(km: &KnowledgeManager) -> Result<()> {
 /// Print warnings for any conflicts that were resolved via "accept both".
 fn warn_resolved_conflicts(outcome: &SyncOutcome) {
     for slug in &outcome.resolved_conflicts {
-        eprintln!(
-            "Warning: Merge conflict in {}.md — both versions kept. \
-             A cleanup issue should be created.",
+        tracing::warn!(
+            "Merge conflict in {}.md — both versions kept. A cleanup issue should be created.",
             slug
         );
     }
@@ -382,8 +381,8 @@ pub fn remove(crosslink_dir: &Path, slug: &str) -> Result<()> {
 
     if !referencing.is_empty() {
         let slugs: Vec<_> = referencing.iter().map(|p| p.slug.as_str()).collect();
-        eprintln!(
-            "Warning: the following pages reference '{}': {}",
+        tracing::warn!(
+            "the following pages reference '{}': {}",
             slug,
             slugs.join(", ")
         );
@@ -468,7 +467,7 @@ pub fn import(
         ) {
             Ok(()) => imported += 1,
             Err(e) => {
-                eprintln!("Error importing {}: {}", rel.display(), e);
+                tracing::error!("Error importing {}: {}", rel.display(), e);
                 errors += 1;
             }
         }
