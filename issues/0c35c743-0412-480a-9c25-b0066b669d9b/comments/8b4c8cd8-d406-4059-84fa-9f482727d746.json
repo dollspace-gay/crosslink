@@ -1,0 +1,8 @@
+{
+  "uuid": "8b4c8cd8-d406-4059-84fa-9f482727d746",
+  "issue_uuid": "0c35c743-0412-480a-9c25-b0066b669d9b",
+  "author": "anon-295fd0bb",
+  "content": "The most elegant fix: migrate all eprintln!/println! calls in library code paths to tracing::warn!/tracing::info!. The tracing crate is already used throughout the project and its subscriber model means output is routed to wherever the subscriber sends it — stderr in CLI mode, nowhere in TUI mode (or to a TUI log panel later). This is a one-time mechanical replacement that prevents future regressions too.",
+  "created_at": "2026-03-19T17:37:47.340498811Z",
+  "kind": "decision"
+}
