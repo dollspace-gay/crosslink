@@ -1,0 +1,8 @@
+{
+  "uuid": "ba3f3851-6ec5-492a-8d08-0ca975ecfd7e",
+  "issue_uuid": "1f7d5035-3395-4fbc-a8b4-95d42e42dded",
+  "author": "anon-295fd0bb",
+  "content": "GH #425: Worktree creation resolves paths relative to cwd instead of repo root. Need to audit all worktree creation paths (kickoff, featree, agent init) and ensure they use repo root. Also add a guard against creating worktrees inside the repo tree.",
+  "created_at": "2026-03-19T15:15:42.932880403Z",
+  "kind": "plan"
+}
