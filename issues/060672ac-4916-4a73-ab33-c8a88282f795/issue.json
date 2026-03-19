@@ -1,0 +1,10 @@
+{
+  "uuid": "060672ac-4916-4a73-ab33-c8a88282f795",
+  "display_id": 218,
+  "title": "Fix V1/V2 hub layout file conflicts and inconsistent write paths",
+  "status": "open",
+  "priority": "high",
+  "created_by": "anon-295fd0bb",
+  "created_at": "2026-03-19T14:25:04.261133688Z",
+  "updated_at": "2026-03-19T14:25:04.261133688Z"
+}
