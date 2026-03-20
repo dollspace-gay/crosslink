@@ -352,6 +352,8 @@ pub(super) struct ResolvedAgent {
     pub issue_id: Option<i64>,
     pub defined_status: AgentStatus,
     pub live_status: String,
+    /// The actual branch name (e.g. `feature/<compact_name>`), if set.
+    pub branch: Option<String>,
 }
 
 /// Slugify a phase name for use as a filename.

@@ -135,6 +135,86 @@ pub fn atomic_write(path: &std::path::Path, content: &[u8]) -> anyhow::Result<()
     Ok(())
 }
 
+// ── Compact identifiers (base62) ─────────────────────────────────────────
+
+const BASE62_CHARS: &[u8; 62] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+/// Generate a random 4-character base62 identifier.
+///
+/// 4 chars of base62 = 62^4 ≈ 14.8M possibilities — sufficient for both
+/// per-repo IDs and per-kickoff agent IDs.
+pub fn generate_compact_id() -> String {
+    use std::time::SystemTime;
+
+    let nanos = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos();
+    let pid = std::process::id();
+    // Mix in a counter to avoid collisions within the same nanosecond
+    static COUNTER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let count = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let mixed = (nanos as u64)
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(pid as u64)
+        .wrapping_add(count as u64);
+    base62_encode_4(mixed)
+}
+
+/// Encode a u64 value into a 4-character base62 string.
+pub fn base62_encode_4(mut value: u64) -> String {
+    let mut result = String::with_capacity(4);
+    let mut buf = [0u8; 4];
+    for b in buf.iter_mut().rev() {
+        *b = BASE62_CHARS[(value % 62) as usize];
+        value /= 62;
+    }
+    for &b in &buf {
+        result.push(b as char);
+    }
+    result
+}
+
+/// Compose a structured name from repo ID, agent ID, and slug.
+///
+/// Format: `<repo>-<agent>-<slug>` (max 64 chars total).
+/// The slug is truncated at a word boundary if the full name would exceed 64 chars.
+pub fn compose_compact_name(repo_id: &str, agent_id: &str, slug: &str) -> String {
+    let prefix_len = repo_id.len() + 1 + agent_id.len() + 1; // "repo-agent-"
+    let max_slug = 64 - prefix_len;
+    let truncated_slug = truncate_slug(slug, max_slug);
+    format!("{}-{}-{}", repo_id, agent_id, truncated_slug)
+}
+
+/// Truncate a slug to fit within `max_len`, cutting at a word boundary (hyphen).
+pub fn truncate_slug(slug: &str, max_len: usize) -> &str {
+    if slug.len() <= max_len {
+        return slug;
+    }
+    // Cut at the last hyphen before max_len to avoid mid-word truncation
+    match slug[..max_len].rfind('-') {
+        Some(pos) => &slug[..pos],
+        None => &slug[..max_len],
+    }
+}
+
+/// Validate that a composed name fits within the 64-char agent_id limit.
+pub fn validate_compact_name(name: &str) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        name.len() <= 64,
+        "Composed name '{}' exceeds 64-char limit ({} chars)",
+        name,
+        name.len()
+    );
+    anyhow::ensure!(
+        name.chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_'),
+        "Composed name contains invalid characters: '{}'",
+        name
+    );
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -330,5 +410,91 @@ mod tests {
         // The .output.txt.tmp file should not remain after a successful write
         let tmp_path = dir.path().join(".output.txt.tmp");
         assert!(!tmp_path.exists());
+    }
+
+    // ── Compact identifier tests ─────────────────────────────────────────
+
+    #[test]
+    fn test_base62_encode_4_produces_4_chars() {
+        assert_eq!(base62_encode_4(0).len(), 4);
+        assert_eq!(base62_encode_4(u64::MAX).len(), 4);
+        assert_eq!(base62_encode_4(12345).len(), 4);
+    }
+
+    #[test]
+    fn test_base62_encode_4_zero() {
+        assert_eq!(base62_encode_4(0), "0000");
+    }
+
+    #[test]
+    fn test_base62_encode_4_deterministic() {
+        assert_eq!(base62_encode_4(999999), base62_encode_4(999999));
+    }
+
+    #[test]
+    fn test_base62_encode_4_all_valid_chars() {
+        let result = base62_encode_4(0xDEADBEEF);
+        assert!(result.chars().all(|c| c.is_alphanumeric()));
+    }
+
+    #[test]
+    fn test_generate_compact_id_length() {
+        let id = generate_compact_id();
+        assert_eq!(id.len(), 4);
+    }
+
+    #[test]
+    fn test_generate_compact_id_unique() {
+        let ids: Vec<String> = (0..100).map(|_| generate_compact_id()).collect();
+        let unique: std::collections::HashSet<_> = ids.iter().collect();
+        // With 14.8M possibilities, 100 calls should be all unique
+        assert_eq!(unique.len(), 100);
+    }
+
+    #[test]
+    fn test_compose_compact_name_basic() {
+        let name = compose_compact_name("XZ3j", "81jF", "auth-system");
+        assert_eq!(name, "XZ3j-81jF-auth-system");
+        assert!(name.len() <= 64);
+    }
+
+    #[test]
+    fn test_compose_compact_name_truncates_long_slug() {
+        let long_slug = "a]".repeat(60);
+        let slug = long_slug.trim_end_matches(']').replace(']', "-long");
+        let name = compose_compact_name("XZ3j", "81jF", &slug);
+        assert!(name.len() <= 64, "Name too long: {} chars", name.len());
+    }
+
+    #[test]
+    fn test_truncate_slug_short() {
+        assert_eq!(truncate_slug("hello", 10), "hello");
+    }
+
+    #[test]
+    fn test_truncate_slug_at_word_boundary() {
+        assert_eq!(truncate_slug("hello-world-test", 12), "hello-world");
+    }
+
+    #[test]
+    fn test_truncate_slug_no_hyphen() {
+        assert_eq!(truncate_slug("abcdefghij", 5), "abcde");
+    }
+
+    #[test]
+    fn test_validate_compact_name_ok() {
+        assert!(validate_compact_name("XZ3j-81jF-auth-system").is_ok());
+    }
+
+    #[test]
+    fn test_validate_compact_name_too_long() {
+        let name = "a".repeat(65);
+        assert!(validate_compact_name(&name).is_err());
+    }
+
+    #[test]
+    fn test_validate_compact_name_invalid_chars() {
+        assert!(validate_compact_name("hello world").is_err());
+        assert!(validate_compact_name("hello/world").is_err());
     }
 }

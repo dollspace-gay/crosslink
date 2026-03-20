@@ -1563,6 +1563,38 @@ pub struct InitOpts<'a> {
     pub defaults: bool,
 }
 
+/// Ensure `repo_compact_id` exists in `.crosslink/repo-id`.
+///
+/// Generates a 4-char base62 identifier on first init and preserves it
+/// on subsequent inits. Stored in a separate file (not hook-config.json)
+/// to avoid triggering policy drift detection.
+fn ensure_repo_compact_id(crosslink_dir: &Path) -> Result<()> {
+    let id_path = crosslink_dir.join("repo-id");
+    if id_path.exists() {
+        return Ok(());
+    }
+    let id = crate::utils::generate_compact_id();
+    fs::write(&id_path, &id).context("Failed to write repo-id")?;
+    Ok(())
+}
+
+/// Read `repo_compact_id` from `.crosslink/repo-id`, or return a fallback.
+pub fn read_repo_compact_id(crosslink_dir: &Path) -> String {
+    let id_path = crosslink_dir.join("repo-id");
+    if let Ok(id) = fs::read_to_string(&id_path) {
+        let trimmed = id.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    // Fallback: generate from directory hash for consistent identity
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    crosslink_dir.hash(&mut hasher);
+    crate::utils::base62_encode_4(hasher.finish())
+}
+
 pub fn run(path: &Path, opts: &InitOpts<'_>) -> Result<()> {
     let force = opts.force;
     let python_prefix = opts.python_prefix;
@@ -1675,6 +1707,9 @@ pub fn run(path: &Path, opts: &InitOpts<'_>) -> Result<()> {
         None => None,
     };
 
+    // Ensure repo_compact_id exists in hook-config.json (idempotent)
+    ensure_repo_compact_id(&crosslink_dir)?;
+
     // Write .crosslink/.gitignore for multi-agent files
     let crosslink_gitignore = crosslink_dir.join(".gitignore");
     if !crosslink_gitignore.exists() || force {
@@ -1682,6 +1717,7 @@ pub fn run(path: &Path, opts: &InitOpts<'_>) -> Result<()> {
             &crosslink_gitignore,
             "# Multi-agent collaboration (machine-local)\n\
              agent.json\n\
+             repo-id\n\
              .hub-cache/\n\
              .knowledge-cache/\n\
              keys/\n\
@@ -1825,17 +1861,19 @@ mod tests {
             .output()
             .expect("git init failed");
         assert!(init.status.success(), "git init failed");
-        // Set identity so commit works in CI where no global config exists
-        for (key, val) in [("user.name", "test"), ("user.email", "test@test")] {
-            std::process::Command::new("git")
-                .current_dir(dir.path())
-                .args(["config", key, val])
-                .output()
-                .unwrap();
-        }
+        // Use -c flags so identity works even when env vars or global config are absent
         let commit = std::process::Command::new("git")
             .current_dir(dir.path())
-            .args(["commit", "--allow-empty", "-m", "init"])
+            .args([
+                "-c",
+                "user.name=test",
+                "-c",
+                "user.email=test@test",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "init",
+            ])
             .output()
             .expect("git commit failed");
         assert!(commit.status.success(), "git commit --allow-empty failed");

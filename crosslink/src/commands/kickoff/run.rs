@@ -3,7 +3,6 @@ use anyhow::{bail, Context, Result};
 use std::path::Path;
 
 use crate::db::Database;
-use crate::identity::AgentConfig;
 use crate::shared_writer::SharedWriter;
 
 use super::helpers::*;
@@ -12,12 +11,15 @@ use super::prompt::*;
 use super::types::*;
 
 /// Main entry point: `crosslink kickoff run`.
+///
+/// Returns the compact name (`<repo>-<agent>-<slug>`) used as the agent ID,
+/// branch suffix, and tmux session name.
 pub fn run(
     crosslink_dir: &Path,
     db: &Database,
     writer: Option<&SharedWriter>,
     opts: &KickoffOpts,
-) -> Result<()> {
+) -> Result<String> {
     // 1. Pre-flight: validate all required external commands are present
     let preflight = if !opts.dry_run {
         Some(preflight_check(
@@ -36,6 +38,12 @@ pub fn run(
     } else {
         format!("{}-{}", base_slug, rand_hex_suffix())
     };
+
+    // Generate compact identifiers for structured naming
+    let repo_id = crate::commands::init::read_repo_compact_id(crosslink_dir);
+    let agent_compact = crate::utils::generate_compact_id();
+    let compact_name = crate::utils::compose_compact_name(&repo_id, &agent_compact, &slug);
+    crate::utils::validate_compact_name(&compact_name)?;
 
     // 2. Create or find the issue
     let issue_id = if let Some(id) = opts.issue {
@@ -85,11 +93,11 @@ pub fn run(
             (worktree_dir, br.to_string())
         }
     } else {
-        create_worktree(&root, &slug, None)?
+        create_worktree(&root, &compact_name, None)?
     };
 
     // Write slug sentinel so other commands can identify this worktree
-    std::fs::write(worktree_dir.join(".kickoff-slug"), &slug)
+    std::fs::write(worktree_dir.join(".kickoff-slug"), &compact_name)
         .context("Failed to write .kickoff-slug sentinel")?;
 
     // 4. Detect project conventions
@@ -131,20 +139,16 @@ pub fn run(
 
     // Dry run: print prompt and exit (skip agent init — no launch needed)
     if opts.dry_run {
-        let parent_id = AgentConfig::load(crosslink_dir)?
-            .map(|c| c.agent_id)
-            .unwrap_or_else(|| "driver".to_string());
-        let agent_id = format!("{}--{}", parent_id, slug);
         println!("{}", prompt);
         println!("---");
         println!("Worktree: {}", worktree_dir.display());
         println!("Branch:   {}", branch_name);
-        println!("Agent:    {}", agent_id);
-        return Ok(());
+        println!("Agent:    {}", compact_name);
+        return Ok(compact_name);
     }
 
     // 8. Initialize crosslink + agent in worktree (only for real launches)
-    let agent_id = init_worktree_agent(&worktree_dir, crosslink_dir, &slug)?;
+    let agent_id = init_worktree_agent(&worktree_dir, crosslink_dir, &compact_name)?;
 
     // preflight is guaranteed Some after the dry-run early return above
     let preflight = preflight.context("preflight check was skipped unexpectedly")?;
@@ -154,12 +158,12 @@ pub fn run(
 
     match &opts.container {
         ContainerMode::None => {
-            let mut session_name = tmux_session_name(&slug);
+            let mut session_name = tmux_session_name(&compact_name);
             if tmux_session_exists(&session_name) {
                 // Append random suffix
                 let suffix: u32 = rand_suffix();
                 session_name =
-                    format!("{}-{}", &session_name[..session_name.len().min(44)], suffix);
+                    format!("{}-{}", &session_name[..session_name.len().min(58)], suffix);
             }
 
             launch_local(
@@ -236,5 +240,5 @@ pub fn run(
         }
     }
 
-    Ok(())
+    Ok(compact_name)
 }

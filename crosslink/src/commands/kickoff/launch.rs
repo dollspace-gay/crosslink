@@ -416,7 +416,7 @@ pub(super) fn create_worktree(
 pub(super) fn init_worktree_agent(
     worktree_dir: &Path,
     crosslink_dir: &Path,
-    slug: &str,
+    compact_name: &str,
 ) -> Result<String> {
     // Run crosslink init --force in the worktree
     let output = Command::new("crosslink")
@@ -430,12 +430,8 @@ pub(super) fn init_worktree_agent(
         tracing::warn!("crosslink init in worktree: {}", stderr.trim());
     }
 
-    // Derive agent ID from parent agent or hostname
-    let parent_id = AgentConfig::load(crosslink_dir)?
-        .map(|c| c.agent_id)
-        .unwrap_or_else(|| "driver".to_string());
-
-    let agent_id = format!("{}--{}", parent_id, slug);
+    // Use the compact name as the agent ID directly
+    let agent_id = compact_name.to_string();
 
     // Initialize agent identity in worktree (skip key gen — inherits from parent)
     let wt_crosslink = worktree_dir.join(".crosslink");
@@ -445,7 +441,7 @@ pub(super) fn init_worktree_agent(
             if let Err(e) = super::super::agent::init(
                 &wt_crosslink,
                 &agent_id,
-                Some(&format!("Kickoff agent for: {}", slug)),
+                Some(&format!("Kickoff agent for: {}", compact_name)),
                 true, // no-key: inherit parent's key
                 false,
             ) {

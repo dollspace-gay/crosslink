@@ -305,17 +305,19 @@ mod tests {
             .output()
             .expect("git init failed");
         assert!(init.status.success(), "git init failed");
-        // Set identity so commit works in CI where no global config exists
-        for (key, val) in [("user.name", "test"), ("user.email", "test@test")] {
-            std::process::Command::new("git")
-                .current_dir(dir.path())
-                .args(["config", key, val])
-                .output()
-                .unwrap();
-        }
+        // Use -c flags so identity works even when env vars or global config are absent
         let commit = std::process::Command::new("git")
             .current_dir(dir.path())
-            .args(["commit", "--allow-empty", "-m", "init"])
+            .args([
+                "-c",
+                "user.name=test",
+                "-c",
+                "user.email=test@test",
+                "commit",
+                "--allow-empty",
+                "-m",
+                "init",
+            ])
             .output()
             .expect("git commit failed");
         assert!(commit.status.success(), "git commit --allow-empty failed");

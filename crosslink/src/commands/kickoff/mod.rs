@@ -90,7 +90,8 @@ pub fn dispatch(
                 // pipeline state update is best-effort — don't fail the launch
                 let _ = pipeline::mark_running(doc_path, "pending", "pending", issue);
             }
-            run(crosslink_dir, db, writer, &opts)
+            run(crosslink_dir, db, writer, &opts)?;
+            Ok(())
         }
         KickoffCommands::Status { agent } => match agent {
             None => pipeline_status_overview(crosslink_dir, json),
@@ -278,7 +279,8 @@ fn dispatch_launch(
         if let Some(ref doc_path) = doc {
             let _ = pipeline::mark_running(doc_path, "pending", "pending", issue);
         }
-        return run(crosslink_dir, db, writer, &opts);
+        run(crosslink_dir, db, writer, &opts)?;
+        return Ok(());
     }
 
     // Interactive mode: launch the wizard
@@ -357,7 +359,8 @@ fn dispatch_launch(
                 doc_path: doc_path_str.as_deref(),
                 skip_permissions: false,
             };
-            run(crosslink_dir, db, writer, &opts)
+            run(crosslink_dir, db, writer, &opts)?;
+            Ok(())
         }
     }
 }

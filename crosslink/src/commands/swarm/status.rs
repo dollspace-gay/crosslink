@@ -242,6 +242,7 @@ pub(super) fn resolve_agents(phase: &PhaseDefinition, repo_root: &Path) -> Vec<R
                 issue_id: agent.issue_id,
                 defined_status: agent.status.clone(),
                 live_status,
+                branch: agent.branch.clone(),
             }
         })
         .collect()

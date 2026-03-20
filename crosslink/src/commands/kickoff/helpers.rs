@@ -5,8 +5,16 @@ use std::process::Command;
 
 use super::types::*;
 
+/// Maximum slug length: 64 (agent_id limit) - 4 (repo) - 1 (-) - 4 (agent) - 1 (-) = 54.
+pub(crate) const MAX_SLUG_LEN: usize = 54;
+
 /// Slugify a feature description into a branch-safe name.
 pub(crate) fn slugify(description: &str) -> String {
+    slugify_with_max(description, MAX_SLUG_LEN)
+}
+
+/// Slugify with a custom max length.
+fn slugify_with_max(description: &str, max_len: usize) -> String {
     let slug: String = description
         .to_lowercase()
         .chars()
@@ -30,11 +38,11 @@ pub(crate) fn slugify(description: &str) -> String {
 
     // Trim trailing hyphens and truncate
     let trimmed = result.trim_end_matches('-');
-    if trimmed.len() > 60 {
-        // Cut at the last hyphen before 60 chars to avoid mid-word
-        match trimmed[..60].rfind('-') {
+    if trimmed.len() > max_len {
+        // Cut at the last hyphen before max_len chars to avoid mid-word
+        match trimmed[..max_len].rfind('-') {
             Some(pos) => trimmed[..pos].to_string(),
-            None => trimmed[..60].to_string(),
+            None => trimmed[..max_len].to_string(),
         }
     } else {
         trimmed.to_string()
@@ -284,15 +292,17 @@ pub(crate) fn missing_exclude_patterns(existing_content: &str) -> Vec<&'static s
         .collect()
 }
 
-/// Derive a tmux session name from the branch slug.
-pub(crate) fn tmux_session_name(slug: &str) -> String {
-    let name = format!("feat-{}", slug);
+/// Derive a tmux session name from a compact name (or legacy slug).
+///
+/// New format: uses the compact name directly (already ≤64 chars).
+/// Legacy format: `feat-{slug}` capped at 50 chars.
+pub(crate) fn tmux_session_name(name: &str) -> String {
     let sanitized: String = name
         .chars()
         .map(|c| if c == '.' || c == ':' { '-' } else { c })
         .collect();
-    if sanitized.len() > 50 {
-        sanitized[..50].to_string()
+    if sanitized.len() > 64 {
+        sanitized[..64].to_string()
     } else {
         sanitized
     }

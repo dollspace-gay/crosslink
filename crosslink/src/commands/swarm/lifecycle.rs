@@ -568,9 +568,10 @@ pub fn resume(crosslink_dir: &Path) -> Result<()> {
 
     if !ready_to_merge.is_empty() {
         for agent in &ready_to_merge {
+            let branch = agent.branch.as_deref().unwrap_or_else(|| &agent.slug);
             actions.push(format!(
-                "{}. Merge {}: review and merge feature/{} to dev",
-                action_num, agent.slug, agent.slug
+                "{}. Merge {}: review and merge {} to dev",
+                action_num, agent.slug, branch
             ));
             action_num += 1;
         }
@@ -760,10 +761,11 @@ pub fn launch(
         };
 
         match kickoff::run(crosslink_dir, db, writer, &opts) {
-            Ok(()) => {
+            Ok(compact_name) => {
                 phase.agents[*idx].status = AgentStatus::Running;
                 phase.agents[*idx].started_at = Some(now.clone());
-                phase.agents[*idx].agent_id = Some(slug);
+                phase.agents[*idx].agent_id = Some(compact_name.clone());
+                phase.agents[*idx].branch = Some(format!("feature/{}", compact_name));
             }
             Err(e) => {
                 tracing::error!("Failed to launch {}: {}", slug, e);
