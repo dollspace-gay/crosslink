@@ -1,0 +1,10 @@
+{
+  "uuid": "3998f6d4-ebd4-4ecf-8951-beef7427fcd9",
+  "display_id": 245,
+  "title": "Fix crosslink init to verify git is initialized with an initial commit",
+  "status": "open",
+  "priority": "high",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-20T15:59:34.138322827Z",
+  "updated_at": "2026-03-20T15:59:34.138322827Z"
+}
