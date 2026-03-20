@@ -484,6 +484,12 @@ impl SyncManager {
         // Recover from broken git states before attempting fetch (#454, #455, #456)
         self.hub_health_check()?;
 
+        // Stage any untracked or modified files before fetch. Concurrent
+        // agents may have written heartbeat/lock files that aren't committed
+        // yet — these block rebase/reset with "untracked working tree files
+        // would be overwritten by merge" (#480).
+        self.clean_dirty_state()?;
+
         // Try fetching from remote. If no remote is configured, this is a no-op.
         let fetch_result = self.git_in_cache(&["fetch", &self.remote, HUB_BRANCH]);
         if let Err(e) = &fetch_result {
