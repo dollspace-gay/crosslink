@@ -1206,6 +1206,31 @@ pub fn run(path: &Path, opts: &InitOpts<'_>) -> Result<()> {
 
     let ui = InitUI::new();
 
+    // Pre-flight: verify git repo exists and has at least one commit (#401).
+    // Crosslink uses git worktrees for hub/knowledge branches, which require
+    // a functioning repo with commit history.
+    let git_dir = path.join(".git");
+    if !git_dir.exists() {
+        anyhow::bail!(
+            "No git repository found at {}.\n\
+             Run `git init` and create an initial commit before running `crosslink init`.",
+            path.display()
+        );
+    }
+    let has_commits = std::process::Command::new("git")
+        .current_dir(path)
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !has_commits {
+        anyhow::bail!(
+            "Git repository has no commits.\n\
+             Create an initial commit before running `crosslink init`:\n\
+             \n  git add .\n  git commit -m \"Initial commit\""
+        );
+    }
+
     // Check if already initialized
     let crosslink_exists = crosslink_dir.exists();
     let claude_exists = claude_dir.exists();
@@ -1412,6 +1437,23 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
+    /// Create a temp directory with a git repo and initial commit.
+    /// Required because init now checks for .git and HEAD (#401).
+    fn test_dir() -> tempfile::TempDir {
+        let dir = tempdir().unwrap();
+        std::process::Command::new("git")
+            .current_dir(dir.path())
+            .args(["init"])
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .current_dir(dir.path())
+            .args(["commit", "--allow-empty", "-m", "init"])
+            .output()
+            .unwrap();
+        dir
+    }
+
     /// Build default test opts (skips cpitd/signing, uses --defaults to skip TUI).
     fn test_opts(force: bool) -> InitOpts<'static> {
         InitOpts {
@@ -1427,7 +1469,7 @@ mod tests {
 
     #[test]
     fn test_run_fresh_init() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         let result = run(dir.path(), &test_opts(false));
         assert!(result.is_ok());
 
@@ -1443,7 +1485,7 @@ mod tests {
 
     #[test]
     fn test_run_creates_hook_files() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         // Verify hook files
@@ -1464,7 +1506,7 @@ mod tests {
 
     #[test]
     fn test_run_creates_rule_files() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         let rules_dir = dir.path().join(".crosslink/rules");
@@ -1481,7 +1523,7 @@ mod tests {
 
     #[test]
     fn test_run_already_initialized_no_force() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
 
         // First init
         run(dir.path(), &test_opts(false)).unwrap();
@@ -1493,7 +1535,7 @@ mod tests {
 
     #[test]
     fn test_run_force_update() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
 
         // First init
         run(dir.path(), &test_opts(false)).unwrap();
@@ -1524,7 +1566,7 @@ mod tests {
 
     #[test]
     fn test_force_init_preserves_existing_mcp_servers() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         // Add a custom MCP server entry alongside the embedded ones
@@ -1564,7 +1606,7 @@ mod tests {
 
     #[test]
     fn test_force_init_returns_warnings_for_overwritten_keys() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         // The first init created .mcp.json with the embedded keys.
@@ -1589,7 +1631,7 @@ mod tests {
 
     #[test]
     fn test_write_mcp_json_merged_creates_fresh_file() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         let mcp_path = dir.path().join(".mcp.json");
 
         // No pre-existing file
@@ -1619,7 +1661,7 @@ mod tests {
 
     #[test]
     fn test_force_init_fails_on_malformed_mcp_json() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         // Write invalid JSON to .mcp.json
@@ -1643,7 +1685,7 @@ mod tests {
 
     #[test]
     fn test_force_init_fails_on_non_object_mcp_json() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         // Write a JSON array to .mcp.json
@@ -1667,7 +1709,7 @@ mod tests {
 
     #[test]
     fn test_force_init_handles_empty_mcp_json_file() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         // Write empty file
@@ -1687,7 +1729,7 @@ mod tests {
 
     #[test]
     fn test_force_init_fails_on_non_object_mcp_servers_value() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         // Write valid JSON where mcpServers is a string instead of object
@@ -1711,7 +1753,7 @@ mod tests {
 
     #[test]
     fn test_init_merges_into_mcp_json_without_mcp_servers_key() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         // Write a valid object with no mcpServers key
@@ -1730,7 +1772,7 @@ mod tests {
 
     #[test]
     fn test_run_partial_init_crosslink_only() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
 
         // Create only .crosslink directory
         fs::create_dir_all(dir.path().join(".crosslink")).unwrap();
@@ -1744,7 +1786,7 @@ mod tests {
 
     #[test]
     fn test_run_partial_init_claude_only() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
 
         // Create only .claude directory
         fs::create_dir_all(dir.path().join(".claude")).unwrap();
@@ -1758,7 +1800,7 @@ mod tests {
 
     #[test]
     fn test_run_database_usable() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         // Open the created database and verify it works
@@ -1772,7 +1814,7 @@ mod tests {
 
     #[test]
     fn test_run_rule_files_not_empty() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         let rules_dir = dir.path().join(".crosslink/rules");
@@ -1787,7 +1829,7 @@ mod tests {
 
     #[test]
     fn test_run_force_updates_rules() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         // Modify a rule file
@@ -1804,7 +1846,7 @@ mod tests {
 
     #[test]
     fn test_run_idempotent_with_force() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
 
         // Multiple force runs should all succeed
         for _ in 0..3 {
@@ -1866,7 +1908,7 @@ mod tests {
 
     #[test]
     fn test_gitignore_includes_local_config() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".crosslink/.gitignore")).unwrap();
@@ -1879,20 +1921,20 @@ mod tests {
 
     #[test]
     fn test_detect_python_prefix_default() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         assert_eq!(detect_python_prefix(dir.path()), "python3");
     }
 
     #[test]
     fn test_detect_python_prefix_uv_lock() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         fs::write(dir.path().join("uv.lock"), "").unwrap();
         assert_eq!(detect_python_prefix(dir.path()), "uv run python3");
     }
 
     #[test]
     fn test_detect_python_prefix_uv_pyproject() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         fs::write(
             dir.path().join("pyproject.toml"),
             "[project]\nname = \"foo\"\n\n[tool.uv]\ndev-dependencies = []\n",
@@ -1903,14 +1945,14 @@ mod tests {
 
     #[test]
     fn test_detect_python_prefix_poetry_lock() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         fs::write(dir.path().join("poetry.lock"), "").unwrap();
         assert_eq!(detect_python_prefix(dir.path()), "poetry run python3");
     }
 
     #[test]
     fn test_detect_python_prefix_poetry_pyproject() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         fs::write(
             dir.path().join("pyproject.toml"),
             "[project]\nname = \"foo\"\n\n[tool.poetry]\nname = \"foo\"\n",
@@ -1921,28 +1963,28 @@ mod tests {
 
     #[test]
     fn test_detect_python_prefix_venv() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         fs::create_dir(dir.path().join(".venv")).unwrap();
         assert_eq!(detect_python_prefix(dir.path()), ".venv/bin/python3");
     }
 
     #[test]
     fn test_detect_python_prefix_pipenv() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         fs::write(dir.path().join("Pipfile"), "").unwrap();
         assert_eq!(detect_python_prefix(dir.path()), "pipenv run python3");
     }
 
     #[test]
     fn test_detect_python_prefix_pipenv_lock() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         fs::write(dir.path().join("Pipfile.lock"), "{}").unwrap();
         assert_eq!(detect_python_prefix(dir.path()), "pipenv run python3");
     }
 
     #[test]
     fn test_detect_python_prefix_uv_beats_poetry() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         // Both uv.lock and poetry.lock present — uv wins
         fs::write(dir.path().join("uv.lock"), "").unwrap();
         fs::write(dir.path().join("poetry.lock"), "").unwrap();
@@ -1951,7 +1993,7 @@ mod tests {
 
     #[test]
     fn test_detect_python_prefix_poetry_beats_venv() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         fs::write(dir.path().join("poetry.lock"), "").unwrap();
         fs::create_dir(dir.path().join(".venv")).unwrap();
         assert_eq!(detect_python_prefix(dir.path()), "poetry run python3");
@@ -1959,7 +2001,7 @@ mod tests {
 
     #[test]
     fn test_detect_python_prefix_venv_beats_pipenv() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         fs::create_dir(dir.path().join(".venv")).unwrap();
         fs::write(dir.path().join("Pipfile"), "").unwrap();
         assert_eq!(detect_python_prefix(dir.path()), ".venv/bin/python3");
@@ -1967,7 +2009,7 @@ mod tests {
 
     #[test]
     fn test_detect_python_prefix_pyproject_without_tools_is_default() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         // Plain pyproject.toml with no tool sections
         fs::write(
             dir.path().join("pyproject.toml"),
@@ -1981,7 +2023,7 @@ mod tests {
 
     #[test]
     fn test_settings_json_default_uses_python3() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
@@ -1997,7 +2039,7 @@ mod tests {
 
     #[test]
     fn test_settings_json_uv_project() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         fs::write(dir.path().join("uv.lock"), "").unwrap();
         run(dir.path(), &test_opts(false)).unwrap();
 
@@ -2010,7 +2052,7 @@ mod tests {
 
     #[test]
     fn test_settings_json_cli_override() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         fs::write(dir.path().join("uv.lock"), "").unwrap();
         // CLI override should beat auto-detection
         run(
@@ -2035,7 +2077,7 @@ mod tests {
 
     #[test]
     fn test_settings_json_produces_valid_json() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         fs::write(dir.path().join("uv.lock"), "").unwrap();
         run(dir.path(), &test_opts(false)).unwrap();
 
@@ -2049,7 +2091,7 @@ mod tests {
 
     #[test]
     fn test_force_re_detects_toolchain() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         // First init: no markers → python3
         run(dir.path(), &test_opts(false)).unwrap();
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
@@ -2083,7 +2125,7 @@ mod tests {
 
     #[test]
     fn test_settings_json_includes_allowed_tools() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
@@ -2103,7 +2145,7 @@ mod tests {
 
     #[test]
     fn test_settings_json_includes_tmux_and_worktree_permissions() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".claude/settings.json")).unwrap();
@@ -2127,7 +2169,7 @@ mod tests {
 
     #[test]
     fn test_force_init_preserves_user_allowed_tools() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         // Add a custom allowedTools entry
@@ -2172,7 +2214,7 @@ mod tests {
 
     #[test]
     fn test_force_init_no_duplicate_allowed_tools() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         // Force re-init multiple times
@@ -2202,7 +2244,7 @@ mod tests {
 
     #[test]
     fn test_settings_json_merge_fails_on_malformed_json() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         // Write invalid JSON to settings.json
@@ -2226,7 +2268,7 @@ mod tests {
 
     #[test]
     fn test_settings_json_merge_fails_on_non_object() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         // Write a JSON array to settings.json
@@ -2246,7 +2288,7 @@ mod tests {
 
     #[test]
     fn test_settings_json_merge_creates_fresh_file() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         let settings_path = dir.path().join(".claude/settings.json");
         fs::create_dir_all(dir.path().join(".claude")).unwrap();
 
@@ -2277,7 +2319,7 @@ mod tests {
 
     #[test]
     fn test_init_creates_root_gitignore() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
@@ -2297,7 +2339,7 @@ mod tests {
 
     #[test]
     fn test_root_gitignore_idempotent() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         let first = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
@@ -2314,7 +2356,7 @@ mod tests {
 
     #[test]
     fn test_root_gitignore_preserves_user_entries() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
 
         // Write a pre-existing .gitignore with user content
         fs::write(dir.path().join(".gitignore"), "/target/\n*.log\n").unwrap();
@@ -2336,7 +2378,7 @@ mod tests {
 
     #[test]
     fn test_root_gitignore_preserves_entries_around_managed_section() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
 
         // First init
         run(dir.path(), &test_opts(false)).unwrap();
@@ -2381,7 +2423,7 @@ mod tests {
 
     #[test]
     fn test_root_gitignore_has_do_track_comments() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
@@ -2397,7 +2439,7 @@ mod tests {
 
     #[test]
     fn test_write_root_gitignore_fresh() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         write_root_gitignore(dir.path()).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
@@ -2408,7 +2450,7 @@ mod tests {
 
     #[test]
     fn test_write_root_gitignore_replaces_section() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
 
         // Write twice
         write_root_gitignore(dir.path()).unwrap();
@@ -2424,7 +2466,7 @@ mod tests {
 
     #[test]
     fn test_crosslink_inner_gitignore_includes_integrations() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         let content = fs::read_to_string(dir.path().join(".crosslink/.gitignore")).unwrap();
@@ -2435,7 +2477,7 @@ mod tests {
 
     #[test]
     fn test_init_deploys_skill_files() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         let commands_dir = dir.path().join(".claude/commands");
@@ -2457,7 +2499,7 @@ mod tests {
 
     #[test]
     fn test_init_deploys_mcp_knowledge_server() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         run(dir.path(), &test_opts(false)).unwrap();
 
         // knowledge-server.py must exist
@@ -2482,7 +2524,7 @@ mod tests {
 
     #[test]
     fn test_force_init_deploys_skill_files() {
-        let dir = tempdir().unwrap();
+        let dir = test_dir();
         // First init
         run(dir.path(), &test_opts(false)).unwrap();
 
