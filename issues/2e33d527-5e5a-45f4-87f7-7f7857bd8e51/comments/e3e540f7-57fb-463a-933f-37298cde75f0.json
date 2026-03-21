@@ -1,0 +1,10 @@
+{
+  "uuid": "e3e540f7-57fb-463a-933f-37298cde75f0",
+  "issue_uuid": "2e33d527-5e5a-45f4-87f7-7f7857bd8e51",
+  "author": "maxine--basel",
+  "content": "Design decisions from interview:\\n1. Tip-only view, no pager — show fork-point to branch tip only\\n2. Custom ASCII renderer reading raw git data + discover_agents() — not git log --graph passthrough\\n3. --svg deferred to follow-up\\n4. No ahead/behind counts or commit hashes — topology only, with unlabeled intermediate commits\\n5. --all scans git branches too, labels orphans with [orphan]\\n6. Annotations: tmux session name (most actionable), docker container, or status. Branch name always visible.\\n7. Command name: 'graph' per GH-491 comment",
+  "created_at": "2026-03-21T19:41:49.261873Z",
+  "kind": "decision",
+  "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgbMJQrcFvxUHGFzKhLs2qsfUDMqPDdJSAHuIKkxY6rD4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAgUVIPeqnINs/ir8jTOZGErA29hngK05Eqx7+35ZLc83zeT/sr9xNN59e8gq7U82PDY/8Bzhy+0ej0YOSPQFiDw=="
+}
