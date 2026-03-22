@@ -4,17 +4,16 @@ tags: [design-doc]
 sources: []
 contributors: [maxine--basel]
 created: 2026-03-21
-updated: 2026-03-21
+updated: 2026-03-22
 ---
 
+# Feature: Add `crosslink kickoff graph` to show branch topology of in-progress kickoffs
 
-## Design Specification
-
-### Summary
+## Summary
 
 Add a `crosslink kickoff graph` subcommand that renders an ASCII branch topology of all kickoff feature branches relative to `develop` and `main`. The output is a clean, annotated topology map — not a full git log — focused on showing where each agent sits in the branch tree and how to interact with it (tmux session name, docker container, or status).
 
-### Requirements
+## Requirements
 
 - REQ-1: `crosslink kickoff graph` renders an ASCII graph showing the branching topology of all active kickoff feature branches relative to the base branches (`develop`, `main`).
 - REQ-2: Each branch tip is annotated with the most actionable metadata: tmux session name if active, docker container name if docker-only, or status (`done`, `stopped`, `timed-out`) if no live session.
@@ -23,8 +22,9 @@ Add a `crosslink kickoff graph` subcommand that renders an ASCII branch topology
 - REQ-5: Base branches (`develop`, `main`, `HEAD`) are always included as anchor points in the graph.
 - REQ-6: The graph is built from raw git data (`git rev-list`, `git merge-base`, `git for-each-ref`) rather than post-processing `git log --graph` output.
 - REQ-7: With zero active kickoffs, the command shows only the base branches and exits cleanly.
+- REQ-8: The graph renderer detects terminal width via `crossterm::terminal::size()` and truncates branch names and annotations to fit without wrapping. Falls back to 80 columns if detection fails.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 - [ ] AC-1: `crosslink kickoff graph` prints an ASCII branch graph to stdout showing active kickoff branches forking from base branches.
 - [ ] AC-2: Branch tips are labeled with the branch name and an annotation bracket: `[tmux: <session>]`, `[docker: <container>]`, `[done]`, `[stopped]`, `[timed-out]`, or `[orphan]`.
@@ -35,8 +35,9 @@ Add a `crosslink kickoff graph` subcommand that renders an ASCII branch topology
 - [ ] AC-7: The `--json` flag outputs the topology as structured JSON (branch name, parent, fork point, agent metadata) for machine consumption.
 - [ ] AC-8: The `--no-pager` flag is accepted (no-op in V1, reserved for future use).
 - [ ] AC-9: A new `Graph` variant is added to `KickoffCommands` in `main.rs` and dispatched through `kickoff::dispatch()`.
+- [ ] AC-10: Branch names and annotations are truncated to fit the detected terminal width (or 80 columns as fallback) without line wrapping.
 
-### Architecture
+## Architecture
 
 ### Command registration
 
@@ -101,6 +102,7 @@ The renderer does not need to handle complex merge topologies — kickoff branch
 - **`tmux_session_name()`** (`helpers.rs:299`): Already computes the tmux session name from a slug — used to display the actionable session name.
 - **`truncate_str()`** (`helpers.rs:586-592`): Reused for branch name truncation in narrow terminals.
 - **Compact naming pattern** (`utils.rs:182-202`): `compose_compact_name()` and `validate_compact_name()` define the naming format used to identify kickoff branches among all `feature/*` branches.
+- **`crossterm::terminal::size()`**: Already a dependency (`Cargo.toml:41`, used in `wizard.rs:4`). Returns `(cols, rows)` for terminal width detection. Falls back to 80 columns on failure (piped output, non-TTY).
 
 ### Output format
 
@@ -139,7 +141,11 @@ JSON (`--json`):
 - If a branch's fork point cannot be determined (detached from all base branches), skip it with a warning on stderr.
 - If `.worktrees/` does not exist, treat as zero agents (REQ-7).
 
-### Out of Scope
+## Open Questions
+
+No open questions remain.
+
+## Out of Scope
 
 - SVG rendering (`--svg` flag) — deferred to follow-up.
 - Pager integration — V1 prints directly to stdout; `--no-pager` is accepted but is a no-op.
@@ -147,4 +153,3 @@ JSON (`--json`):
 - Integration with `crosslink tui` Agents panel — separate feature.
 - Ahead/behind commit counts relative to base branches.
 - Commit hashes or commit messages in the graph output.
-
