@@ -1,0 +1,10 @@
+{
+  "uuid": "2de326b1-67de-4de0-9832-132fc17a5872",
+  "issue_uuid": "2e33d527-5e5a-45f4-87f7-7f7857bd8e51",
+  "author": "maxine--basel",
+  "content": "Session auto-ended (stale after 2763 minutes). No handoff notes provided.",
+  "created_at": "2026-03-22T16:40:23.570100Z",
+  "kind": "handoff",
+  "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgbMJQrcFvxUHGFzKhLs2qsfUDMqPDdJSAHuIKkxY6rD4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAnRAZobdNSy4+kGMa+fIzTd5X2K+7RVIcYf6y5fRwVsZPUi/+oiCwE5zSWPfRCrG4c7RCMLFMNt67/Kzp+ixjAw=="
+}
