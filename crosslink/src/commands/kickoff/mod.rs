@@ -1,5 +1,6 @@
 // E-ana tablet — kickoff command: launch agents to implement features
 mod cleanup;
+mod graph;
 mod helpers;
 mod launch;
 mod monitor;
@@ -21,6 +22,7 @@ pub use types::{parse_container_mode, parse_duration, parse_verify_level};
 
 // Re-export public command functions (used from main.rs dispatch)
 pub use cleanup::cleanup;
+pub use graph::graph;
 pub use monitor::{list, logs, report, report_all, status, stop};
 pub use plan::{plan, show_plan};
 pub use run::run;
@@ -146,6 +148,7 @@ pub fn dispatch(
             }
         }
         KickoffCommands::List { status } => list(crosslink_dir, &status, json, quiet),
+        KickoffCommands::Graph { all, no_pager: _ } => graph(crosslink_dir, all, json, quiet),
         KickoffCommands::Cleanup {
             dry_run,
             force,

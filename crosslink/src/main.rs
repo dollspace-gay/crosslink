@@ -1413,6 +1413,15 @@ enum KickoffCommands {
         #[arg(long)]
         json: bool,
     },
+    /// Show branch topology of kickoff feature branches
+    Graph {
+        /// Include completed, stopped, and orphaned branches
+        #[arg(long)]
+        all: bool,
+        /// Reserved for future pager support (no-op in V1)
+        #[arg(long)]
+        no_pager: bool,
+    },
     /// Interactive pipeline wizard or direct launch from a design doc
     #[command(alias = "go")]
     Launch {

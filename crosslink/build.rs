@@ -102,11 +102,13 @@ fn generate_commands_file(commands_dir: &Path) -> Result<(), Box<dyn std::error:
 
     for (filename, const_name) in &cmd_entries {
         let abs_path = abs_commands_dir.join(filename);
+        // Use forward slashes for include_str! paths — backslashes on Windows
+        // are interpreted as escape sequences inside string literals.
+        let abs_path_str = abs_path.to_string_lossy().replace('\\', "/");
         writeln!(
             gen_file,
             "pub(crate) const {}: &str = include_str!(\"{}\");",
-            const_name,
-            abs_path.display()
+            const_name, abs_path_str
         )?;
     }
 
@@ -170,11 +172,13 @@ fn generate_rules_file(rules_dir: &Path) -> Result<(), Box<dyn std::error::Error
     // Write include_str! constants
     for (filename, const_name) in &rule_entries {
         let abs_path = abs_rules_dir.join(filename);
+        // Use forward slashes for include_str! paths — backslashes on Windows
+        // are interpreted as escape sequences inside string literals.
+        let abs_path_str = abs_path.to_string_lossy().replace('\\', "/");
         writeln!(
             gen_file,
             "pub(crate) const {}: &str = include_str!(\"{}\");",
-            const_name,
-            abs_path.display()
+            const_name, abs_path_str
         )?;
     }
 
