@@ -1,0 +1,10 @@
+{
+  "uuid": "bdd6ce88-445d-4191-b662-90b8d170306a",
+  "issue_uuid": "1653023b-8978-4134-b885-be545fb536d2",
+  "author": "maxine--basel--kickoff-graph-command-0fa7",
+  "content": "Plan: Add Graph variant to KickoffCommands in main.rs, create graph.rs module under kickoff/, wire dispatch in mod.rs. Phase 1: collect refs via discover_agents + git for-each-ref. Phase 2: build topology via git merge-base/rev-list. Phase 3: render ASCII graph. Support --all, --json, --no-pager flags.",
+  "created_at": "2026-03-22T01:55:22.161489Z",
+  "kind": "plan",
+  "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgbMJQrcFvxUHGFzKhLs2qsfUDMqPDdJSAHuIKkxY6rD4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAxW3+fUfvwyG04OE6THLx0FAKYx2Pm9D7PUVPdW7DA+L7CKGoTQDxMR4lbpSDtMkBJOrzSXP+dtJN3CeM89ePCw=="
+}
