@@ -1,0 +1,8 @@
+{
+  "uuid": "66b3ef39-f957-4aaa-aa74-9691705183f5",
+  "issue_uuid": "6e550be2-da98-4572-a5cc-e4e6d343c22f",
+  "author": "anon-ab6221f8",
+  "content": "Massive session: 10 issues worked (GH #499, #506, #507, #505, #501, #503, #500, #495, #365, #385). PRs #508-#517 opened to develop. Design doc posted on #504. Started #361 (scheduling fields) — branch feature/issue-scheduling-fields created, exploration done, ready for implementation next session.",
+  "created_at": "2026-03-23T18:57:50.828276424Z",
+  "kind": "handoff"
+}
