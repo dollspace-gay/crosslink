@@ -1,0 +1,8 @@
+{
+  "uuid": "18e3fcc1-298c-49ef-ac44-dde358c06d5c",
+  "issue_uuid": "6e550be2-da98-4572-a5cc-e4e6d343c22f",
+  "author": "anon-ab6221f8",
+  "content": "Added jj log, jj diff, jj status, jj show, and jj bookmark list to DEFAULT_ALLOWED_BASH and the hook-config.json template. Mutation commands (jj commit, jj new, jj git push) remain gated by default.",
+  "created_at": "2026-03-23T18:34:11.691332527Z",
+  "kind": "result"
+}
