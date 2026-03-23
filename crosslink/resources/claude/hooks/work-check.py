@@ -52,6 +52,7 @@ DEFAULT_GATED_GIT = [
 DEFAULT_ALLOWED_BASH = [
     "crosslink ",
     "git status", "git diff", "git log", "git branch", "git show",
+    "jj log", "jj diff", "jj status", "jj show", "jj bookmark list",
     "cargo test", "cargo build", "cargo check", "cargo clippy", "cargo fmt",
     "npm test", "npm run", "npx ",
     "tsc", "node ", "python ",
