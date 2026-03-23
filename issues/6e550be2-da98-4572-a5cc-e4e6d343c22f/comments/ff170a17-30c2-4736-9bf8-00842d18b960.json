@@ -1,0 +1,8 @@
+{
+  "uuid": "ff170a17-30c2-4736-9bf8-00842d18b960",
+  "issue_uuid": "6e550be2-da98-4572-a5cc-e4e6d343c22f",
+  "author": "anon-ab6221f8",
+  "content": "Root cause: topo_sort_issues and dedup_issue_files don't impose a stable ordering on issues without display_id. Iteration order comes from filesystem which is non-deterministic. When next_local_id always starts at -1, a re-hydration that reads files in a different order swaps local ID assignments. Fix: add stable tiebreaker (created_at then uuid) to topo_sort_issues so roots always appear in the same order across hydrations.",
+  "created_at": "2026-03-23T14:01:21.200754739Z",
+  "kind": "plan"
+}
