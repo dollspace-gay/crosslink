@@ -1,0 +1,10 @@
+{
+  "uuid": "604e4e28-891b-4658-a65a-c02cbd152398",
+  "issue_uuid": "b42e49af-f559-4de5-8fba-64a884bb1efc",
+  "author": "maxine--basel",
+  "content": "Identified all problematic patterns across 7 skill files. The issue is pipes (|) and OR-fallbacks (||) in dynamic context expansions. Strategy: replace pipes with single commands, and replace || fallbacks with 2>/dev/null alone (empty output is fine, better than a permission error).",
+  "created_at": "2026-03-23T23:43:52.913601Z",
+  "kind": "decision",
+  "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgbMJQrcFvxUHGFzKhLs2qsfUDMqPDdJSAHuIKkxY6rD4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAHNeSWA/N0p9EgObo2ws8S0sp7Y5XmvSFU7NJSCjICd0cGb/emLapyN7xxoRUkrpdqMvkoth7sD7+mXAUyiHiDg=="
+}
