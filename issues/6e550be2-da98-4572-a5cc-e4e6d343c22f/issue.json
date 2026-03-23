@@ -1,12 +1,12 @@
 {
   "uuid": "6e550be2-da98-4572-a5cc-e4e6d343c22f",
   "display_id": 253,
-  "title": "View GH issue 499",
+  "title": "Fix offline issues assigned duplicate display IDs when created in rapid succession",
   "status": "open",
   "priority": "medium",
   "created_by": "anon-ab6221f8",
   "created_at": "2026-03-23T13:59:04.388095939Z",
-  "updated_at": "2026-03-23T13:59:11.289338851Z",
+  "updated_at": "2026-03-23T13:59:24.758026891Z",
   "labels": [
     "feature"
   ]
