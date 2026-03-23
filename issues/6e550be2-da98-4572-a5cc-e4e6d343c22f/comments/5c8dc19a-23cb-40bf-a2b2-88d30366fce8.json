@@ -1,0 +1,8 @@
+{
+  "uuid": "5c8dc19a-23cb-40bf-a2b2-88d30366fce8",
+  "issue_uuid": "6e550be2-da98-4572-a5cc-e4e6d343c22f",
+  "author": "anon-ab6221f8",
+  "content": "Implemented fallback_to_driver_signing() in trust.rs and disable_git_signing() in signing.rs. When configure_signing detects the agent key is gone, it reads the driver user.signingkey from the main repo git config and reconfigures the hub cache to use it. If no driver key exists, signing is disabled gracefully so commits proceed unsigned rather than failing.",
+  "created_at": "2026-03-23T14:40:39.354970790Z",
+  "kind": "result"
+}
