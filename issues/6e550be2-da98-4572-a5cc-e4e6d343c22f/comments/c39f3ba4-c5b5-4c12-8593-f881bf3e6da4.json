@@ -1,0 +1,8 @@
+{
+  "uuid": "c39f3ba4-c5b5-4c12-8593-f881bf3e6da4",
+  "issue_uuid": "6e550be2-da98-4572-a5cc-e4e6d343c22f",
+  "author": "anon-ab6221f8",
+  "content": "Implemented both CLI and MCP: crosslink agent prompt command uses tmux load-buffer + paste-buffer for reliable delivery. MCP server at agent-prompt-server.py wraps the CLI. Both resource templates and mcp.json updated for crosslink init deployment.",
+  "created_at": "2026-03-23T16:20:59.905847611Z",
+  "kind": "result"
+}
