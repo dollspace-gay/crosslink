@@ -1,0 +1,8 @@
+{
+  "uuid": "42054847-ba6c-4c7c-b199-2a322089027f",
+  "issue_uuid": "6e550be2-da98-4572-a5cc-e4e6d343c22f",
+  "author": "anon-ab6221f8",
+  "content": "Implementing lazy hydration check: store hub HEAD SHA after hydration, compare on read operations, re-hydrate if ref moved. Need to find where read commands enter and where hydration is triggered.",
+  "created_at": "2026-03-23T16:32:11.797110573Z",
+  "kind": "plan"
+}
