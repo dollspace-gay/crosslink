@@ -30,16 +30,12 @@
     "258": {
       "agent_id": "maxine--basel",
       "claimed_at": "2026-03-24T18:55:42.108441Z"
-    },
-    "259": {
-      "agent_id": "maxine--basel",
-      "claimed_at": "2026-03-24T23:54:48.542571Z"
     }
   },
   "issues": {},
   "watermark": {
-    "timestamp": "2026-03-24T23:54:48.542571Z",
+    "timestamp": "2026-03-25T00:15:10.354185Z",
     "agent_id": "maxine--basel",
-    "agent_seq": 49
+    "agent_seq": 50
   }
 }
