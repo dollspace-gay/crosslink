@@ -2,11 +2,12 @@
   "uuid": "0a7a4147-8bc0-407f-967e-5793c565944d",
   "display_id": 519,
   "title": "Fix shell injection via sh -c with config-derived test command",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "anon-ab6221f8",
   "created_at": "2026-03-26T13:49:15.765507925Z",
-  "updated_at": "2026-03-26T13:49:29.855714364Z",
+  "updated_at": "2026-03-26T16:18:45.481256756Z",
+  "closed_at": "2026-03-26T16:18:45.481256756Z",
   "labels": [
     "security"
   ]
