@@ -1,0 +1,8 @@
+{
+  "uuid": "6ff9c555-c1a6-490b-8861-6c9789c5f8e9",
+  "issue_uuid": "913ad52d-11c4-44fd-9b1d-5a77c11d1e5a",
+  "author": "anon-ab6221f8",
+  "content": "Fixed: Added knowledge.update() method using PATCH /knowledge/:slug. KnowledgeDetail.tsx now calls update() instead of create() for page edits.",
+  "created_at": "2026-03-26T19:52:27.828567210Z",
+  "kind": "result"
+}
