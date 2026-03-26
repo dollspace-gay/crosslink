@@ -12,26 +12,13 @@ use axum::{
 };
 
 use crate::server::{
+    errors::internal_error,
     state::AppState,
     types::{
         ApiError, CreateTokenUsageRequest, TokenUsageListQuery, TokenUsageListResponse,
         TokenUsageSummaryQuery, TokenUsageSummaryResponse,
     },
 };
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-fn internal_error(context: &str, e: impl std::fmt::Display) -> (StatusCode, Json<ApiError>) {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ApiError {
-            error: context.to_string(),
-            detail: Some(e.to_string()),
-        }),
-    )
-}
 
 // ---------------------------------------------------------------------------
 // Handlers
@@ -528,7 +515,7 @@ mod tests {
 
     #[test]
     fn test_internal_error_helper() {
-        let (status, json) = super::internal_error("ctx", "detail msg");
+        let (status, json) = crate::server::errors::internal_error("ctx", "detail msg");
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(json.error, "ctx");
         assert_eq!(json.detail.as_deref(), Some("detail msg"));

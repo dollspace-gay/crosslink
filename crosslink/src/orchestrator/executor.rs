@@ -358,7 +358,7 @@ impl OrchestratorExecutor {
         self.persist()?;
 
         Ok(WsExecutionProgressEvent {
-            event_type: "execution_progress",
+            event_type: crate::server::types::WsEventType::ExecutionProgress,
             plan_id: self.snapshot.plan_id.clone(),
             phase_id: self
                 .snapshot
@@ -425,7 +425,7 @@ impl OrchestratorExecutor {
         self.persist()?;
 
         let event = WsExecutionProgressEvent {
-            event_type: "execution_progress",
+            event_type: crate::server::types::WsEventType::ExecutionProgress,
             plan_id: self.snapshot.plan_id.clone(),
             phase_id,
             stage_id: stage_id.to_string(),
@@ -466,7 +466,7 @@ impl OrchestratorExecutor {
         self.persist()?;
 
         let event = WsExecutionProgressEvent {
-            event_type: "execution_progress",
+            event_type: crate::server::types::WsEventType::ExecutionProgress,
             plan_id: self.snapshot.plan_id.clone(),
             phase_id,
             stage_id: stage_id.to_string(),
@@ -521,7 +521,7 @@ impl OrchestratorExecutor {
         self.persist()?;
 
         let event = WsExecutionProgressEvent {
-            event_type: "execution_progress",
+            event_type: crate::server::types::WsEventType::ExecutionProgress,
             plan_id: self.snapshot.plan_id.clone(),
             phase_id,
             stage_id: stage_id.to_string(),

@@ -13,43 +13,10 @@ use axum::{
 };
 
 use crate::server::{
+    errors::{bad_request, internal_error, not_found},
     state::AppState,
     types::{ApiError, EndSessionRequest, OkResponse, SessionResponse, StartSessionRequest},
 };
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-fn internal_error(context: &str, e: impl std::fmt::Display) -> (StatusCode, Json<ApiError>) {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ApiError {
-            error: context.to_string(),
-            detail: Some(e.to_string()),
-        }),
-    )
-}
-
-fn not_found(msg: impl Into<String>) -> (StatusCode, Json<ApiError>) {
-    (
-        StatusCode::NOT_FOUND,
-        Json(ApiError {
-            error: "not found".to_string(),
-            detail: Some(msg.into()),
-        }),
-    )
-}
-
-fn bad_request(msg: impl Into<String>) -> (StatusCode, Json<ApiError>) {
-    (
-        StatusCode::BAD_REQUEST,
-        Json(ApiError {
-            error: "bad request".to_string(),
-            detail: Some(msg.into()),
-        }),
-    )
-}
 
 // ---------------------------------------------------------------------------
 // Handlers
@@ -416,15 +383,15 @@ mod tests {
 
     #[test]
     fn test_helper_functions() {
-        let (status, json) = super::internal_error("ctx", "err");
+        let (status, json) = crate::server::errors::internal_error("ctx", "err");
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(json.error, "ctx");
 
-        let (status, json) = super::not_found("gone");
+        let (status, json) = crate::server::errors::not_found("gone");
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert_eq!(json.detail.as_deref(), Some("gone"));
 
-        let (status, json) = super::bad_request("invalid");
+        let (status, json) = crate::server::errors::bad_request("invalid");
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(json.detail.as_deref(), Some("invalid"));
     }

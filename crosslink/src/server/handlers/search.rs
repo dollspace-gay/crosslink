@@ -14,34 +14,11 @@ use serde_json::Value;
 use crate::{
     knowledge::KnowledgeManager,
     server::{
+        errors::{bad_request, internal_error},
         state::AppState,
         types::{ApiError, KnowledgeSearchQuery},
     },
 };
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-fn internal_error(context: &str, e: impl std::fmt::Display) -> (StatusCode, Json<ApiError>) {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ApiError {
-            error: context.to_string(),
-            detail: Some(e.to_string()),
-        }),
-    )
-}
-
-fn bad_request(msg: impl Into<String>) -> (StatusCode, Json<ApiError>) {
-    (
-        StatusCode::BAD_REQUEST,
-        Json(ApiError {
-            error: "bad request".to_string(),
-            detail: Some(msg.into()),
-        }),
-    )
-}
 
 // ---------------------------------------------------------------------------
 // Response types
@@ -417,12 +394,12 @@ mod tests {
 
     #[test]
     fn test_helper_functions_directly() {
-        let (status, json) = super::internal_error("ctx", "detail");
+        let (status, json) = crate::server::errors::internal_error("ctx", "detail");
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(json.error, "ctx");
         assert_eq!(json.detail.as_deref(), Some("detail"));
 
-        let (status, json) = super::bad_request("bad input");
+        let (status, json) = crate::server::errors::bad_request("bad input");
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(json.error, "bad request");
         assert_eq!(json.detail.as_deref(), Some("bad input"));

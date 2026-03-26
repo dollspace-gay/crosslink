@@ -8,7 +8,6 @@
 //! - `GET /api/v1/locks/stale` — stale locks with age
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use axum::{
     extract::{Path as AxumPath, State},
@@ -71,8 +70,12 @@ fn classify_status(age_secs: i64) -> AgentStatus {
 ///
 /// Matching rules (tried in order):
 /// 1. Exact slug match.
-/// 2. The agent_id contains the slug.
-/// 3. The slug contains the agent_id.
+/// 2. Word-boundary match: the agent_id contains the slug (or vice versa)
+///    at a word boundary (preceded/followed by start/end or `-`/`_`/`.`).
+///
+/// The word-boundary constraint prevents false positives like agent "a"
+/// matching worktree "abc" or short common substrings matching unrelated
+/// worktrees.
 fn find_worktree_for_agent(root: &Path, agent_id: &str) -> Option<PathBuf> {
     let worktrees_dir = root.join(".worktrees");
     if !worktrees_dir.is_dir() {
@@ -84,9 +87,36 @@ fn find_worktree_for_agent(root: &Path, agent_id: &str) -> Option<PathBuf> {
         .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
         .find(|e| {
             let slug = e.file_name().to_string_lossy().to_string();
-            agent_id == slug || agent_id.contains(&slug) || slug.contains(agent_id)
+            agent_id == slug
+                || contains_at_word_boundary(agent_id, &slug)
+                || contains_at_word_boundary(&slug, agent_id)
         })
         .map(|e| e.path())
+}
+
+/// Returns true if `haystack` contains `needle` at a word boundary.
+///
+/// A word boundary means the character immediately before and after the
+/// match is either absent (start/end of string) or a separator (`-`, `_`, `.`).
+fn contains_at_word_boundary(haystack: &str, needle: &str) -> bool {
+    if needle.is_empty() || needle.len() > haystack.len() {
+        return false;
+    }
+    fn is_boundary(c: u8) -> bool {
+        matches!(c, b'-' | b'_' | b'.')
+    }
+    let h = haystack.as_bytes();
+    let n = needle.as_bytes();
+    for start in 0..=(h.len() - n.len()) {
+        if &h[start..start + n.len()] == n {
+            let left_ok = start == 0 || is_boundary(h[start - 1]);
+            let right_ok = start + n.len() == h.len() || is_boundary(h[start + n.len()]);
+            if left_ok && right_ok {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// Read the current git branch from a linked worktree directory.
@@ -116,10 +146,13 @@ fn read_worktree_branch(worktree: &Path) -> Option<String> {
 }
 
 /// Return `true` if the named tmux session is currently running.
-fn tmux_session_exists(name: &str) -> bool {
-    Command::new("tmux")
+///
+/// Uses `tokio::process::Command` to avoid blocking the async runtime.
+async fn tmux_session_exists(name: &str) -> bool {
+    tokio::process::Command::new("tmux")
         .args(["has-session", "-t", name])
         .output()
+        .await
         .map(|o| o.status.success())
         .unwrap_or(false)
 }
@@ -147,27 +180,7 @@ fn agent_tmux_session(agent_id: &str) -> String {
     }
 }
 
-/// Build an internal-server-error response from an error.
-fn internal_error(context: &str, e: impl std::fmt::Display) -> (StatusCode, Json<ApiError>) {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ApiError {
-            error: context.to_string(),
-            detail: Some(e.to_string()),
-        }),
-    )
-}
-
-/// Build a not-found response.
-fn not_found(msg: impl Into<String>) -> (StatusCode, Json<ApiError>) {
-    (
-        StatusCode::NOT_FOUND,
-        Json(ApiError {
-            error: "not found".to_string(),
-            detail: Some(msg.into()),
-        }),
-    )
-}
+use crate::server::errors::{internal_error, not_found};
 
 // ---------------------------------------------------------------------------
 // Handlers
@@ -329,7 +342,7 @@ pub async fn get_agent_status(
     };
 
     let session_name = agent_tmux_session(&agent_id);
-    let tmux_session_active = tmux_session_exists(&session_name);
+    let tmux_session_active = tmux_session_exists(&session_name).await;
 
     Ok(Json(AgentStatusResponse {
         agent_id,
@@ -467,7 +480,7 @@ pub async fn notify_lock_changed(
     // INTENTIONAL: broadcast failure is harmless when no WebSocket subscribers are connected
     let _ = state.ws_tx.send(crate::server::ws::WsEvent::LockChanged(
         crate::server::types::WsLockChangedEvent {
-            event_type: "lock_changed",
+            event_type: crate::server::types::WsEventType::LockChanged,
             issue_id: body.issue_id,
             action,
             agent_id: body.agent_id,
@@ -1018,7 +1031,7 @@ mod tests {
 
     #[test]
     fn test_internal_error_helper() {
-        let (status, json) = super::internal_error("ctx", "boom");
+        let (status, json) = crate::server::errors::internal_error("ctx", "boom");
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(json.error, "ctx");
         assert_eq!(json.detail.as_deref(), Some("boom"));
@@ -1026,7 +1039,7 @@ mod tests {
 
     #[test]
     fn test_not_found_helper() {
-        let (status, json) = super::not_found("missing");
+        let (status, json) = crate::server::errors::not_found("missing");
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert_eq!(json.error, "not found");
         assert_eq!(json.detail.as_deref(), Some("missing"));
@@ -1237,7 +1250,7 @@ mod tests {
     #[test]
     fn test_internal_error_helper_detail_none_via_display() {
         // Verify internal_error formats any Display type correctly
-        let (status, json) = super::internal_error("db error", std::io::Error::other("disk full"));
+        let (status, json) = crate::server::errors::internal_error("db error", std::io::Error::other("disk full"));
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(json.error, "db error");
         assert!(json.detail.as_deref().unwrap().contains("disk full"));
@@ -1247,7 +1260,7 @@ mod tests {
     fn test_not_found_helper_with_owned_string() {
         // Verify not_found accepts an owned String (exercises the Into<String> bound)
         let msg = format!("agent '{}' not found", "worker-1");
-        let (status, json) = super::not_found(msg);
+        let (status, json) = crate::server::errors::not_found(msg);
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert_eq!(json.error, "not found");
         assert!(json.detail.as_deref().unwrap().contains("worker-1"));

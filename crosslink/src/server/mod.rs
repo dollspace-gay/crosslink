@@ -1,3 +1,4 @@
+pub mod errors;
 pub mod handlers;
 pub mod routes;
 pub mod state;
@@ -13,7 +14,7 @@ use axum::extract::DefaultBodyLimit;
 use axum::http::{Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::Response;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 
 use crate::db::Database;
 use state::AppState;
@@ -81,7 +82,11 @@ pub async fn run(
     let cors = CorsLayer::new()
         .allow_origin([localhost, loopback])
         .allow_methods(tower_http::cors::Any)
-        .allow_headers(Any);
+        .allow_headers([
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::ACCEPT,
+        ]);
 
     let app = routes::build_router(state.clone(), dashboard_dir)
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))

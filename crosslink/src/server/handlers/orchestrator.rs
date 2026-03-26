@@ -17,43 +17,10 @@ use axum::{
 
 use crate::orchestrator::{decompose, executor::OrchestratorExecutor};
 use crate::server::{
+    errors::{bad_request, internal_error, not_found},
     state::AppState,
     types::{ApiError, DecomposeRequest, ExecutionStatus, OrchestratorPlan},
 };
-
-// ---------------------------------------------------------------------------
-// Error helpers
-// ---------------------------------------------------------------------------
-
-fn internal_error(context: &str, e: impl std::fmt::Display) -> (StatusCode, Json<ApiError>) {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ApiError {
-            error: context.to_string(),
-            detail: Some(e.to_string()),
-        }),
-    )
-}
-
-fn bad_request(msg: impl Into<String>) -> (StatusCode, Json<ApiError>) {
-    (
-        StatusCode::BAD_REQUEST,
-        Json(ApiError {
-            error: "bad request".to_string(),
-            detail: Some(msg.into()),
-        }),
-    )
-}
-
-fn not_found(msg: impl Into<String>) -> (StatusCode, Json<ApiError>) {
-    (
-        StatusCode::NOT_FOUND,
-        Json(ApiError {
-            error: "not found".to_string(),
-            detail: Some(msg.into()),
-        }),
-    )
-}
 
 fn conflict(msg: impl Into<String>) -> (StatusCode, Json<ApiError>) {
     (
