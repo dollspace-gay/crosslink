@@ -1,0 +1,8 @@
+{
+  "uuid": "4c4658d1-4216-4506-8d57-805cb769d9f5",
+  "issue_uuid": "4eb13574-d632-4e0d-8da2-261e900ff56d",
+  "author": "anon-ab6221f8",
+  "content": "Changed SocketAddr from 0.0.0.0 to 127.0.0.1 in server/mod.rs:55. Server now localhost-only. All 1665 tests pass.",
+  "created_at": "2026-03-26T14:30:56.873931004Z",
+  "kind": "result"
+}
