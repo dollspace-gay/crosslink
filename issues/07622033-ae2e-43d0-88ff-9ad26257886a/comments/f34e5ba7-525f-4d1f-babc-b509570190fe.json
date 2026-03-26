@@ -1,0 +1,8 @@
+{
+  "uuid": "f34e5ba7-525f-4d1f-babc-b509570190fe",
+  "issue_uuid": "07622033-ae2e-43d0-88ff-9ad26257886a",
+  "author": "anon-ab6221f8",
+  "content": "Fixed: AgentDetail.tsx now captures API errors in state and displays them to the user instead of silently swallowing with .catch(() => {}).",
+  "created_at": "2026-03-26T19:48:43.398450579Z",
+  "kind": "result"
+}
