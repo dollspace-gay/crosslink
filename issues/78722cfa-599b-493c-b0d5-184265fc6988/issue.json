@@ -1,0 +1,10 @@
+{
+  "uuid": "78722cfa-599b-493c-b0d5-184265fc6988",
+  "display_id": 557,
+  "title": "Remove stale module-level allow dead_code from server types",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:54:42.325634234Z",
+  "updated_at": "2026-03-26T13:54:42.325634234Z"
+}
