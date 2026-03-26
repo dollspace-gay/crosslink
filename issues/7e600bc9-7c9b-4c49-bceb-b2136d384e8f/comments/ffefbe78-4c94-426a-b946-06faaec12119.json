@@ -1,0 +1,8 @@
+{
+  "uuid": "ffefbe78-4c94-426a-b946-06faaec12119",
+  "issue_uuid": "7e600bc9-7c9b-4c49-bceb-b2136d384e8f",
+  "author": "anon-ab6221f8",
+  "content": "Fixed: Linux clipboard now tries wl-copy (Wayland), xclip (X11), xsel (fallback), and clip.exe (WSL2) in order of preference.",
+  "created_at": "2026-03-26T19:56:09.985505109Z",
+  "kind": "result"
+}
