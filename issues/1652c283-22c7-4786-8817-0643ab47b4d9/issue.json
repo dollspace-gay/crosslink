@@ -2,11 +2,12 @@
   "uuid": "1652c283-22c7-4786-8817-0643ab47b4d9",
   "display_id": 621,
   "title": "Move eventCounter into Zustand store in orchestrator.ts",
-  "status": "open",
+  "status": "closed",
   "priority": "low",
   "created_by": "anon-ab6221f8",
   "created_at": "2026-03-26T14:03:43.457769590Z",
-  "updated_at": "2026-03-26T14:03:45.706812174Z",
+  "updated_at": "2026-03-26T19:50:52.496459784Z",
+  "closed_at": "2026-03-26T19:50:52.496459784Z",
   "labels": [
     "enhancement"
   ]
