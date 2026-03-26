@@ -1,0 +1,10 @@
+{
+  "uuid": "7c129e8c-e138-4191-bbab-9a09a1b185ee",
+  "display_id": 400,
+  "title": "Clarify seam.rs naming relative to sealed-commit pattern documentation",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:31:58.521858560Z",
+  "updated_at": "2026-03-26T13:31:58.521858560Z"
+}
