@@ -1,0 +1,10 @@
+{
+  "uuid": "4ce27fc7-0b5a-443a-aafb-cd85faa6798f",
+  "display_id": 551,
+  "title": "Fix N+1 query in list_issues fetching labels and blockers per issue",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:53:57.397465854Z",
+  "updated_at": "2026-03-26T13:53:57.397465854Z"
+}
