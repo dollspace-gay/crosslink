@@ -1,0 +1,8 @@
+{
+  "uuid": "0ce459a2-13b2-4da6-aeab-10220c1ad072",
+  "issue_uuid": "234fce14-7655-4d0c-b39c-fea332a3ca08",
+  "author": "anon-ab6221f8",
+  "content": "Add is_complete check and execution state transition to mark_stage_failed, mirroring the pattern in mark_stage_done.",
+  "created_at": "2026-03-26T15:39:26.207005774Z",
+  "kind": "plan"
+}
