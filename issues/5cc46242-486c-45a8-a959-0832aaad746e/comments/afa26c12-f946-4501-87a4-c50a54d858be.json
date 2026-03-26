@@ -1,0 +1,8 @@
+{
+  "uuid": "afa26c12-f946-4501-87a4-c50a54d858be",
+  "issue_uuid": "5cc46242-486c-45a8-a959-0832aaad746e",
+  "author": "anon-ab6221f8",
+  "content": "Core enum definitions, DB layer (rusqlite ToSql/FromSql), models, issue_file, checkpoint, compaction, hydration, shared_writer, and server handlers all converted and tested. Remaining: ~46 errors in CLI commands (tree, import, archive, next) and TUI (issues_tab, milestones_tab) display code. These are all string comparisons and display formatting — mechanical fixes.",
+  "created_at": "2026-03-26T19:17:10.097527263Z",
+  "kind": "observation"
+}
