@@ -1,0 +1,8 @@
+{
+  "uuid": "2e4700f2-5104-4c87-98c5-86ab0efa227e",
+  "issue_uuid": "783db1cd-dcbf-4fb0-bb28-74bb09872ad0",
+  "author": "anon-ab6221f8",
+  "content": "Added _lock_guard = self.sync.acquire_lock()? at start of emit_compact_push. All hub cache mutations now hold the write lock. All 1665 tests pass.",
+  "created_at": "2026-03-26T17:32:40.421112402Z",
+  "kind": "result"
+}
