@@ -1,0 +1,10 @@
+{
+  "uuid": "ecf764ef-bbec-4bb7-bff8-612781b3eedb",
+  "display_id": 426,
+  "title": "Replace in_ours and in_theirs booleans with ConflictState enum",
+  "status": "open",
+  "priority": "low",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:37:38.557438644Z",
+  "updated_at": "2026-03-26T13:37:38.557438644Z"
+}
