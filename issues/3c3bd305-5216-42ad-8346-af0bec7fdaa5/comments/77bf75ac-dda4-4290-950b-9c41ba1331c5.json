@@ -1,0 +1,8 @@
+{
+  "uuid": "77bf75ac-dda4-4290-950b-9c41ba1331c5",
+  "issue_uuid": "3c3bd305-5216-42ad-8346-af0bec7fdaa5",
+  "author": "anon-ab6221f8",
+  "content": "Fixed: detectPlatform() in vscode-extension/src/platform.ts now caches its result in a module-level variable. Subsequent calls (e.g. from ensureExecutable) return cached value without re-detecting.",
+  "created_at": "2026-03-26T19:52:03.966368074Z",
+  "kind": "result"
+}
