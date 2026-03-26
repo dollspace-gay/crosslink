@@ -1,0 +1,8 @@
+{
+  "uuid": "11f2dbb3-81be-4331-81ad-5cbec4ee4583",
+  "issue_uuid": "524eac67-f2d8-4385-b13c-2a21b1c9e3ed",
+  "author": "anon-ab6221f8",
+  "content": "Decision: Add WalkthroughCore to config_registry.rs with the shared fields and methods. Init wraps it with alias fields. Config wraps it directly. Draw functions remain separate since they have different screen layouts, but can delegate to shared helpers for the common preset/group/confirm screens.",
+  "created_at": "2026-03-26T18:05:47.359976136Z",
+  "kind": "decision"
+}
