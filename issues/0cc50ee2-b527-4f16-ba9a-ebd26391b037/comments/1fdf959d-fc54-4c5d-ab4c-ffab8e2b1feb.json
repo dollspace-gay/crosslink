@@ -1,0 +1,8 @@
+{
+  "uuid": "1fdf959d-fc54-4c5d-ab4c-ffab8e2b1feb",
+  "issue_uuid": "0cc50ee2-b527-4f16-ba9a-ebd26391b037",
+  "author": "anon-ab6221f8",
+  "content": "Fixed: Renamed 'dominated' variable to 'excluded_by_filter' in build_tree_recursive for clarity.",
+  "created_at": "2026-03-26T19:57:35.211147631Z",
+  "kind": "result"
+}
