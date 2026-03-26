@@ -1,0 +1,8 @@
+{
+  "uuid": "1f8e1411-28c4-4470-9fef-af6720caaeb6",
+  "issue_uuid": "e618b81e-cb6f-47f2-86f0-84f47e1c2d06",
+  "author": "anon-ab6221f8",
+  "content": "On closer inspection, all callers already dispatch V1 vs V2 before reaching sync.claim_lock/release_lock. The V1 functions are only called on V1 layouts. The issue was that the functions themselves don't enforce this — they silently do the wrong thing if called on V2. Adding a V2 guard that bails with a clear error instead of silently writing to the wrong file.",
+  "created_at": "2026-03-26T17:42:46.913743371Z",
+  "kind": "observation"
+}
