@@ -348,7 +348,7 @@ impl OrchestratorExecutor {
     ) -> WsExecutionProgressEvent {
         let node = self.snapshot.dag.get(stage_id);
         WsExecutionProgressEvent {
-            event_type: "execution_progress",
+            event_type: crate::server::types::WsEventType::ExecutionProgress,
             plan_id: self.snapshot.plan_id.clone(),
             phase_id: node.map(|n| n.phase_id.clone()).unwrap_or_default(),
             stage_id: stage_id.to_string(),

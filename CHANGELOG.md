@@ -9,6 +9,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [0.6.0] - 2026-03-24
 
 ### Added
+- Consolidate event formatting between agents_tab and config_tab (#584)
+- Replace CommentAuthorRow and TimeEntryRow tuples with named structs (#301)
+- Add FTS5 search or document O(n) scan limitation in search_issues (#300)
+- Add test asserting SCHEMA_VERSION matches highest migration block (#298)
+- Define Status and Priority enums for compile-time validation in DB layer (#297)
+- Fix inconsistent glob re-exports in db mod.rs (#296)
+- Fix get_token_usage collecting all rows instead of using query_row (#294)
+- Deduplicate milestone row-mapping closure into shared helper function (#293)
+- Improve readability of trailing line detection in event decode_all (#283)
+- Move default_comment_kind to associated function on Comment type (#278)
+- Add PartialEq derive to EventEnvelope and Event for testability (#277)
+- Add version comparison before overwriting binary in installToUserBin (#629)
+- Replace fragile string parsing with regex in parse_ssh_verify_output (#275)
+- Add target_uuid and event_type_name helper methods to Event enum (#274)
+- Remove non-null assertion in VS Code executeCrosslinkCommand (#628)
+- Consolidate redundant home_dir and home_dir_fallback functions (#271)
+- Replace eprintln with tracing in AllowedSigners parse error reporting (#267)
+- Split VS Code registerCommands god function into logical groups (#612)
 
 #### Kickoff & Multi-Agent
 - Unified design-plan-run pipeline UX for `crosslink kickoff` — bare `kickoff` launches interactive wizard ([GH-445])
@@ -31,6 +49,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add jj (Jujutsu) read-only commands to allowed_bash_prefixes ([GH-517])
 
 ### Fixed
+- Fix insert_relation_raw using current timestamp instead of original (#304)
+- Add name length validation to create_milestone (#303)
+- Add circular parent chain detection in update_parent (#302)
+- Fix parse_datetime replacing corrupt timestamps with Utc now (#289)
+- Replace error-string matching in schema migrations with structured tracking (#288)
+- Fix racy env var mutation in identity tests without synchronization (#268)
+- Fix VS Code handleConfigChange using hardcoded extension ID for path (#613)
+- Replace unstable DefaultHasher in anonymous agent ID generation (#266)
 
 #### Hub Stability
 - Hub stability bundle — self-healing health checks, FK protection, lock verification, orphan cleanup ([GH-464])
@@ -403,6 +429,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Skip worktree agent init and tmux/claude prerequisite checks in dry-run mode
 
 ### Security
+- Add safety comment to PRAGMA foreign_keys string formatting (#291)
+- Fix VS Code daemon stop using shell string interpolation for PID (#611)
 - Restrict CORS allowed headers to specific frontend headers (#564)
 - Add path traversal protection to knowledge page slug validation (#555)
 - Add authentication to server REST API endpoints (#547)

@@ -13,38 +13,7 @@ use std::path::PathBuf;
 use crate::db::Database;
 use crate::models::{Comment, Issue};
 
-use super::TabAction;
-
-/// Background color for highlighted/selected rows. Uses a dark gray from the
-/// 256-color palette that is distinct enough to show selection without
-/// overriding cell-level foreground colors.
-const HIGHLIGHT_BG: Color = Color::Indexed(236);
-
-/// Status filter options for the issue list.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum StatusFilter {
-    Open,
-    Closed,
-    All,
-}
-
-impl StatusFilter {
-    fn next(self) -> Self {
-        match self {
-            StatusFilter::Open => StatusFilter::Closed,
-            StatusFilter::Closed => StatusFilter::All,
-            StatusFilter::All => StatusFilter::Open,
-        }
-    }
-
-    fn label(self) -> &'static str {
-        match self {
-            StatusFilter::Open => "Open",
-            StatusFilter::Closed => "Closed",
-            StatusFilter::All => "All",
-        }
-    }
-}
+use super::{StatusFilter, TabAction, HIGHLIGHT_BG};
 
 /// Sort options for the issue list.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -77,7 +46,7 @@ impl SortOrder {
 
 /// View mode for the issues tab.
 #[derive(Clone, Copy, PartialEq)]
-enum ViewMode {
+enum IssueViewMode {
     List,
     Detail,
     Tree,
@@ -143,8 +112,8 @@ impl IssuesTab {
             sort_order: SortOrder::IdDesc,
             search_query: String::new(),
             searching: false,
-            view_mode: ViewMode::List,
-            prev_view_mode: ViewMode::List,
+            view_mode: IssueViewMode::List,
+            prev_view_mode: IssueViewMode::List,
             detail: None,
             detail_scroll: 0,
             detail_max_scroll: Cell::new(0),
@@ -240,7 +209,7 @@ impl IssuesTab {
             self.detail = Some(detail);
             self.detail_scroll = 0;
             self.prev_view_mode = self.view_mode;
-            self.view_mode = ViewMode::Detail;
+            self.view_mode = IssueViewMode::Detail;
         }
         Ok(())
     }
@@ -335,7 +304,7 @@ impl IssuesTab {
             KeyCode::Char('t') => {
                 if let Some(db) = db {
                     let _ = self.build_tree(db);
-                    self.view_mode = ViewMode::Tree;
+                    self.view_mode = IssueViewMode::Tree;
                 }
                 TabAction::Consumed
             }
@@ -464,12 +433,12 @@ impl IssuesTab {
         let children = db.get_subissues(id)?;
         for child in children {
             // Respect status filter
-            let dominated = match self.status_filter {
+            let excluded_by_filter = match self.status_filter {
                 StatusFilter::All => false,
                 StatusFilter::Open => child.status != crate::models::IssueStatus::Open,
                 StatusFilter::Closed => child.status != crate::models::IssueStatus::Closed,
             };
-            if !dominated {
+            if !excluded_by_filter {
                 self.build_tree_recursive(db, child, depth + 1)?;
             }
         }
@@ -481,7 +450,7 @@ impl IssuesTab {
     fn handle_tree_key(&mut self, key: KeyEvent, db: Option<&Database>) -> TabAction {
         match key.code {
             KeyCode::Esc => {
-                self.view_mode = ViewMode::List;
+                self.view_mode = IssueViewMode::List;
                 TabAction::Consumed
             }
             KeyCode::Down | KeyCode::Char('j') => {
@@ -523,7 +492,7 @@ impl IssuesTab {
                             self.detail = Some(detail);
                             self.detail_scroll = 0;
                             self.prev_view_mode = self.view_mode;
-                            self.view_mode = ViewMode::Detail;
+                            self.view_mode = IssueViewMode::Detail;
                         }
                     }
                 }
@@ -714,7 +683,7 @@ impl IssuesTab {
                         .map(|l| l.join(", "))
                         .unwrap_or_default();
 
-                    let updated = format_relative_time(issue.updated_at);
+                    let updated = super::format_relative_time(&issue.updated_at);
 
                     let id_str = format_issue_id(issue.id);
 
@@ -1065,20 +1034,20 @@ impl super::Tab for IssuesTab {
 
     fn render(&self, frame: &mut Frame, area: Rect) {
         match self.view_mode {
-            ViewMode::List => self.render_list(frame, area),
-            ViewMode::Detail => self.render_detail(frame, area),
-            ViewMode::Tree => self.render_tree(frame, area),
+            IssueViewMode::List => self.render_list(frame, area),
+            IssueViewMode::Detail => self.render_detail(frame, area),
+            IssueViewMode::Tree => self.render_tree(frame, area),
         }
     }
 
     fn handle_key(&mut self, key: KeyEvent) -> TabAction {
         match self.view_mode {
-            ViewMode::List => {
+            IssueViewMode::List => {
                 let db = self.open_db().ok();
                 self.handle_list_key(key, db.as_ref())
             }
-            ViewMode::Detail => self.handle_detail_key(key),
-            ViewMode::Tree => {
+            IssueViewMode::Detail => self.handle_detail_key(key),
+            IssueViewMode::Tree => {
                 let db = self.open_db().ok();
                 self.handle_tree_key(key, db.as_ref())
             }
@@ -1093,7 +1062,7 @@ impl super::Tab for IssuesTab {
     fn force_refresh(&mut self) {
         if let Ok(db) = self.open_db() {
             match self.view_mode {
-                ViewMode::Tree => {
+                IssueViewMode::Tree => {
                     let _ = self.build_tree(&db);
                 }
                 _ => {
@@ -1140,23 +1109,6 @@ fn status_color(status: &crate::models::IssueStatus) -> Style {
         IssueStatus::Open => Style::default().fg(Color::Green),
         IssueStatus::Closed => Style::default().fg(Color::DarkGray),
         IssueStatus::Archived => Style::default(),
-    }
-}
-
-fn format_relative_time(dt: chrono::DateTime<Utc>) -> String {
-    let now = Utc::now();
-    let duration = now.signed_duration_since(dt);
-
-    if duration.num_seconds() < 60 {
-        "just now".to_string()
-    } else if duration.num_minutes() < 60 {
-        format!("{}m ago", duration.num_minutes())
-    } else if duration.num_hours() < 24 {
-        format!("{}h ago", duration.num_hours())
-    } else if duration.num_days() < 30 {
-        format!("{}d ago", duration.num_days())
-    } else {
-        dt.format("%Y-%m-%d").to_string()
     }
 }
 
@@ -1254,16 +1206,16 @@ mod tests {
     #[test]
     fn test_format_relative_time() {
         let now = Utc::now();
-        assert_eq!(format_relative_time(now), "just now");
+        assert_eq!(super::super::format_relative_time(&now), "0s ago");
 
         let five_min_ago = now - chrono::Duration::minutes(5);
-        assert_eq!(format_relative_time(five_min_ago), "5m ago");
+        assert_eq!(super::super::format_relative_time(&five_min_ago), "5m ago");
 
         let two_hours_ago = now - chrono::Duration::hours(2);
-        assert_eq!(format_relative_time(two_hours_ago), "2h ago");
+        assert_eq!(super::super::format_relative_time(&two_hours_ago), "2h ago");
 
         let three_days_ago = now - chrono::Duration::days(3);
-        assert_eq!(format_relative_time(three_days_ago), "3d ago");
+        assert_eq!(super::super::format_relative_time(&three_days_ago), "3d ago");
     }
 
     #[test]
@@ -1360,7 +1312,7 @@ mod tests {
 
         // Enter detail
         tab.handle_list_key(make_key(KeyCode::Enter), Some(&db));
-        assert!(matches!(tab.view_mode, ViewMode::Detail));
+        assert!(matches!(tab.view_mode, IssueViewMode::Detail));
         assert!(tab.detail.is_some());
 
         // Simulate a render having computed max scroll.
@@ -1372,7 +1324,7 @@ mod tests {
 
         // Back
         tab.handle_detail_key(make_key(KeyCode::Esc));
-        assert!(matches!(tab.view_mode, ViewMode::List));
+        assert!(matches!(tab.view_mode, IssueViewMode::List));
         assert!(tab.detail.is_none());
     }
 
@@ -1474,13 +1426,7 @@ mod tests {
         assert_eq!(tab.selected, 0); // Clamped
     }
 
-    fn make_key(code: KeyCode) -> KeyEvent {
-        use crossterm::event::{KeyEventKind, KeyEventState, KeyModifiers};
-        KeyEvent {
-            code,
-            modifiers: KeyModifiers::empty(),
-            kind: KeyEventKind::Press,
-            state: KeyEventState::empty(),
-        }
+    fn make_key(code: crossterm::event::KeyCode) -> crossterm::event::KeyEvent {
+        super::super::make_test_key(code)
     }
 }
