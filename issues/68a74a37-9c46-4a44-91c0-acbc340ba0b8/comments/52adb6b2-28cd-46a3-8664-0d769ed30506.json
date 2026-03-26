@@ -1,0 +1,8 @@
+{
+  "uuid": "52adb6b2-28cd-46a3-8664-0d769ed30506",
+  "issue_uuid": "68a74a37-9c46-4a44-91c0-acbc340ba0b8",
+  "author": "anon-ab6221f8",
+  "content": "insert_relation_raw takes 2 args (generates its own timestamp) — dropping created_at from relation snapshot for now. Separate issue #43 tracks preserving original timestamps. Milestone method is insert_hydrated_milestone_issue not insert_milestone_issue.",
+  "created_at": "2026-03-26T16:37:08.822569558Z",
+  "kind": "observation"
+}
