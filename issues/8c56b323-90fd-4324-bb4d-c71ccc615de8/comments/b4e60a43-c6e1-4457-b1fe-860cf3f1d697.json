@@ -1,0 +1,8 @@
+{
+  "uuid": "b4e60a43-c6e1-4457-b1fe-860cf3f1d697",
+  "issue_uuid": "8c56b323-90fd-4324-bb4d-c71ccc615de8",
+  "author": "anon-ab6221f8",
+  "content": "Added bearer token auth middleware. Token generated at startup and printed to stdout. Health endpoint and non-API paths exempt. All API routes require Authorization: Bearer header. Tests pass because they use build_router directly without the middleware layer. All 1665 tests pass.",
+  "created_at": "2026-03-26T17:49:06.383111322Z",
+  "kind": "result"
+}
