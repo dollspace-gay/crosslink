@@ -1,0 +1,10 @@
+{
+  "uuid": "7fe14202-e3f5-48a9-9233-0aa6d97efbbf",
+  "display_id": 446,
+  "title": "Replace Progress and ScoredIssue tuples with named structs",
+  "status": "open",
+  "priority": "low",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:39:42.995608057Z",
+  "updated_at": "2026-03-26T13:39:42.995608057Z"
+}
