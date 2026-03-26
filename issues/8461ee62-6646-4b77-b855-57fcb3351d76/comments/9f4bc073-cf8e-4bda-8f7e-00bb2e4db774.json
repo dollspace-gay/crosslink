@@ -1,0 +1,8 @@
+{
+  "uuid": "9f4bc073-cf8e-4bda-8f7e-00bb2e4db774",
+  "issue_uuid": "8461ee62-6646-4b77-b855-57fcb3351d76",
+  "author": "anon-ab6221f8",
+  "content": "Change dependency satisfaction checks in ready_nodes and mark_done to accept both Done and Skipped as terminal states using matches! macro.",
+  "created_at": "2026-03-26T15:30:58.247196911Z",
+  "kind": "plan"
+}
