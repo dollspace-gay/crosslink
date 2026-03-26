@@ -1,0 +1,8 @@
+{
+  "uuid": "8b68d02b-91e6-47b6-9d0d-fb7d0e972027",
+  "issue_uuid": "ea48950a-2340-45e1-ab65-30534a3c4bf3",
+  "author": "anon-ab6221f8",
+  "content": "Add explicit Bool(true) arm that returns Some(1) as default multiplier, so true enables the feature with a sensible default.",
+  "created_at": "2026-03-26T16:28:28.395972645Z",
+  "kind": "plan"
+}
