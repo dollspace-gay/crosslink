@@ -2,11 +2,12 @@
   "uuid": "1ca7e125-7352-466d-bce7-4ddbec1d314f",
   "display_id": 291,
   "title": "Add safety comment to PRAGMA foreign_keys string formatting",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "created_by": "anon-ab6221f8",
   "created_at": "2026-03-26T13:22:03.844918813Z",
-  "updated_at": "2026-03-26T13:22:05.658020390Z",
+  "updated_at": "2026-03-26T19:59:06.518910587Z",
+  "closed_at": "2026-03-26T19:59:06.518910587Z",
   "labels": [
     "security"
   ]
