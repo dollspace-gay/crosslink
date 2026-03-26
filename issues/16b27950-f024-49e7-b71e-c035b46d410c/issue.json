@@ -1,0 +1,10 @@
+{
+  "uuid": "16b27950-f024-49e7-b71e-c035b46d410c",
+  "display_id": 540,
+  "title": "Fix misleading underscore on used _agent_count variable in budget",
+  "status": "open",
+  "priority": "low",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:52:22.409845028Z",
+  "updated_at": "2026-03-26T13:52:22.409845028Z"
+}
