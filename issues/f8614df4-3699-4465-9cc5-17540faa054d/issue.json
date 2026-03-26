@@ -2,11 +2,12 @@
   "uuid": "f8614df4-3699-4465-9cc5-17540faa054d",
   "display_id": 626,
   "title": "Extract duplicated priorityVariant into shared dashboard utility",
-  "status": "open",
+  "status": "closed",
   "priority": "low",
   "created_by": "anon-ab6221f8",
   "created_at": "2026-03-26T14:04:19.524580047Z",
-  "updated_at": "2026-03-26T14:04:22.167169368Z",
+  "updated_at": "2026-03-26T19:51:54.641507854Z",
+  "closed_at": "2026-03-26T19:51:54.641507854Z",
   "labels": [
     "enhancement"
   ]
