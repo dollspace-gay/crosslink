@@ -1,0 +1,8 @@
+{
+  "uuid": "e21e409b-34bb-476d-a058-0fdaa39b2030",
+  "issue_uuid": "5cc46242-486c-45a8-a959-0832aaad746e",
+  "author": "anon-ab6221f8",
+  "content": "Starting the cross-cutting enum refactor. Step 1: Define IssueStatus and Priority enums in models.rs with Display, FromStr, Serialize, Deserialize, and rusqlite ToSql/FromSql. Step 2: Replace String fields incrementally — models.rs first, then db layer, then outward.",
+  "created_at": "2026-03-26T18:48:13.268595816Z",
+  "kind": "plan"
+}
