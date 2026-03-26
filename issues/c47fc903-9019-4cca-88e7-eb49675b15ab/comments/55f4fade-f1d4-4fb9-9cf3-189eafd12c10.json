@@ -1,0 +1,8 @@
+{
+  "uuid": "55f4fade-f1d4-4fb9-9cf3-189eafd12c10",
+  "issue_uuid": "c47fc903-9019-4cca-88e7-eb49675b15ab",
+  "author": "anon-ab6221f8",
+  "content": "Moved release_lock_best_effort to lock_check.rs as pub function. Removed duplicate copies from create.rs and session.rs, both now import from the shared location. Standardized on tracing::warn (session.rs copy used eprintln). All 1665 tests pass.",
+  "created_at": "2026-03-26T16:59:21.413147166Z",
+  "kind": "result"
+}
