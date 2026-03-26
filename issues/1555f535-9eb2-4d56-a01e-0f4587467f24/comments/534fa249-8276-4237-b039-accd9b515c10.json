@@ -1,0 +1,8 @@
+{
+  "uuid": "534fa249-8276-4237-b039-accd9b515c10",
+  "issue_uuid": "1555f535-9eb2-4d56-a01e-0f4587467f24",
+  "author": "anon-ab6221f8",
+  "content": "Changed LocksFile.locks from HashMap<String, Lock> to HashMap<i64, Lock>. Added custom serde module (string_key_map) for backward-compatible JSON serialization with string keys on disk. Removed all .to_string() key conversions and .parse() key lookups across locks.rs, sync/locks.rs, server/handlers/agents.rs, and test files. All 1665 tests pass including proptest roundtrip.",
+  "created_at": "2026-03-26T17:13:03.833129449Z",
+  "kind": "result"
+}
