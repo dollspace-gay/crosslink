@@ -1,0 +1,8 @@
+{
+  "uuid": "478e42a5-a145-4ba5-a467-615ba1d3520f",
+  "issue_uuid": "e618b81e-cb6f-47f2-86f0-84f47e1c2d06",
+  "author": "anon-ab6221f8",
+  "content": "Add V2 layout dispatch in claim_lock and release_lock. When is_v2_layout(), delegate to the SharedWriter V2 methods instead of writing to V1 locks.json.",
+  "created_at": "2026-03-26T17:42:04.396376316Z",
+  "kind": "plan"
+}
