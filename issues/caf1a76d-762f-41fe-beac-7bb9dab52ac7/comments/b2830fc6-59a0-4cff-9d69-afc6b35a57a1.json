@@ -1,0 +1,8 @@
+{
+  "uuid": "b2830fc6-59a0-4cff-9d69-afc6b35a57a1",
+  "issue_uuid": "caf1a76d-762f-41fe-beac-7bb9dab52ac7",
+  "author": "anon-ab6221f8",
+  "content": "Plan: Create config_registry.rs under commands/ with ConfigType, ConfigGroup, ConfigKey, REGISTRY, PRESET_SOLO, PRESET_TEAM, find_registry_key, type_label. Both init.rs and config.rs import from it. Also move HOOK_CONFIG_JSON constant to config_registry.rs to break the config->init dependency.",
+  "created_at": "2026-03-26T17:52:33.897148017Z",
+  "kind": "plan"
+}
