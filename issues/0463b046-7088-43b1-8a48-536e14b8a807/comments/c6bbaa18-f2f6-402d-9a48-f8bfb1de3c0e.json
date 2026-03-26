@@ -1,0 +1,8 @@
+{
+  "uuid": "c6bbaa18-f2f6-402d-9a48-f8bfb1de3c0e",
+  "issue_uuid": "0463b046-7088-43b1-8a48-536e14b8a807",
+  "author": "anon-ab6221f8",
+  "content": "Fixed: AgentsTab.load_detail() now sets error_msg on SyncManager init failure instead of silently returning.",
+  "created_at": "2026-03-26T19:56:29.307404974Z",
+  "kind": "result"
+}
