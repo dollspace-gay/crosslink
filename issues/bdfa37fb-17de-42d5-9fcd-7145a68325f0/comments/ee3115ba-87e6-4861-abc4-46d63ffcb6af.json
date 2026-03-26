@@ -1,0 +1,8 @@
+{
+  "uuid": "ee3115ba-87e6-4861-abc4-46d63ffcb6af",
+  "issue_uuid": "bdfa37fb-17de-42d5-9fcd-7145a68325f0",
+  "author": "anon-ab6221f8",
+  "content": "This is a 3000+ LOC refactor that should be its own dedicated PR. Deferring to a separate branch — not suitable for a QA fix pass where we need to maintain test stability across many small changes.",
+  "created_at": "2026-03-26T17:49:26.387948688Z",
+  "kind": "decision"
+}
