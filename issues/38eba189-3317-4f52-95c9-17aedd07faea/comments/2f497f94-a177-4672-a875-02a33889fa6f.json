@@ -1,0 +1,8 @@
+{
+  "uuid": "2f497f94-a177-4672-a875-02a33889fa6f",
+  "issue_uuid": "38eba189-3317-4f52-95c9-17aedd07faea",
+  "author": "anon-ab6221f8",
+  "content": "Add a dirty-state check via git status --porcelain before reset --hard. If dirty, skip the reset and log a warning instead of destroying uncommitted work.",
+  "created_at": "2026-03-26T16:54:05.439985461Z",
+  "kind": "plan"
+}
