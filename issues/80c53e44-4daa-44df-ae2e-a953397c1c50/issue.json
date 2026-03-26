@@ -1,0 +1,10 @@
+{
+  "uuid": "80c53e44-4daa-44df-ae2e-a953397c1c50",
+  "display_id": 297,
+  "title": "Define Status and Priority enums for compile-time validation in DB layer",
+  "status": "open",
+  "priority": "low",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:22:38.016573833Z",
+  "updated_at": "2026-03-26T13:22:38.016573833Z"
+}
