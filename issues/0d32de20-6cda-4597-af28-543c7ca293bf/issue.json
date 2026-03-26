@@ -1,0 +1,10 @@
+{
+  "uuid": "0d32de20-6cda-4597-af28-543c7ca293bf",
+  "display_id": 289,
+  "title": "Fix parse_datetime replacing corrupt timestamps with Utc now",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:21:55.975837678Z",
+  "updated_at": "2026-03-26T13:21:55.975837678Z"
+}
