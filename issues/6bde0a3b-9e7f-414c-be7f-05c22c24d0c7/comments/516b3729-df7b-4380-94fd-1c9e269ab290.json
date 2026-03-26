@@ -1,0 +1,8 @@
+{
+  "uuid": "516b3729-df7b-4380-94fd-1c9e269ab290",
+  "issue_uuid": "6bde0a3b-9e7f-414c-be7f-05c22c24d0c7",
+  "author": "anon-ab6221f8",
+  "content": "canonicalize_event now returns Result, serialization errors propagate instead of silent empty string. 2 callers and 6 test sites updated. All 1665 tests pass.",
+  "created_at": "2026-03-26T14:27:32.221001424Z",
+  "kind": "result"
+}
