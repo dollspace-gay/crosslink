@@ -1,0 +1,8 @@
+{
+  "uuid": "d3fcc5b4-45f0-4462-be9d-744a243c4a36",
+  "issue_uuid": "acad8a7e-e766-44d4-9de7-b914a1c5a384",
+  "author": "anon-ab6221f8",
+  "content": "Fixed: Added error state and display to Knowledge, Milestones, Sync, and Config pages. All .catch(() => {}) replaced with .catch((e) => setError(String(e))).",
+  "created_at": "2026-03-26T19:48:55.646674725Z",
+  "kind": "result"
+}
