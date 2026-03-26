@@ -1,0 +1,8 @@
+{
+  "uuid": "a368ec33-b554-4c79-8470-b24d498f7c7f",
+  "issue_uuid": "32c18ce2-c93f-41fb-891d-eaa10296c891",
+  "author": "anon-ab6221f8",
+  "content": "Fixed: config_tab scroll now tracks cursor position — Down/Up sync main_scroll to keep cursor visible; PageDown/PageUp move both by the same jump amount.",
+  "created_at": "2026-03-26T19:57:11.966149610Z",
+  "kind": "result"
+}
