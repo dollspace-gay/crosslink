@@ -1,0 +1,8 @@
+{
+  "uuid": "c601b989-eb0f-4b9a-be92-d418dbbd3f77",
+  "issue_uuid": "bb903c2c-6d29-46d2-a776-9e9d13f6c79d",
+  "author": "anon-ab6221f8",
+  "content": "Rewrite is_allowed_bash to split on chain operators and check every subcommand against the allow list. If any subcommand is not allowed, return False.",
+  "created_at": "2026-03-26T15:24:42.486250663Z",
+  "kind": "plan"
+}
