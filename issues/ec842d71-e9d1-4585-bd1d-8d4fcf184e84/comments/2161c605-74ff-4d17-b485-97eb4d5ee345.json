@@ -1,0 +1,8 @@
+{
+  "uuid": "2161c605-74ff-4d17-b485-97eb4d5ee345",
+  "issue_uuid": "ec842d71-e9d1-4585-bd1d-8d4fcf184e84",
+  "author": "anon-ab6221f8",
+  "content": "Fixed: Both milestones_tab and agents_tab detail views now compute max_scroll during render and clamp scroll on key events, matching the existing issues_tab/knowledge_tab pattern.",
+  "created_at": "2026-03-26T19:56:38.973990131Z",
+  "kind": "result"
+}
