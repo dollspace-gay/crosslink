@@ -1,0 +1,8 @@
+{
+  "uuid": "0eaf23b1-e9a1-49b6-aef3-f4d2e8901f19",
+  "issue_uuid": "7df97724-6519-431d-a118-e87fbc29200f",
+  "author": "anon-ab6221f8",
+  "content": "Replaced manual BEGIN/COMMIT/ROLLBACK with rusqlite unchecked_transaction which provides RAII rollback-on-drop. Panics during the closure now trigger automatic rollback instead of leaving an open transaction. All 1665 tests pass.",
+  "created_at": "2026-03-26T15:52:12.023874824Z",
+  "kind": "result"
+}
