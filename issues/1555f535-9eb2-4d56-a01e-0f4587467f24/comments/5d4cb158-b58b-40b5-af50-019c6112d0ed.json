@@ -1,0 +1,8 @@
+{
+  "uuid": "5d4cb158-b58b-40b5-af50-019c6112d0ed",
+  "issue_uuid": "1555f535-9eb2-4d56-a01e-0f4587467f24",
+  "author": "anon-ab6221f8",
+  "content": "Scope: LocksFile.locks HashMap<String, Lock> needs to become HashMap<i64, Lock>. Callers in sync/locks.rs do insert/remove with to_string(). Need custom serde for backward-compatible JSON. CheckpointState.locks already uses i64 keys.",
+  "created_at": "2026-03-26T17:00:42.736566382Z",
+  "kind": "decision"
+}
