@@ -1,0 +1,8 @@
+{
+  "uuid": "d5cfc93f-8bc4-4be6-9a5a-1a410cf4e979",
+  "issue_uuid": "88688603-4fc4-40e4-87c8-94b8ca5412bc",
+  "author": "anon-ab6221f8",
+  "content": "Add closed_at to SavedIssue struct, SELECT it in the preservation query, and pass it through during re-insertion.",
+  "created_at": "2026-03-26T15:53:07.003217379Z",
+  "kind": "plan"
+}
