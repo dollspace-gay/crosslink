@@ -1,0 +1,8 @@
+{
+  "uuid": "dd1284f3-c81d-4952-b09f-96f99cf23be7",
+  "issue_uuid": "339c68e6-3de5-4080-aee7-b0261da52069",
+  "author": "anon-ab6221f8",
+  "content": "Changed except block at main():234 from setting tool_name='' (fail-open) to printing error and exit(2) (fail-closed). Also narrowed exception types from bare Exception to JSONDecodeError/ValueError/TypeError. Python compiles clean.",
+  "created_at": "2026-03-26T15:13:40.620398413Z",
+  "kind": "result"
+}
