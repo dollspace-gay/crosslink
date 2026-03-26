@@ -1,0 +1,8 @@
+{
+  "uuid": "015a3296-40ad-422a-9d1a-079fd4fd4ecb",
+  "issue_uuid": "5cc46242-486c-45a8-a959-0832aaad746e",
+  "author": "anon-ab6221f8",
+  "content": "IssueFile (hub JSON format) also has String status/priority. Changing to enums here too since serde rename_all=lowercase gives identical JSON output. This ensures the type safety extends to the hub boundary.",
+  "created_at": "2026-03-26T18:59:23.287157297Z",
+  "kind": "decision"
+}
