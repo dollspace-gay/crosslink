@@ -1,0 +1,8 @@
+{
+  "uuid": "4133a61e-7758-4e03-af25-6a1f9c2f5d50",
+  "issue_uuid": "caf1a76d-762f-41fe-beac-7bb9dab52ac7",
+  "author": "anon-ab6221f8",
+  "content": "Same as #452 — config registry extraction affects init.rs, config.rs, and their shared types. Deferring to dedicated refactor.",
+  "created_at": "2026-03-26T17:49:33.375449865Z",
+  "kind": "decision"
+}
