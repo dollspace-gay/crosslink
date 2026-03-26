@@ -1,0 +1,8 @@
+{
+  "uuid": "f038c1f6-dc54-49e2-9f2a-abb1f8f19832",
+  "issue_uuid": "e618b81e-cb6f-47f2-86f0-84f47e1c2d06",
+  "author": "anon-ab6221f8",
+  "content": "Added tracing::warn guards to claim_lock and release_lock when called on V2 layouts. All callers already dispatch V1/V2 correctly, but these guards surface misuse via logs instead of silently writing to wrong file. Bail was too strict (broke tests). All 1665 tests pass.",
+  "created_at": "2026-03-26T17:46:27.814494253Z",
+  "kind": "result"
+}
