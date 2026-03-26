@@ -1,0 +1,10 @@
+{
+  "uuid": "9ab56297-904d-4b41-9a65-acedd163751e",
+  "display_id": 308,
+  "title": "Rename db core module to avoid shadowing std core",
+  "status": "open",
+  "priority": "low",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:23:39.661229569Z",
+  "updated_at": "2026-03-26T13:23:39.661229569Z"
+}
