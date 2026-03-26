@@ -1,0 +1,8 @@
+{
+  "uuid": "ce952811-1b98-4295-b2ab-6f89ae2bb036",
+  "issue_uuid": "6bde0a3b-9e7f-414c-be7f-05c22c24d0c7",
+  "author": "anon-ab6221f8",
+  "content": "Change canonicalize_event to return Result<Vec<u8>> and replace unwrap_or_default with ?. Update callers sign_event and verify_event_signature to propagate.",
+  "created_at": "2026-03-26T14:24:29.257585114Z",
+  "kind": "plan"
+}
