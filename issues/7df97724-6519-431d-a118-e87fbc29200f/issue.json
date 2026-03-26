@@ -1,0 +1,10 @@
+{
+  "uuid": "7df97724-6519-431d-a118-e87fbc29200f",
+  "display_id": 284,
+  "title": "Fix transaction closure missing rollback-on-panic guarantee",
+  "status": "open",
+  "priority": "high",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:21:30.528524323Z",
+  "updated_at": "2026-03-26T13:21:30.528524323Z"
+}
