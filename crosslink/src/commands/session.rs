@@ -3,7 +3,7 @@ use chrono::Utc;
 use std::path::Path;
 
 use crate::db::Database;
-use crate::lock_check::release_lock_best_effort;
+use crate::lock_check::{release_lock_best_effort, try_claim_lock, try_release_lock, ClaimResult};
 use crate::utils::format_issue_id;
 use crate::SessionCommands;
 
@@ -74,60 +74,41 @@ pub fn end(db: &Database, notes: Option<&str>, crosslink_dir: &std::path::Path) 
 
     // Auto-release lock on the active issue in multi-agent mode
     if let Some(issue_id) = session.active_issue_id {
-        if let Ok(Some(agent)) = crate::identity::AgentConfig::load(crosslink_dir) {
-            if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
-                if sync.is_initialized() {
-                    if sync.is_v2_layout() {
-                        if let Ok(Some(writer)) =
-                            crate::shared_writer::SharedWriter::new(crosslink_dir)
-                        {
-                            match writer.release_lock_v2(issue_id) {
-                                Ok(true) => {
-                                    println!("Released lock on issue {}", format_issue_id(issue_id))
-                                }
-                                Ok(false) => {}
-                                Err(e) => {
-                                    tracing::warn!("Could not release lock: {}", e)
-                                }
-                            }
-                        }
-                    } else {
-                        match sync.release_lock(&agent, issue_id, crate::sync::LockMode::Normal) {
-                            Ok(true) => {
-                                println!("Released lock on issue {}", format_issue_id(issue_id))
-                            }
-                            Ok(false) => {}
-                            Err(e) => tracing::warn!("Could not release lock: {}", e),
-                        }
-                    }
-                }
-            }
+        match try_release_lock(crosslink_dir, issue_id) {
+            Ok(true) => println!("Released lock on issue {}", format_issue_id(issue_id)),
+            Ok(false) => {}
+            Err(e) => tracing::warn!("Could not release lock: {}", e),
         }
     }
 
-    // Write handoff notes as typed comment on active issue for hub sync
-    // (must happen BEFORE end_session so the session is still open if this fails)
+    // Write handoff notes as typed comment on active issue for hub sync.
+    // Must happen BEFORE end_session so the session is still open if this fails.
+    //
+    // Strategy: try SharedWriter first (syncs to hub). On failure, fall back to
+    // local DB. If both fail, propagate the error so handoff notes are not silently lost (#442).
     if let (Some(notes_text), Some(issue_id)) = (notes, session.active_issue_id) {
-        match crate::shared_writer::SharedWriter::new(crosslink_dir) {
-            Ok(Some(w)) => {
-                if let Err(e) = w.add_comment(db, issue_id, notes_text, "handoff") {
+        let saved = match crate::shared_writer::SharedWriter::new(crosslink_dir) {
+            Ok(Some(w)) => match w.add_comment(db, issue_id, notes_text, "handoff") {
+                Ok(()) => true,
+                Err(e) => {
                     tracing::warn!(
-                        "Handoff notes saved locally but could not be synced to hub: {}",
+                        "Handoff notes could not be synced to hub: {}, saving locally",
                         e
                     );
-                    if let Err(e) = db.add_comment(issue_id, notes_text, "handoff") {
-                        tracing::warn!("failed to save local handoff comment: {}", e);
-                    }
+                    false
                 }
-            }
-            _ => {
-                if let Err(e) = db.add_comment(issue_id, notes_text, "handoff") {
-                    tracing::warn!("failed to save local handoff comment: {}", e);
-                }
-            }
+            },
+            _ => false,
+        };
+        if !saved {
+            db.add_comment(issue_id, notes_text, "handoff")?;
         }
     }
 
+    // TEMPORAL COUPLING: end_session MUST be called AFTER the handoff comment
+    // above. end_session marks the session as inactive, which prevents later
+    // attempts to find the active issue for comment attachment. Moving
+    // end_session above the comment block would silently lose handoff notes (#441).
     db.end_session(session.id, notes)?;
     println!("Session #{} ended.", session.id);
     if notes.is_some() {
@@ -252,58 +233,22 @@ pub fn work(db: &Database, issue_id: i64, crosslink_dir: &std::path::Path) -> Re
     crate::lock_check::enforce_lock(crosslink_dir, issue_id, db)?;
 
     // Atomically claim lock then set session — bail if another agent wins
-    let mut freshly_claimed = false;
-    if let Ok(Some(agent)) = crate::identity::AgentConfig::load(crosslink_dir) {
-        if let Ok(sync) = crate::sync::SyncManager::new(crosslink_dir) {
-            if sync.is_initialized() {
-                if sync.is_v2_layout() {
-                    if let Ok(Some(writer)) = crate::shared_writer::SharedWriter::new(crosslink_dir)
-                    {
-                        match writer.claim_lock_v2(issue_id, None) {
-                            Ok(crate::shared_writer::LockClaimResult::Claimed) => {
-                                freshly_claimed = true;
-                                println!("Claimed lock on issue {}", format_issue_id(issue_id));
-                            }
-                            Ok(crate::shared_writer::LockClaimResult::AlreadyHeld) => {}
-                            Ok(crate::shared_writer::LockClaimResult::Contended {
-                                winner_agent_id,
-                            }) => {
-                                bail!(
-                                    "Lock on {} was claimed by '{}' before we could acquire it. \
-                                     Use 'crosslink locks steal {}' to override.",
-                                    format_issue_id(issue_id),
-                                    winner_agent_id,
-                                    issue_id
-                                );
-                            }
-                            Err(e) => {
-                                bail!(
-                                    "Failed to claim lock on {}: {}",
-                                    format_issue_id(issue_id),
-                                    e
-                                );
-                            }
-                        }
-                    }
-                } else {
-                    match sync.claim_lock(&agent, issue_id, None, crate::sync::LockMode::Normal) {
-                        Ok(true) => {
-                            freshly_claimed = true;
-                            println!("Claimed lock on issue {}", format_issue_id(issue_id));
-                        }
-                        Ok(false) => {} // Already held by self
-                        Err(e) => {
-                            bail!(
-                                "Failed to claim lock on {}: {}",
-                                format_issue_id(issue_id),
-                                e
-                            );
-                        }
-                    }
-                }
-            }
+    let freshly_claimed = match try_claim_lock(crosslink_dir, issue_id, None)? {
+        ClaimResult::Claimed => {
+            println!("Claimed lock on issue {}", format_issue_id(issue_id));
+            true
         }
-    }
+        ClaimResult::AlreadyHeld | ClaimResult::NotConfigured => false,
+        ClaimResult::Contended { winner_agent_id } => {
+            bail!(
+                "Lock on {} was claimed by '{}' before we could acquire it. \
+                 Use 'crosslink locks steal {}' to override.",
+                format_issue_id(issue_id),
+                winner_agent_id,
+                issue_id
+            );
+        }
+    };
 
     // Only reached if lock claim succeeded (or lock system not configured).
     // If set_session_issue fails after we claimed a lock, release the lock to avoid orphaned locks.
@@ -331,9 +276,21 @@ pub fn action(db: &Database, text: &str, crosslink_dir: &std::path::Path) -> Res
     db.set_session_action(session.id, text)?;
     println!("Action recorded: {}", text);
 
-    // Auto-comment on the active issue if one is set
+    // Auto-comment on the active issue if one is set.
+    // Use SharedWriter when available so comments sync to the hub (#438).
     if let Some(issue_id) = session.active_issue_id {
-        db.add_comment(issue_id, &format!("[action] {}", text), "note")?;
+        let comment_text = format!("[action] {}", text);
+        match crate::shared_writer::SharedWriter::new(crosslink_dir) {
+            Ok(Some(w)) => {
+                if let Err(e) = w.add_comment(db, issue_id, &comment_text, "note") {
+                    tracing::warn!("action comment sync failed, saving locally: {}", e);
+                    db.add_comment(issue_id, &comment_text, "note")?;
+                }
+            }
+            _ => {
+                db.add_comment(issue_id, &comment_text, "note")?;
+            }
+        }
     }
 
     Ok(())
@@ -365,7 +322,7 @@ mod tests {
     use tempfile::tempdir;
 
     fn setup_test_db() -> (Database, tempfile::TempDir) {
-        let dir = tempdir().unwrap();
+        let dir = tempfile::tempdir().unwrap();
         let db_path = dir.path().join("test.db");
         let db = Database::open(&db_path).unwrap();
         (db, dir)

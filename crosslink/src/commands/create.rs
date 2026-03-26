@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 
 use crate::db::Database;
-use crate::lock_check::release_lock_best_effort;
+use crate::lock_check::{release_lock_best_effort, try_claim_lock, ClaimResult};
 use crate::shared_writer::SharedWriter;
 use crate::utils::format_issue_id;
 
@@ -90,53 +90,22 @@ fn auto_claim_and_set_work(
     if let Some(dir) = crosslink_dir {
         crate::lock_check::enforce_lock(dir, id, db)?;
 
-        if let Ok(Some(agent)) = crate::identity::AgentConfig::load(dir) {
-            if let Ok(sync) = crate::sync::SyncManager::new(dir) {
-                if sync.is_initialized() {
-                    if sync.is_v2_layout() {
-                        if let Ok(Some(writer)) = SharedWriter::new(dir) {
-                            match writer.claim_lock_v2(id, None) {
-                                Ok(crate::shared_writer::LockClaimResult::Claimed) => {
-                                    freshly_claimed = true;
-                                    if !quiet {
-                                        println!(
-                                            "Auto-claimed lock on issue {}",
-                                            format_issue_id(id)
-                                        );
-                                    }
-                                }
-                                Ok(crate::shared_writer::LockClaimResult::AlreadyHeld) => {}
-                                Ok(crate::shared_writer::LockClaimResult::Contended {
-                                    winner_agent_id,
-                                }) => {
-                                    tracing::warn!(
-                                        "Lock on {} won by '{}'",
-                                        format_issue_id(id),
-                                        winner_agent_id
-                                    );
-                                }
-                                Err(e) => {
-                                    tracing::warn!("Could not auto-claim lock: {}", e)
-                                }
-                            }
-                        }
-                    } else {
-                        match sync.claim_lock(&agent, id, None, crate::sync::LockMode::Normal) {
-                            Ok(true) => {
-                                freshly_claimed = true;
-                                if !quiet {
-                                    println!(
-                                        "Auto-claimed lock on issue {}",
-                                        format_issue_id(id)
-                                    );
-                                }
-                            }
-                            Ok(false) => {}
-                            Err(e) => tracing::warn!("Could not auto-claim lock: {}", e),
-                        }
-                    }
+        match try_claim_lock(dir, id, None) {
+            Ok(ClaimResult::Claimed) => {
+                freshly_claimed = true;
+                if !quiet {
+                    println!("Auto-claimed lock on issue {}", format_issue_id(id));
                 }
             }
+            Ok(ClaimResult::AlreadyHeld | ClaimResult::NotConfigured) => {}
+            Ok(ClaimResult::Contended { winner_agent_id }) => {
+                tracing::warn!(
+                    "Lock on {} won by '{}'",
+                    format_issue_id(id),
+                    winner_agent_id
+                );
+            }
+            Err(e) => tracing::warn!("Could not auto-claim lock: {}", e),
         }
     }
 
@@ -194,7 +163,11 @@ pub fn run(
             )
         })?;
 
-        // Template priority is default, user can override
+        // Template priority is the default; user can override with any non-default value.
+        // NOTE: This uses the CLI default ("medium") as a sentinel to detect "user didn't
+        // specify priority". An explicit `--priority medium` is indistinguishable from the
+        // default and will be overridden by the template's priority. To fix this fully,
+        // the CLI would need `Option<String>` for priority (#449).
         let priority = if priority != "medium" {
             priority
         } else {
@@ -463,5 +436,98 @@ mod tests {
         ) {
             prop_assert!(get_template(&name).is_none());
         }
+    }
+
+    // ==================== Integration Tests (#450) ====================
+
+    fn setup_test_db() -> (crate::db::Database, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let db = crate::db::Database::open(&db_path).unwrap();
+        (db, dir)
+    }
+
+    #[test]
+    fn test_run_creates_issue() {
+        let (db, _dir) = setup_test_db();
+        let opts = CreateOpts {
+            labels: &[],
+            work: false,
+            quiet: false,
+            crosslink_dir: None,
+            defer_id: false,
+        };
+        run(&db, None, "Test issue", None, "medium", None, &opts).unwrap();
+        let issues = db.list_issues(Some("all"), None, None).unwrap();
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].title, "Test issue");
+    }
+
+    #[test]
+    fn test_run_with_template_applies_label() {
+        let (db, _dir) = setup_test_db();
+        let opts = CreateOpts {
+            labels: &[],
+            work: false,
+            quiet: false,
+            crosslink_dir: None,
+            defer_id: false,
+        };
+        run(&db, None, "A bug", None, "medium", Some("bug"), &opts).unwrap();
+        let issues = db.list_issues(Some("all"), None, None).unwrap();
+        assert_eq!(issues.len(), 1);
+        let labels = db.get_labels(issues[0].id).unwrap();
+        assert!(labels.contains(&"bug".to_string()));
+    }
+
+    #[test]
+    fn test_run_with_user_labels() {
+        let (db, _dir) = setup_test_db();
+        let labels = vec!["urgent".to_string(), "backend".to_string()];
+        let opts = CreateOpts {
+            labels: &labels,
+            work: false,
+            quiet: false,
+            crosslink_dir: None,
+            defer_id: false,
+        };
+        run(&db, None, "Labeled issue", None, "high", None, &opts).unwrap();
+        let issues = db.list_issues(Some("all"), None, None).unwrap();
+        let issue_labels = db.get_labels(issues[0].id).unwrap();
+        assert_eq!(issue_labels.len(), 2);
+        assert!(issue_labels.contains(&"urgent".to_string()));
+        assert!(issue_labels.contains(&"backend".to_string()));
+    }
+
+    #[test]
+    fn test_run_subissue_creates_child() {
+        let (db, _dir) = setup_test_db();
+        let parent_id = db.create_issue("Parent", None, "high").unwrap();
+        let opts = CreateOpts {
+            labels: &[],
+            work: false,
+            quiet: false,
+            crosslink_dir: None,
+            defer_id: false,
+        };
+        run_subissue(&db, None, parent_id, "Child task", None, "medium", &opts).unwrap();
+        let subs = db.get_subissues(parent_id).unwrap();
+        assert_eq!(subs.len(), 1);
+        assert_eq!(subs[0].title, "Child task");
+    }
+
+    #[test]
+    fn test_run_invalid_priority_fails() {
+        let (db, _dir) = setup_test_db();
+        let opts = CreateOpts {
+            labels: &[],
+            work: false,
+            quiet: false,
+            crosslink_dir: None,
+            defer_id: false,
+        };
+        let result = run(&db, None, "Bad priority", None, "urgent", None, &opts);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Invalid priority"));
     }
 }

@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde_json;
 
 use crate::db::Database;
-use crate::utils::format_issue_id;
+use crate::utils::{format_issue_id, truncate};
 
 pub fn run_json(db: &Database, query: &str) -> Result<()> {
     let results = db.search_issues(query)?;
@@ -44,9 +44,8 @@ pub fn run(db: &Database, query: &str) -> Result<()> {
         // Show snippet of description if it contains the query
         if let Some(ref desc) = issue.description {
             if desc.to_lowercase().contains(&query.to_lowercase()) {
-                let preview: String = desc.chars().take(60).collect();
-                let suffix = if desc.chars().count() > 60 { "..." } else { "" };
-                println!("      └─ {}{}", preview.replace('\n', " "), suffix);
+                let flat = desc.replace('\n', " ");
+                println!("      └─ {}", truncate(&flat, 60));
             }
         }
     }
@@ -61,7 +60,7 @@ mod tests {
     use tempfile::tempdir;
 
     fn setup_test_db() -> (Database, tempfile::TempDir) {
-        let dir = tempdir().unwrap();
+        let dir = tempfile::tempdir().unwrap();
         let db_path = dir.path().join("test.db");
         let db = Database::open(&db_path).unwrap();
         (db, dir)

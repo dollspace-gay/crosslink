@@ -33,7 +33,9 @@ pub mod relate;
 pub mod search;
 pub mod session;
 pub mod show;
-pub mod status;
+/// Issue lifecycle management (close, reopen, close-all).
+/// Renamed from status.rs to better reflect contents (#448).
+pub mod lifecycle;
 pub mod style;
 pub mod swarm;
 pub mod tested;

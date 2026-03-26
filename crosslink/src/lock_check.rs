@@ -244,6 +244,82 @@ pub fn release_lock_best_effort(crosslink_dir: &Path, issue_id: i64) {
     }
 }
 
+/// Result of attempting to claim a lock.
+#[derive(Debug, PartialEq)]
+pub enum ClaimResult {
+    /// Lock successfully claimed.
+    Claimed,
+    /// Lock already held by this agent — no action needed.
+    AlreadyHeld,
+    /// Lock contended — another agent won the claim race.
+    Contended { winner_agent_id: String },
+    /// Lock system not configured or not initialized — no claim attempted.
+    NotConfigured,
+}
+
+/// Attempt to claim a lock on an issue, dispatching between V1 and V2 hub layouts.
+///
+/// Returns `ClaimResult` indicating the outcome. Errors are returned only for
+/// unexpected failures; configuration absence yields `NotConfigured`.
+pub fn try_claim_lock(
+    crosslink_dir: &Path,
+    issue_id: i64,
+    branch: Option<&str>,
+) -> Result<ClaimResult> {
+    let agent = match AgentConfig::load(crosslink_dir)? {
+        Some(a) => a,
+        None => return Ok(ClaimResult::NotConfigured),
+    };
+    let sync = match SyncManager::new(crosslink_dir) {
+        Ok(s) if s.is_initialized() => s,
+        _ => return Ok(ClaimResult::NotConfigured),
+    };
+
+    if sync.is_v2_layout() {
+        let writer = match crate::shared_writer::SharedWriter::new(crosslink_dir)? {
+            Some(w) => w,
+            None => return Ok(ClaimResult::NotConfigured),
+        };
+        match writer.claim_lock_v2(issue_id, branch)? {
+            crate::shared_writer::LockClaimResult::Claimed => Ok(ClaimResult::Claimed),
+            crate::shared_writer::LockClaimResult::AlreadyHeld => Ok(ClaimResult::AlreadyHeld),
+            crate::shared_writer::LockClaimResult::Contended { winner_agent_id } => {
+                Ok(ClaimResult::Contended { winner_agent_id })
+            }
+        }
+    } else {
+        match sync.claim_lock(&agent, issue_id, branch, false)? {
+            true => Ok(ClaimResult::Claimed),
+            false => Ok(ClaimResult::AlreadyHeld),
+        }
+    }
+}
+
+/// Attempt to release a lock on an issue, dispatching between V1 and V2 hub layouts.
+///
+/// Returns `Ok(true)` if the lock was released, `Ok(false)` if it wasn't held.
+/// Returns `Ok(false)` if the lock system is not configured.
+pub fn try_release_lock(crosslink_dir: &Path, issue_id: i64) -> Result<bool> {
+    let agent = match AgentConfig::load(crosslink_dir)? {
+        Some(a) => a,
+        None => return Ok(false),
+    };
+    let sync = match SyncManager::new(crosslink_dir) {
+        Ok(s) if s.is_initialized() => s,
+        _ => return Ok(false),
+    };
+
+    if sync.is_v2_layout() {
+        let writer = match crate::shared_writer::SharedWriter::new(crosslink_dir)? {
+            Some(w) => w,
+            None => return Ok(false),
+        };
+        writer.release_lock_v2(issue_id)
+    } else {
+        sync.release_lock(&agent, issue_id, false)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
