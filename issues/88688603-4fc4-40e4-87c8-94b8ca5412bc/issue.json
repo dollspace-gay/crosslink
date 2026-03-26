@@ -1,0 +1,10 @@
+{
+  "uuid": "88688603-4fc4-40e4-87c8-94b8ca5412bc",
+  "display_id": 309,
+  "title": "Fix closed_at silently dropped during SQLite-only issue re-hydration",
+  "status": "open",
+  "priority": "high",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:23:43.323992462Z",
+  "updated_at": "2026-03-26T13:23:43.323992462Z"
+}
