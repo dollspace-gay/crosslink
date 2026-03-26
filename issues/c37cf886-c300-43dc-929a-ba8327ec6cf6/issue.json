@@ -1,0 +1,10 @@
+{
+  "uuid": "c37cf886-c300-43dc-929a-ba8327ec6cf6",
+  "display_id": 564,
+  "title": "Restrict CORS allowed headers to specific frontend headers",
+  "status": "open",
+  "priority": "low",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:55:40.969254471Z",
+  "updated_at": "2026-03-26T13:55:40.969254471Z"
+}
