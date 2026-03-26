@@ -1,0 +1,10 @@
+{
+  "uuid": "5ef61b1b-cf61-491a-b977-560299cc355b",
+  "display_id": 442,
+  "title": "Fix double-fallback error swallowing in session end handoff notes",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:39:13.607926103Z",
+  "updated_at": "2026-03-26T13:39:13.607926103Z"
+}
