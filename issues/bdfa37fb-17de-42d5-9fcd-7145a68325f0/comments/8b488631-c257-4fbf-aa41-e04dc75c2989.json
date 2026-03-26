@@ -1,0 +1,8 @@
+{
+  "uuid": "8b488631-c257-4fbf-aa41-e04dc75c2989",
+  "issue_uuid": "bdfa37fb-17de-42d5-9fcd-7145a68325f0",
+  "author": "anon-ab6221f8",
+  "content": "Review finding: merge.rs has its own include_str! copies of MCP_JSON, SETTINGS_JSON, and PYTHON_PREFIX_PLACEHOLDER. These are duplicated from mod.rs. Should make mod.rs constants pub(super) and import them in merge.rs instead.",
+  "created_at": "2026-03-26T18:40:32.398493655Z",
+  "kind": "observation"
+}
