@@ -1,0 +1,8 @@
+{
+  "uuid": "b506bcb6-7ee3-476e-9a30-f714ea230db3",
+  "issue_uuid": "fac2b218-5e74-40b0-a6fc-416e360653fd",
+  "author": "anon-ab6221f8",
+  "content": "Fixed: Renamed ViewMode enums to IssueViewMode, AgentViewMode, KnowledgeViewMode, MilestoneViewMode, and ConfigViewMode.",
+  "created_at": "2026-03-26T19:57:05.788222013Z",
+  "kind": "result"
+}
