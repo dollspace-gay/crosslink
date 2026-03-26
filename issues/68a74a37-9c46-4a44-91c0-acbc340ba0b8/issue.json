@@ -1,0 +1,10 @@
+{
+  "uuid": "68a74a37-9c46-4a44-91c0-acbc340ba0b8",
+  "display_id": 310,
+  "title": "Fix SQLite-only issues losing all child data during re-hydration",
+  "status": "open",
+  "priority": "high",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:23:47.258630909Z",
+  "updated_at": "2026-03-26T13:23:47.258630909Z"
+}
