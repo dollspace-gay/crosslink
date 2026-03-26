@@ -1,0 +1,8 @@
+{
+  "uuid": "97a587a1-cb59-4065-871a-d3763af4ee98",
+  "issue_uuid": "7df97724-6519-431d-a118-e87fbc29200f",
+  "author": "anon-ab6221f8",
+  "content": "Replace manual BEGIN/COMMIT/ROLLBACK with rusqlite Transaction type which provides RAII rollback-on-drop. The closure receives no args since callers capture db by reference already.",
+  "created_at": "2026-03-26T15:50:30.607439784Z",
+  "kind": "plan"
+}
