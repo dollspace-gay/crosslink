@@ -1,0 +1,8 @@
+{
+  "uuid": "0ca01dc8-ae5c-4442-a5fd-f21730b1656b",
+  "issue_uuid": "69fa7513-0679-4bcb-bbe1-5edc7b4d82c4",
+  "author": "anon-ab6221f8",
+  "content": "Replaced std::sync::Mutex with tokio::sync::Mutex in AppState. Made db() helper async. Updated all 31 handler call sites and 29 test call sites from .lock().unwrap() to .lock().await. Tokio Mutex yields the async task instead of blocking worker threads, and doesn't poison. All 1665 tests pass.",
+  "created_at": "2026-03-26T17:38:36.086957343Z",
+  "kind": "result"
+}
