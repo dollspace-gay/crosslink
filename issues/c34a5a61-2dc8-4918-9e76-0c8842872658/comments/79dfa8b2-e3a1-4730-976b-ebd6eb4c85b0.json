@@ -1,0 +1,8 @@
+{
+  "uuid": "79dfa8b2-e3a1-4730-976b-ebd6eb4c85b0",
+  "issue_uuid": "c34a5a61-2dc8-4918-9e76-0c8842872658",
+  "author": "anon-ab6221f8",
+  "content": "Fixed: Tab command error message now uses self.tabs.len() instead of hardcoded '6'.",
+  "created_at": "2026-03-26T19:57:51.684909384Z",
+  "kind": "result"
+}
