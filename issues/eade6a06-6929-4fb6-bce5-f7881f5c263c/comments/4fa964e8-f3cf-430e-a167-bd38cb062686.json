@@ -1,0 +1,8 @@
+{
+  "uuid": "4fa964e8-f3cf-430e-a167-bd38cb062686",
+  "issue_uuid": "eade6a06-6929-4fb6-bce5-f7881f5c263c",
+  "author": "anon-ab6221f8",
+  "content": "Change the post-retry-loop fallthrough from Ok(true) to Ok(false) so callers know the lock was NOT released.",
+  "created_at": "2026-03-26T16:42:29.828524246Z",
+  "kind": "plan"
+}
