@@ -1,0 +1,8 @@
+{
+  "uuid": "ec0390f8-0dce-43fb-8253-dcdc0d0777f1",
+  "issue_uuid": "caf1a76d-762f-41fe-beac-7bb9dab52ac7",
+  "author": "anon-ab6221f8",
+  "content": "Created config_registry.rs with ConfigType, ConfigGroup, ConfigKey, REGISTRY, PRESET_SOLO, PRESET_TEAM, find_registry_key, type_label, and HOOK_CONFIG_JSON. Updated config.rs and init.rs to import from the shared module. Removed all duplicated definitions. Bidirectional coupling eliminated — neither module imports the other. All 1665 tests pass.",
+  "created_at": "2026-03-26T17:58:00.628713989Z",
+  "kind": "result"
+}
