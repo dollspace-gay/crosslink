@@ -2,11 +2,12 @@
   "uuid": "cefb2327-6ca7-442c-b42b-c30783450c89",
   "display_id": 558,
   "title": "Fix overly permissive fuzzy agent-worktree matching in server",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "created_by": "anon-ab6221f8",
   "created_at": "2026-03-26T13:54:53.084532919Z",
-  "updated_at": "2026-03-26T13:54:57.217780331Z",
+  "updated_at": "2026-03-26T19:53:15.957360054Z",
+  "closed_at": "2026-03-26T19:53:15.957360054Z",
   "labels": [
     "bug"
   ]
