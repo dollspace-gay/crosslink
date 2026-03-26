@@ -1,0 +1,8 @@
+{
+  "uuid": "a7d769cd-7867-4fc4-afa5-1e1b85ce5955",
+  "issue_uuid": "fe25e8d4-23ce-42b1-857b-b92c7c7b30d0",
+  "author": "anon-ab6221f8",
+  "content": "Replaced 5-tuple return from load_all_rules with RulesBundle namedtuple. Existing tuple-unpacking call sites continue to work unchanged.",
+  "created_at": "2026-03-26T19:43:25.969543923Z",
+  "kind": "result"
+}
