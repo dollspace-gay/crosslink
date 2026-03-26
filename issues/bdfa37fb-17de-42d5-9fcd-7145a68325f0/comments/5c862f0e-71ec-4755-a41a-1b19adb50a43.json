@@ -1,0 +1,8 @@
+{
+  "uuid": "5c862f0e-71ec-4755-a41a-1b19adb50a43",
+  "issue_uuid": "bdfa37fb-17de-42d5-9fcd-7145a68325f0",
+  "author": "anon-ab6221f8",
+  "content": "Split init.rs (2855 LOC) into init/ directory module (1696 LOC mod.rs + 4 submodules). Extracted: python.rs (186 LOC — Python detection, cpitd install), signing.rs (87 LOC — driver SSH key setup), merge.rs (233 LOC — gitignore/MCP/settings merge), walkthrough.rs (697 LOC — TUI walkthrough app + draw functions). Fixed residual LocksFile HashMap<i64> references in agents_tab.rs and locks_cmd.rs. Binary builds clean, all 1665 tests pass.",
+  "created_at": "2026-03-26T18:33:50.961427436Z",
+  "kind": "result"
+}
