@@ -1,0 +1,10 @@
+{
+  "uuid": "80b4dd77-03a3-49cd-8d56-43d4f6a3746c",
+  "display_id": 283,
+  "title": "Improve readability of trailing line detection in event decode_all",
+  "status": "open",
+  "priority": "low",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:21:26.138972219Z",
+  "updated_at": "2026-03-26T13:21:26.138972219Z"
+}
