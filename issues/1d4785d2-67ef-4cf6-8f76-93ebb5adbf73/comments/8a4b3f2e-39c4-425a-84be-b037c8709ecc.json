@@ -1,0 +1,8 @@
+{
+  "uuid": "8a4b3f2e-39c4-425a-84be-b037c8709ecc",
+  "issue_uuid": "1d4785d2-67ef-4cf6-8f76-93ebb5adbf73",
+  "author": "anon-ab6221f8",
+  "content": "Filing all findings from 16-agent parallel QA audit. ~370 issues across 14 logical seams covering CRITICAL/WARNING/NITPICK severity levels.",
+  "created_at": "2026-03-26T13:15:41.718775029Z",
+  "kind": "plan"
+}
