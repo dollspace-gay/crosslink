@@ -1,0 +1,8 @@
+{
+  "uuid": "6000fea4-3602-4e8a-967c-254dba2ad83e",
+  "issue_uuid": "29cde0c6-029a-47ec-9e1e-e157854798d2",
+  "author": "anon-ab6221f8",
+  "content": "Fixed Cargo.toml parser to handle [dev-dependencies] and [build-dependencies] in addition to [dependencies]. Parser now scans all three sections instead of breaking after the first.",
+  "created_at": "2026-03-26T19:43:44.437053468Z",
+  "kind": "result"
+}
