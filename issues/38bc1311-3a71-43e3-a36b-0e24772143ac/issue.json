@@ -1,0 +1,10 @@
+{
+  "uuid": "38bc1311-3a71-43e3-a36b-0e24772143ac",
+  "display_id": 567,
+  "title": "Optimize knowledge search handler to build title map lazily",
+  "status": "open",
+  "priority": "low",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-26T13:56:07.277377347Z",
+  "updated_at": "2026-03-26T13:56:07.277377347Z"
+}
