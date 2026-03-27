@@ -1,0 +1,10 @@
+{
+  "uuid": "7740cddf-01b4-4ff9-b054-3d09f474bcf2",
+  "issue_uuid": "71387690-a5f5-4a76-889c-5d8b16410c54",
+  "author": "maxine--basel",
+  "content": "Workaround: manually reset hub cache to origin and add .hub-write-lock to .gitignore on the hub branch:\n  cd .crosslink/.hub-cache\n  git reset --hard origin/crosslink/hub\n  echo .hub-write-lock >> .gitignore\n  git rm --cached .hub-write-lock\n  git add .gitignore\n  git commit -m 'fix: exclude .hub-write-lock from tracking'\n  git push origin crosslink/hub\n\nProper fix should also update init_cache() or upgrade_to_v2() to ensure .hub-write-lock is gitignored when creating new hub branches.",
+  "created_at": "2026-03-27T20:06:11.821222Z",
+  "kind": "plan",
+  "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgbMJQrcFvxUHGFzKhLs2qsfUDMqPDdJSAHuIKkxY6rD4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAcuFqRDHWSwaLCpUh6RiuRKF0uKx+vrChuc2eBLvaGXsH6BaFvbegLHIhOtqqpHtnmQcanb6xgGbJkkT8m3WwCg=="
+}
