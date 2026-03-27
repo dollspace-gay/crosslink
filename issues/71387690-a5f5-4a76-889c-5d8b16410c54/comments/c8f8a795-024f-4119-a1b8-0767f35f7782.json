@@ -1,0 +1,10 @@
+{
+  "uuid": "c8f8a795-024f-4119-a1b8-0767f35f7782",
+  "issue_uuid": "71387690-a5f5-4a76-889c-5d8b16410c54",
+  "author": "maxine--basel",
+  "content": "Root cause: .hub-write-lock is a runtime PID lock file (created/deleted by HubWriteLock RAII guard in sync/cache.rs) but it's tracked in the crosslink/hub git branch. Every sync cycle: (1) acquire_lock writes PID to file, (2) drop deletes it, (3) next clean_dirty_state() sees dirty state, (4) commits 'sync: auto-stage dirty hub state (recovery)', (5) can't push because of divergence, (6) repeat. This created 274 recovery commits in one crash cycle.\n\nFix: add .hub-write-lock to .gitignore on the hub branch and git rm --cached it. The lock file works fine untracked — it's OS-level file locking with PID liveness checks.\n\nAffected code: crosslink/src/sync/cache.rs lines 41-52 (try_create_lock), lines 25-37 (Drop impl), lines 460-504 (clean_dirty_state).",
+  "created_at": "2026-03-27T20:06:01.293812Z",
+  "kind": "observation",
+  "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgbMJQrcFvxUHGFzKhLs2qsfUDMqPDdJSAHuIKkxY6rD4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAC2Of/pfj2biclafu86y7EiJ0gd0Smnh4HKPkd5J145kfLC32kZF6axqW7xIJsacRerQqnyQxCpCGB+n0yrokDw=="
+}
