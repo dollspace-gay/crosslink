@@ -104,7 +104,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Initialize crosslink in the current directory
+    /// Initialize crosslink in the current directory.
+    ///
+    /// On first run, launches an interactive walkthrough to choose a preset
+    /// (Team, Solo, or Custom) and configure behavioral hooks. Use --defaults
+    /// to skip the walkthrough and apply team-mode defaults non-interactively.
     Init {
         /// Force update hooks even if already initialized
         #[arg(short, long, conflicts_with = "update")]
@@ -133,7 +137,7 @@ enum Commands {
         /// Re-run TUI walkthrough even if config exists
         #[arg(long, conflicts_with = "update")]
         reconfigure: bool,
-        /// Skip TUI and use opinionated defaults
+        /// Skip TUI and use opinionated team-mode defaults
         #[arg(long)]
         defaults: bool,
     },
@@ -227,12 +231,18 @@ enum Commands {
         action: MigrateCommands,
     },
 
-    /// View and modify repo-level configuration
+    /// View and modify repo-level configuration.
+    ///
+    /// Without a subcommand, opens the interactive walkthrough to choose a
+    /// preset (Team, Solo, or Custom) and adjust settings. Use --preset to
+    /// apply a preset directly without the TUI.
     Config {
         #[command(subcommand)]
         command: Option<ConfigCommands>,
 
-        /// Apply a preset configuration (team, solo)
+        /// Apply a preset without the TUI: "team" (strict tracking, CI
+        /// verification, enforced signing) or "solo" (relaxed tracking,
+        /// local verification, signing disabled)
         #[arg(long)]
         preset: Option<String>,
     },
