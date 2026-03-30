@@ -1,0 +1,8 @@
+{
+  "uuid": "06501f38-e18d-439c-9f87-6adb6c4cb3b4",
+  "issue_uuid": "42cee97a-94d1-47d9-98b4-08ca5c50a9ee",
+  "author": "anon-ab6221f8",
+  "content": "Delivered: Added --base flag to swarm merge, auto-detects develop/main/origin variants. Replaced hardcoded develop in branch creation and diff generation. Refactored discover_worktrees and extract_diff_ranges to use shared detect_base_branch helper.",
+  "created_at": "2026-03-30T18:56:13.636450307Z",
+  "kind": "result"
+}
