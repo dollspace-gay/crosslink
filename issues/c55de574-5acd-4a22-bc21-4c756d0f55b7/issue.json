@@ -1,0 +1,10 @@
+{
+  "uuid": "c55de574-5acd-4a22-bc21-4c756d0f55b7",
+  "display_id": 638,
+  "title": "Fix inconsistent signing bypass in SyncManager hub-cache commits",
+  "status": "open",
+  "priority": "high",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-03-30T17:23:25.129709682Z",
+  "updated_at": "2026-03-30T17:23:25.129709682Z"
+}
