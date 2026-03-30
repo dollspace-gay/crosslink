@@ -380,9 +380,11 @@ fn detect_active_languages(project_root: &Path) -> Vec<String> {
         ];
         'shell_scan: for dir in &shell_dirs {
             if let Ok(entries) = fs::read_dir(dir) {
-                for entry in entries.filter_map(|e| e.ok()) {
+                for entry in entries.filter_map(std::result::Result::ok) {
                     let name = entry.file_name().to_string_lossy().to_string();
-                    if name.ends_with(".sh") || name.ends_with(".bash") {
+                    if std::path::Path::new(&name).extension().is_some_and(|ext| {
+                        ext.eq_ignore_ascii_case("sh") || ext.eq_ignore_ascii_case("bash")
+                    }) {
                         seen.insert("Shell".to_string());
                         found.push("Shell".to_string());
                         break 'shell_scan;

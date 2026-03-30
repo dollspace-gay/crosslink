@@ -183,15 +183,14 @@ pub(crate) fn detect_conventions(repo_root: &Path) -> ProjectConventions {
                 repo_root.join(sub)
             };
             dir.is_dir()
-                && std::fs::read_dir(&dir)
-                    .ok()
-                    .map(|entries| {
-                        entries.filter_map(|e| e.ok()).any(|e| {
-                            let n = e.file_name().to_string_lossy().to_string();
-                            n.ends_with(".sh") || n.ends_with(".bash")
+                && std::fs::read_dir(&dir).ok().is_some_and(|entries| {
+                    entries.filter_map(std::result::Result::ok).any(|e| {
+                        let n = e.file_name().to_string_lossy().to_string();
+                        std::path::Path::new(&n).extension().is_some_and(|ext| {
+                            ext.eq_ignore_ascii_case("sh") || ext.eq_ignore_ascii_case("bash")
                         })
                     })
-                    .unwrap_or(false)
+                })
         });
     if has_shell {
         conv.lint_commands.push("shellcheck **/*.sh".to_string());
