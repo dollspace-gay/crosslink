@@ -1,0 +1,10 @@
+{
+  "uuid": "da772833-c6d0-438f-acee-0d07bf851afd",
+  "issue_uuid": "c9c42561-cb26-4813-b980-c337c105417b",
+  "author": "maxine--basel",
+  "content": "Update stale onboarding knowledge pages after v0.7.0: (1) coordination-practical-guide hub layout diagram is V1, needs V2, (2) data-model-overview priority enum inconsistency between CLI and API, (3) command-taxonomy missing init --update. Also add v070-release knowledge page.",
+  "created_at": "2026-03-31T21:24:52.715458Z",
+  "kind": "plan",
+  "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgbMJQrcFvxUHGFzKhLs2qsfUDMqPDdJSAHuIKkxY6rD4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAsdsgdsCmUyzTWLvhaM94xIZwzDipVansm9Sr1BRElS0d6BOK2oO85732Pa7tF0uueWZlzy1AxHnY6DfXWEUzDw=="
+}
