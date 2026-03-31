@@ -1,11 +1,12 @@
 ---
 title: "Command Taxonomy — When to Use What"
-tags: [reference, onboarding]
+tags: ["reference", "onboarding"]
 sources: []
-contributors: [maxine--basel]
+contributors: ["maxine--basel"]
 created: 2026-03-17
-updated: 2026-03-17
+updated: 2026-03-31
 ---
+
 
 # Command Taxonomy — When to Use What
 
@@ -101,6 +102,16 @@ Crosslink has many commands. This guide groups them by purpose so agents know wh
 | compact | Event log is getting large |
 | prune | Hub/knowledge branch history is bloated |
 | context measure | Checking context injection overhead |
+
+## Commands You Rarely Need
+
+## Setup and Upgrades
+
+| Command | When |
+|---------|------|
+| init | First-time crosslink setup in a repo |
+| init --update | Upgrade crosslink resources (hooks, skills, rules) after a crosslink version bump — tracks installed versions and applies safe incremental updates without overwriting customizations |
+| init --defaults | Non-interactive setup with team defaults |
 
 ## Commands You Rarely Need
 
