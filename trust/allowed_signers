@@ -62,3 +62,5 @@ maxine--tui-startup-sync@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKMcsO57D
 maxine-at-forecast--noether--rules-local@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEdiS8X67XUBcXvhOZPECG2MPaH4RUsWD3coQy43HGVt crosslink-agent:maxine-at-forecast--noether--rules-local@noether-4.local
 # approved by doll at 2026-04-01 20:21:46 UTC
 maxine-at-forecast--noether--design-skill@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBg4qzGXFNXc13SQmwMs27Jl7whUk2Xat4XkUhEIrRWM crosslink-agent:maxine-at-forecast--noether--design-skill@noether-4.local
+# approved by doll at 2026-04-01 20:22:01 UTC
+maxine-at-forecast--noether--milestone-review@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHZaIVdtYIxCBBY4Q8FYQoISQror4gVLTpNbNP+C/RKQ crosslink-agent:maxine-at-forecast--noether--milestone-review@noether-4.local
