@@ -40,3 +40,5 @@ agent-206-ext-query@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKZ4RZLSv+acff
 maxine--basel--config-system-overhaul-2e70@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGzCUK3Bb8VBxhcyoS7NqrH1AzKjw3SUgB7iCpMWOqw+ crosslink-agent:maxine--basel@basel.local
 # approved by doll at 2026-04-01 20:14:01 UTC
 m1--f2@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMX5IefDHI0cR7ZRNHuR0IA0hxK3lML/ESBNd/62+ulD crosslink-agent:m1--f2@noether-4.local
+# approved by doll at 2026-04-01 20:14:11 UTC
+noether--add-container-agent@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHxdZ6+ASUnlmWDRWVM5pMJDn0ElTSSAMIffAXZrQRt2 crosslink-agent:noether--add-container-agent@dollspace
