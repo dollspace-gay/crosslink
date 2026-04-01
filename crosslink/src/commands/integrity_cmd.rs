@@ -774,12 +774,9 @@ fn resolve_signing_key(key_override: Option<&Path>) -> Result<PathBuf> {
 
 /// If the path ends in `.pub`, strip it to get the private key path.
 fn strip_pub_extension(path: &Path) -> PathBuf {
-    let s = path.to_string_lossy();
-    if let Some(stripped) = s.strip_suffix(".pub") {
-        PathBuf::from(stripped)
-    } else {
-        path.to_path_buf()
-    }
+    path.to_string_lossy()
+        .strip_suffix(".pub")
+        .map_or_else(|| path.to_path_buf(), PathBuf::from)
 }
 
 /// Derive the public key path from a private key path.
