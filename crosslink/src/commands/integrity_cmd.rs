@@ -8,9 +8,8 @@ use crate::db::{Database, SCHEMA_VERSION};
 use crate::hydration::hydrate_to_sqlite;
 use crate::identity::AgentConfig;
 use crate::issue_file::{
-    read_all_issue_files, read_all_milestone_files, read_comment_files,
-    read_counters, read_milestones_file, write_comment_file, write_counters, write_issue_file,
-    Counters,
+    read_all_issue_files, read_all_milestone_files, read_comment_files, read_counters,
+    read_milestones_file, write_comment_file, write_counters, write_issue_file, Counters,
 };
 use crate::signing;
 use crate::sync::SyncManager;
@@ -528,11 +527,7 @@ const BACKFILL_SIGNING_NAMESPACE: &str = "crosslink-backfill";
 /// Principal used for human backfill attestation in allowed_signers.
 const BACKFILL_PRINCIPAL: &str = "backfill@crosslink";
 
-fn sign_backfill(
-    crosslink_dir: &Path,
-    confirm: bool,
-    key_override: Option<&Path>,
-) -> Result<()> {
+fn sign_backfill(crosslink_dir: &Path, confirm: bool, key_override: Option<&Path>) -> Result<()> {
     let cache_dir = crosslink_dir.join(HUB_CACHE_DIR);
     if !cache_dir.exists() {
         bail!("Hub cache not found. Run `crosslink sync` first.");
@@ -579,8 +574,7 @@ fn sign_backfill(
             if comments_dir.exists() {
                 for cf in read_comment_files(&comments_dir)? {
                     if cf.signed_by.is_none() || cf.signature.is_none() {
-                        let cf_path =
-                            comments_dir.join(format!("{}.json", cf.uuid));
+                        let cf_path = comments_dir.join(format!("{}.json", cf.uuid));
                         v2_unsigned.push((cf_path, cf));
                     }
                 }
@@ -595,27 +589,16 @@ fn sign_backfill(
     }
 
     println!();
-    println!(
-        "Found {total} unsigned entry(ies):"
-    );
+    println!("Found {total} unsigned entry(ies):");
     if v1_unsigned_count > 0 {
-        println!(
-            "  {v1_unsigned_count} inline comment(s) across {v1_issue_count} issue(s)"
-        );
+        println!("  {v1_unsigned_count} inline comment(s) across {v1_issue_count} issue(s)");
     }
     if !v2_unsigned.is_empty() {
-        println!(
-            "  {} standalone comment file(s)",
-            v2_unsigned.len()
-        );
+        println!("  {} standalone comment file(s)", v2_unsigned.len());
     }
     println!();
-    println!(
-        "These will be signed with your key ({fingerprint}) as attestation"
-    );
-    println!(
-        "that the missing signatures were a system error, not unapproved commits."
-    );
+    println!("These will be signed with your key ({fingerprint}) as attestation");
+    println!("that the missing signatures were a system error, not unapproved commits.");
 
     if !confirm {
         println!();
@@ -638,16 +621,11 @@ fn sign_backfill(
                 ("comment_id", &comment.id.to_string()),
                 ("content", comment.content.as_str()),
             ]);
-            let sig = signing::sign_content(
-                &private_key,
-                &canonical,
-                BACKFILL_SIGNING_NAMESPACE,
-            )
-            .with_context(|| {
+            let sig = signing::sign_content(&private_key, &canonical, BACKFILL_SIGNING_NAMESPACE)
+                .with_context(|| {
                 format!(
                     "Failed to sign comment {} in issue {}",
-                    comment.id,
-                    issue.uuid
+                    comment.id, issue.uuid
                 )
             })?;
             comment.signed_by = Some(fingerprint.clone());
@@ -676,14 +654,8 @@ fn sign_backfill(
             ("comment_id", &cf.uuid.to_string()),
             ("content", cf.content.as_str()),
         ]);
-        let sig = signing::sign_content(
-            &private_key,
-            &canonical,
-            BACKFILL_SIGNING_NAMESPACE,
-        )
-        .with_context(|| {
-            format!("Failed to sign comment file {}", cf.uuid)
-        })?;
+        let sig = signing::sign_content(&private_key, &canonical, BACKFILL_SIGNING_NAMESPACE)
+            .with_context(|| format!("Failed to sign comment file {}", cf.uuid))?;
         cf.signed_by = Some(fingerprint.clone());
         cf.signature = Some(sig);
         write_comment_file(&cf_path, &cf)?;
@@ -711,10 +683,7 @@ fn sign_backfill(
     // ── Commit and push to hub branch ────────────────────────────────
     // Stage all modified files
     let mut rel_paths: Vec<String> = Vec::new();
-    for path in modified_issue_paths
-        .iter()
-        .chain(v2_signed_paths.iter())
-    {
+    for path in modified_issue_paths.iter().chain(v2_signed_paths.iter()) {
         if let Ok(rel) = path.strip_prefix(&cache_dir) {
             rel_paths.push(rel.to_string_lossy().to_string());
         }
@@ -751,13 +720,7 @@ fn sign_backfill(
     );
     let commit_output = std::process::Command::new("git")
         .current_dir(&cache_dir)
-        .args([
-            "-c",
-            "commit.gpgsign=false",
-            "commit",
-            "-m",
-            &commit_msg,
-        ])
+        .args(["-c", "commit.gpgsign=false", "commit", "-m", &commit_msg])
         .output()
         .context("Failed to git commit in hub cache")?;
 

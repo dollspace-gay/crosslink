@@ -346,12 +346,9 @@ impl SyncManager {
                             &canonical,
                             sig,
                         );
-                        match original_ok {
-                            Ok(true) => {
-                                verified += 1;
-                                continue;
-                            }
-                            _ => {}
+                        if let Ok(true) = original_ok {
+                            verified += 1;
+                            continue;
                         }
                         // Fallback: try backfill principal with backfill namespace.
                         // Human-attested entries use a different namespace so they
