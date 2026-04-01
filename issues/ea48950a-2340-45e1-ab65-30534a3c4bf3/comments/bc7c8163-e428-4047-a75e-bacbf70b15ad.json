@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Added explicit Bool(true) arm returning Some(1) as default multiplier. Also added String 'true' handling for consistency. Updated 2 tests that previously asserted the buggy None behavior. All 1665 tests pass.",
   "created_at": "2026-03-26T16:30:20.890690842Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgU54p+dk/ydfhUVXuoh69gbKMA8Dj+US62QO16Zb4z0MAAAAhAPkR0/6sdcz97VCn0pueaiyzqPgG3iCzV57Ft1dbgXT3"
 }

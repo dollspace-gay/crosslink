@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Extracted auto_claim_and_set_work helper function in create.rs. Replaced both 80-line duplicate blocks in run() and run_subissue() with single-line calls to the shared helper. Net reduction of ~150 lines. All 1665 tests pass.",
   "created_at": "2026-03-26T17:18:01.545687880Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAJZoy3hX30skWlA/TgTRedaMX/mFB0fai0vLJZDt4ecPAAAAIQCy8d9tQx3PRMOUwS9U6zd1z8aplC6Tg0KCXhIwI55P0g=="
 }

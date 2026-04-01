@@ -4,5 +4,7 @@
   "author": "m1--full-system-adversarial-review",
   "content": "Result: All tests pass (245 lib + 664 cmd + 146 integration = 1055 tests). 6 new tests added for path traversal validation. Pre-existing test_security_path_traversal_export takes >60s as baseline.",
   "created_at": "2026-03-01T01:52:42.129556Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhALAgD4UA5sSJ38R2xqrYZnI2Z16M6mQfDOQJQOp9gKs8AAAAIGOaLU7aY0CQWx2K2WcqNoV9KK7hFbb9ThWIUUvK3VEP"
 }

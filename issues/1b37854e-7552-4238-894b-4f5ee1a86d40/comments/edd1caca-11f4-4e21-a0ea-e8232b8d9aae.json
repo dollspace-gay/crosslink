@@ -4,5 +4,7 @@
   "author": "agent-206-ext-query",
   "content": "Plan: Implementing external repo query support via new src/external.rs module. Key changes: (1) Add --repo flag to KnowledgeCommands::{Search,Show,List} and IssueCommands::{Search,Show,List} in main.rs, (2) Create src/external.rs with RepoSource enum, ExternalCache, ExternalKnowledgeReader, ExternalIssueReader, probe_url, (3) Add dispatch logic in commands/knowledge.rs and main.rs dispatch_issue() to route to external readers when --repo is present, (4) Reject --repo on write commands with clear error, (5) Update MCP knowledge-server.py with source parameter, (6) Add repo-alias config support via existing config infrastructure.",
   "created_at": "2026-03-18T00:10:14.819819Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAJeaj41PinSXdiA4CCNBVLqZGG5Qkjr/5JJVH/lFlxQlAAAAIQCNzoiKPrg08ZCtdUMlE+CP1m3kq5UGnO8VH+WbJfYKog=="
 }

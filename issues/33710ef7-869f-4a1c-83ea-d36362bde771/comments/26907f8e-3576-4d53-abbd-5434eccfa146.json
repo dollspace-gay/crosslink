@@ -4,5 +4,7 @@
   "author": "driver--fix-kickoff-agent-key-not-being-published-after-creation",
   "content": "Decision: Fix in kickoff.rs init_worktree_agent rather than changing agent::init behavior. The no_key flag is also used by bootstrap and CLI, so changing its semantics could break other flows. Instead, kickoff should explicitly copy parent key info and publish after init.",
   "created_at": "2026-03-08T19:00:12.690792Z",
-  "kind": "decision"
+  "kind": "decision",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAJuf3CUo3Axnsk4p0X0GRKNTFFi3uZxvSH244gRLXOIxAAAAIALbblZe1jfH0/S/m03FKLr0m8VRukouKPcTCOCLW5gr"
 }

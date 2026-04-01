@@ -17,7 +17,9 @@
       "author": "maxine-at-forecast--noether--tui-dashboard",
       "content": "Plan: Align TUI dashboard colors with init walkthrough palette. Key changes: (1) Tab bar border DarkGray instead of default, title brand 'crosslink' in Cyan+Bold (2) Active tab highlight Cyan+Bold instead of Yellow (3) Status bar help keys Cyan instead of Yellow (4) Issues list header Cyan+Bold instead of Yellow (5) Selected row highlight subtle Gray bg (6) Help overlay title Cyan+Bold (7) Detail view headings White+Bold, muted text DarkGray. Overall: replace Yellow accent with Cyan, add Green for 'open' status.",
       "created_at": "2026-03-02T10:03:14.830914Z",
-      "kind": "plan"
+      "kind": "plan",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgQBMdKEu/NoYw8vVME5dUtcMSYaiHUf4jwS/zfKtIEQgAAAAgfh4vLskbdduBPO4q3+B/Ao5T6zO2PwEt2MgpwDgPCrA="
     }
   ]
 }

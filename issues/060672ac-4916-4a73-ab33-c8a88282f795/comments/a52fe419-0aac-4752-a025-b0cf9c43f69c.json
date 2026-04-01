@@ -4,5 +4,7 @@
   "author": "anon-295fd0bb",
   "content": "Starting implementation. Fixing in order: (1) read_layout_version to detect V2 from directory structure, (2) promote_offline_issues to use issue_rel_path, (3) read_all_issue_files to dedup by UUID preferring V2, (4) compaction materialize to respect layout version + clean stale V1, (5) write version.json during compaction if missing.",
   "created_at": "2026-03-19T14:25:55.940802661Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAMQmYx+p0wpheCZz8D/ogMNurUbPgTVZEkS72O5qB7AbAAAAIQDBxyxEGbb3YsTxSr4YomSk+6Ws2viitOEpExwS5r2Mkg=="
 }

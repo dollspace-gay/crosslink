@@ -4,5 +4,7 @@
   "author": "driver--comprehensive-readme-and-quarto-docs-src-documentation",
   "content": "Plan: Comprehensive documentation overhaul covering all v0.4 features. The existing docs are solid but need expansion in several areas:\n\n1. **README.md** - Already comprehensive, needs minor updates for swarm commands table format, preflight checks mention, and documentation links for new guides\n2. **Quarto docs_src** - Needs 4 new guide pages:\n   - guides/swarm.qmd - Swarm orchestration (init, plan, launch, gate, checkpoint, resume)\n   - guides/knowledge.qmd - Knowledge management (add, show, list, edit, remove, search, sync)\n   - guides/tui.qmd - Terminal UI dashboard guide\n   - guides/container-agents.qmd - Container-based agent execution\n3. **_quarto.yml** - Add new pages to navbar and sidebar\n4. **index.qmd** - Add feature cards for TUI, Knowledge, Swarm, Container agents\n5. **Existing guides** - Update multi-agent.qmd with SSH signing section, update commands.qmd with swarm/container/tui/preflight commands\n6. **Reference** - Add kickoff-report.qmd to navbar (already exists but not linked)\n\nKey decisions: Keep existing content stable, add new content additively. No restructuring.",
   "created_at": "2026-03-09T00:55:11.764843Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgDXHmiL/9CHgaOB0UtE7cpCBu6FJqU5L2GVKkBB3dcCAAAAAhAOf+5765A7Wylu18vJ4l7GGjNVr2fE6VpZd+EsR50tDw"
 }

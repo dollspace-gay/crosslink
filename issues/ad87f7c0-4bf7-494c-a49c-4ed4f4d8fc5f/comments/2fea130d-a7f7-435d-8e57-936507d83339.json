@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "One-line fix: add self.resolve_id(issue_id) as first line of add_intervention_comment, matching the pattern in add_comment and get_comments.",
   "created_at": "2026-03-26T14:02:28.240400227Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgO0gc/tb6ESCEiqyYVmWmRxiReyAu5mq+fdMyRJo10JUAAAAhAPrJrYg/MPWHPHVR9H3iYSuz1PzTLxJ9JQOk6A6EXDXU"
 }

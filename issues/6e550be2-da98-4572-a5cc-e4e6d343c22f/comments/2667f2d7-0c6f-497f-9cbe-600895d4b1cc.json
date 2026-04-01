@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "GH #507: kickoff list cant find tmux sessions for swarm-launched agents because swarm uses a different naming convention (feat-req-N-slug) than what kickoff list looks for. Need to trace both the swarm launch and kickoff list code paths.",
   "created_at": "2026-03-23T14:51:01.082771191Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgEAUhuwnXkDvU6zbOvqUpqBGvy4QcW/gdy8x8qkuphB4AAAAgX1RQPTo4alyVyhdPr6bkALNvjHcb41et56q7+Qi/OaY="
 }

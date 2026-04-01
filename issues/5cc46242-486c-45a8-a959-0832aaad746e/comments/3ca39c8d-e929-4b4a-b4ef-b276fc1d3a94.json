@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "This refactor is partially complete. Core enums (IssueStatus, Priority) are defined with serde, rusqlite, Display, FromStr implementations. The data layer (models, db, hydration, compaction, checkpoint, issue_file, shared_writer) and server handlers are fully converted and all 1665 lib tests pass. Remaining: ~22 mechanical fixes in CLI commands and TUI display code where string formatting needs .to_string()/.as_str() calls. The type safety benefit is already achieved — the DB and serialization boundaries enforce valid values at compile time.",
   "created_at": "2026-03-26T19:19:12.359551575Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAJM7dMY9B7CispUabvKCAy1ViYvpdsTyW6RQfoAcpWAIAAAAIDJcfmFIVQ1EhX6gb2urPksp7EAqbKtLGEi3xOPTRawJ"
 }

@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Differences between init and config walkthrough: (1) init has an extra alias screen, (2) init has alias_selected/shell fields, (3) total_screens/confirm/go_back account for the alias screen. The new(), options_for_key, move_up, move_down, cycle_value, apply_preset_selections, build_config methods are byte-for-byte identical. Approach: create a WalkthroughCore struct with the shared logic, plus an optional alias_screen flag.",
   "created_at": "2026-03-26T18:05:28.261934079Z",
-  "kind": "observation"
+  "kind": "observation",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgX5Azr17TaygWpWq6fDObp2UpL617NSj9P/5TqqzF+QQAAAAgOF6lKd6g4seP59Ex4FHMD0IhlBAG1HPdYmxGNqmO1K4="
 }

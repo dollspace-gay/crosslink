@@ -6,5 +6,7 @@
   "created_at": "2026-03-02T23:53:26.236937Z",
   "kind": "intervention",
   "trigger_type": "tool_blocked",
-  "intervention_context": "Attempting to create clock_skew.rs"
+  "intervention_context": "Attempting to create clock_skew.rs",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgEA1qt9sHyOr0q1z+p2BFIXPzAgTknqzGzKQ1ceHt0nsAAAAhAO9yuaIW5uf9dq0RZAeof3ciCqyc5L1p9hGyy8Nul1LN"
 }

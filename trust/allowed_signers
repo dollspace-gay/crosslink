@@ -72,3 +72,5 @@ maxine-at-forecast--noether--fuzz-ci@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1NTE5A
 maxine-at-forecast--noether--fix-tui-agents-tab@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDKVRssZ7ZtGLbg0b/7E2xcmVo3BzBPiu787MB/6ynOc crosslink-agent:maxine-at-forecast--noether--fix-tui-agents-tab@noether-4.local
 # approved by doll at 2026-04-01 20:22:42 UTC
 maxine-at-forecast--noether--clock-skew@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDwC9MpeAOxVGmpj4qCw95SQsE+P2AYaoaRq9Wry4ER4 crosslink-agent:maxine-at-forecast--noether--clock-skew@noether-4.local
+# approved by human backfill at 2026-04-01
+backfill@crosslink ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBHtCmOJf2exv735MdNJBcGbWNxYw/JXXulXDzUjU9OpMi+WVJ80BmyVDMznZRXeubP0Qs2YVSUFaJy0N8is4qRg= texas@dollspace

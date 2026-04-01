@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Fixed: Added knowledge.update() method using PATCH /knowledge/:slug. KnowledgeDetail.tsx now calls update() instead of create() for page edits.",
   "created_at": "2026-03-26T19:52:27.828567210Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgGpyMwMzifNZ399q8D2+kn1YjTHzNHudshIqwF+CuskgAAAAgKVEP5co2udqwVBP9cUH8ksZHqnW/b4dcPB3BMcMw7H0="
 }

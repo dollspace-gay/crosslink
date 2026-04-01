@@ -4,5 +4,7 @@
   "author": "maxine-at-forecast--noether--ci-cd-restructure",
   "content": "Decision: Removed paths filter from publish.yml PR trigger. In git flow, all PRs to main are releases (from release/* or hotfix/*), so the paths filter was unnecessary and could cause the dry-run to be skipped when it shouldn't be.",
   "created_at": "2026-03-02T09:21:03.709157Z",
-  "kind": "decision"
+  "kind": "decision",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgcZsSi0a5o9iQjEgF0IPaa1lTWJUeXloUOAHdjDiBmPMAAAAhALQUXETcYHw2oZoNsEewOlvKSijFuk79bbSoxMTZaF9f"
 }

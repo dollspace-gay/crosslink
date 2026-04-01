@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Added git status --porcelain check before reset --hard. If worktree has uncommitted changes, logs a warning and returns early instead of destroying them. All 1665 tests pass.",
   "created_at": "2026-03-26T16:55:37.808000196Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAIWu4RgfQSj7O/3IjIM2jkI5Bid4E0WqPHNyq5llAJRRAAAAIHNPfS4BmrrVgjw1ldMochQEfHmit4Se/4sECtEgLHtO"
 }

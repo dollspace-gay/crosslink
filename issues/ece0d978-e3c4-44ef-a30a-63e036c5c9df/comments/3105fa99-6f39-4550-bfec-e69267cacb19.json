@@ -4,5 +4,7 @@
   "author": "anon-295fd0bb",
   "content": "Work complete — branch feat/test-frameworks-417 ready for human to push and open PR. Two commits added: (1) 53662f69 — migrate 42+ source files from eprintln!/warning! to tracing::warn!/info!/error!, add --log-level/--log-format CLI flags with init_tracing() in main.rs (JSON default for serve), and register 5 new smoke test modules (cli_extended, concurrency, lifecycle, server_extended, shared_writer); (2) 2d594d2a — complete the migration for signing.rs and tui/mod.rs which were missed in the initial pass. All 50 files clippy-clean and cargo fmt-verified.",
   "created_at": "2026-03-19T00:49:12.589234809Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgHWkJBzGy2z2berimkYCOeHHPEFYfJ+uNaz/dZyj6ZDoAAAAgPOUCrAr6+DezX8QKW1DucgO2o5p8MEeZP9bko9QLL28="
 }

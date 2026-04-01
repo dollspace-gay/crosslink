@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Refactored hub lock: extracted try_create_lock helper, HubWriteLock now holds File handle (OS releases on crash). Stale lock removal is immediately followed by re-acquire in same iteration (no continue gap). Timeout force-removal also immediately re-acquires. All 1665 tests pass.",
   "created_at": "2026-03-26T17:41:50.936586739Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgPStm9xcxnAiWCaE6FV8xDnWjoG7Up7iJ9eQJ0P2ivf8AAAAgJlf0GSrfC1Ses/Tzt4o90bOERE9mAOPJzX7a9PsYSLc="
 }

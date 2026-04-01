@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Changed LocksFile.locks from HashMap<String, Lock> to HashMap<i64, Lock>. Added custom serde module (string_key_map) for backward-compatible JSON serialization with string keys on disk. Removed all .to_string() key conversions and .parse() key lookups across locks.rs, sync/locks.rs, server/handlers/agents.rs, and test files. All 1665 tests pass including proptest roundtrip.",
   "created_at": "2026-03-26T17:13:03.833129449Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAKpLwpCGhWb2hFi7b4oD8aqLS4jP3n3MSJsL02Z9d+pYAAAAIF3Jd5QbUjADScKedygE2cKukuPIMtmSRXmgF+CQvJi5"
 }

@@ -4,5 +4,7 @@
   "author": "maxine-at-forecast--noether--fuzz-ci",
   "content": "Plan: Implementing T1-T5 from ADR adversarial review. Order: T4 (permissions) → T5 (Cargo.lock --locked) → T2 (remove continue-on-error) → T3 (increase fuzz durations + nightly job) → T1 (new fuzz targets for comments, labels, updates, milestones, subissues, relations). docs.yml already has permissions block. Will add permissions: contents: read to ci.yml, ci-feature.yml. publish.yml needs contents: read for dry-run and publish jobs. release-builds.yml needs contents: read.",
   "created_at": "2026-03-03T00:25:18.483961Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgKf6ybykzaG+1nRaWONON2uj3VIF8t7BFt/e5Hs6APGcAAAAhAJSB/qGsfitWLVsfql1O1WoMxtS8ULe3baher+AAzM1F"
 }

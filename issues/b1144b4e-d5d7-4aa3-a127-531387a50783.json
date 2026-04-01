@@ -17,35 +17,45 @@
       "author": "maxine-at-forecast--noether--untrack-init-files",
       "content": "Plan: 1) Add missing .gitignore entries for .crosslink/rules/ and .mcp.json. 2) Update the managed section comments to reflect that rules are auto-generated, not project policy. 3) Run git rm --cached on all auto-generated files (hooks, mcp server, rules, integrations, .mcp.json). 4) Keep .claude/settings.json and .crosslink/hook-config.json tracked. 5) Verify files still exist on disk. 6) Run tests. 7) Commit.",
       "created_at": "2026-03-02T03:16:12.666149Z",
-      "kind": "plan"
+      "kind": "plan",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAIvr1vfq+p6TmectzoeyqnoefdMVq9hVN13ddVNGVai/AAAAIDxveAAaFA412CN9Fcft/Mfu+YrEHjPsxbJx94z5aMVh"
     },
     {
       "id": 78,
       "author": "maxine-at-forecast--noether--untrack-init-files",
       "content": "Decision: Added .crosslink/rules/ and .mcp.json to .gitignore (they were missing). Updated comments to reflect rules are auto-generated from resource templates, not project policy. Only staged the git rm --cached deletions and .gitignore update — left hook-config.json reformatting out of scope.",
       "created_at": "2026-03-02T03:18:44.852950Z",
-      "kind": "decision"
+      "kind": "decision",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhANWn+tIQor2DcRPz+J3l8nEWYmrUcQIIDfCAaOLy7zSxAAAAIQCF4+fpK2ypTeTv0J0jH0N1n+XA5uW0AhNgHvse2mq4rg=="
     },
     {
       "id": 79,
       "author": "maxine-at-forecast--noether--untrack-init-files",
       "content": "Result: Untracked 36 auto-generated files from git index using git rm --cached. Updated .gitignore to add missing entries for .crosslink/rules/ and .mcp.json. Only .claude/settings.json and .crosslink/hook-config.json remain tracked. All 146 tests pass, clippy clean.",
       "created_at": "2026-03-02T03:24:15.167043Z",
-      "kind": "result"
+      "kind": "result",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAK96dMCOGUg0Yv+bZyXSjqhf2CuKerZbAd0aDRYXf2/MAAAAIAOvHLV62GK2CMmiFHW5Obo8CCuS0Qp/kIBAH8yXS4em"
     },
     {
       "id": 80,
       "author": "maxine-at-forecast--noether--untrack-init-files",
       "content": "All done. DONE written to .kickoff-status. Commit 7b1a82e ready for PR.",
       "created_at": "2026-03-02T03:25:22.820713Z",
-      "kind": "handoff"
+      "kind": "handoff",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAIfrtdS7jyVbQCzs55m9CwKReIgvG9W6cLEIKvNP7B6DAAAAIQCgP39lQ21GXE4ZjJDJ0Hg7RdIUqOhnYfi2myXIUWEh8g=="
     },
     {
       "id": 83,
       "author": "maxine-at-forecast--noether--untrack-init-files",
       "content": "PR #143 created. Branch pushed and ready for review.",
       "created_at": "2026-03-02T03:31:54.360877Z",
-      "kind": "handoff"
+      "kind": "handoff",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAKtD2sO+mNv/BSE41K9NIMVzdxUPdO4W16IVwkVY4iMOAAAAIQCkzWTYStuQB+c54lw+ODfF1AB5Sh/DkDOs7PH8DjM7yQ=="
     }
   ]
 }

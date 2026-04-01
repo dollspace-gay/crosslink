@@ -4,5 +4,7 @@
   "author": "anon-295fd0bb",
   "content": "GH #428: 6 interacting bugs cause V1/V2 layout coexistence. Plan: (1) fix promote_offline_issues to use issue_rel_path, (2) add UUID dedup to read_all_issue_files preferring V2, (3) make compaction respect layout version, (4) detect V2 layout from directory structure when version.json is missing, (5) add V1 cleanup after V2 writes, (6) write version.json during compaction if missing.",
   "created_at": "2026-03-19T14:25:31.867263008Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgSJsVxi7j2jQGhGC6UIA3hecVRfQYV5oJSeF8SwtMtpQAAAAgWP1Z5iQoQeDgaN+CC/vJqFiB7MGg0vVZp1SCiu4Cfks="
 }

@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Change SocketAddr binding from 0.0.0.0 to 127.0.0.1 in server/mod.rs run function.",
   "created_at": "2026-03-26T14:29:44.631271092Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAL91oBoDFRP9OHHw9eedxHTtS4dg0+dcu6baUH1DhrIXAAAAIQCO9xi6XrNhc+J1jDz3bV18TUqpsTfGv8ndiYxfXKIrww=="
 }

@@ -6,5 +6,7 @@
   "created_at": "2026-03-02T08:40:57.117198Z",
   "kind": "intervention",
   "trigger_type": "tool_blocked",
-  "intervention_context": "Attempting to edit knowledge.rs but work-check hook blocked because working issue was wrong"
+  "intervention_context": "Attempting to edit knowledge.rs but work-check hook blocked because working issue was wrong",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgZFBBIQ9EQL/4YD/ubaWsF9NQvBSgLNfkeX75s/L0nF8AAAAgIWQ7eAc/qzstghgAoAFOzwm5M/Q3QOfS02yXrRggvk8="
 }

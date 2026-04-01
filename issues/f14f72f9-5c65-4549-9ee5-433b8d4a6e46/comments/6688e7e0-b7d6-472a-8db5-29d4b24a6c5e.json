@@ -4,5 +4,7 @@
   "author": "agent-217-kickoff-ux",
   "content": "Implementation complete for unified design-plan-run pipeline UX. Commit b484241 on feature/kickoff-pipeline-ux-unified-design-plan-run-flow-3538. 3 new files (pipeline.rs, wizard.rs, design_cmd.rs), 11 modified files. 2205 lines added. All 1633 tests pass, clippy clean, fmt clean. 19/19 acceptance criteria validated.",
   "created_at": "2026-03-19T02:31:15.708820Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAKCWrwC39uA05PeCO6T+xyzrGE2XYw8TP/OqySGdGe9MAAAAIQDRaSoKNAshVDR2/vav0bcQ7qRCfbKArt4IRLkxoOtFsQ=="
 }

@@ -4,5 +4,7 @@
   "author": "maxine--plan-050",
   "content": "Covers REQ-3, AC-7 through AC-9. Three parts: (1) startup sync before App::new() (~30 lines), (2) periodic 30s background sync using mpsc channel pattern from agents_tab.rs (~80 lines), (3) global 'r' keybinding for manual sync+refresh (~20 lines). No tab currently uses bare 'r'. SyncManager can run on background thread safely since hub cache worktree is separate from working tree.",
   "created_at": "2026-03-10T22:41:20.340168Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgbEKI7QTXboV3U+KjS7TJ6r87iSyIhD6T9d2OUhIZBmQAAAAhAKCWJwKcc18SDvVBUS4EuDPensvm6u3sr1/NwBIH4Y31"
 }

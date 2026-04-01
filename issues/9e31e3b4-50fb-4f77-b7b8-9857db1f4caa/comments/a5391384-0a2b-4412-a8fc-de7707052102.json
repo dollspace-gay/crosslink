@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Add a search_comments method to the Database layer that searches across all comments in a single SQL query, replacing the N+1 loop.",
   "created_at": "2026-03-26T17:33:15.104538603Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgWy60ILOWcukDj8WUc4dNl5YV19iWJmbOrl+41vXu2jcAAAAgKodml2Zejnw2/tSil0KkLy/+1OeaWPvytpYesLtI9oY="
 }

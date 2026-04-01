@@ -4,5 +4,7 @@
   "author": "noether--add-container-agent",
   "content": "Observation: hook-config.json doesn't allow docker commands. Need to temporarily add 'docker ' to allowed_bash_prefixes to run manual container tests.",
   "created_at": "2026-03-02T07:46:32.523769526Z",
-  "kind": "observation"
+  "kind": "observation",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgNcAwW3POV3aEGnrYgLQyGOM4IInSFywKrZNbdk/GUpMAAAAgWrE97RSBIT76HSQPpJ8AIvJbPtoXnPispdU326W2/eo="
 }

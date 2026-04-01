@@ -17,14 +17,18 @@
       "author": "maxine-at-forecast--noether--config-tracker-remote",
       "content": "Plan: Add a tracker_remote config key to hook-config.json (defaults to 'origin'). Add a remote: String field to SyncManager and KnowledgeManager, read from config in their ::new() constructors. Replace all ~35 hardcoded 'origin' literals with &self.remote in sync.rs, knowledge.rs, shared_writer.rs. For command files (trust.rs, migrate.rs, agent.rs), add a helper to read the tracker remote from config. The style.rs 'origin' references are for the separate style cache repo and should NOT be changed. Add 'tracker_remote' to the config registry in config.rs so users can set it via crosslink config set tracker_remote <name>.",
       "created_at": "2026-03-04T20:34:22.710409Z",
-      "kind": "plan"
+      "kind": "plan",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgcuXhdd/VksofG8GS8X2o6vPFHyHdQxrcMXmTewyemtEAAAAhANyAbOjindO3/6Wy7bX3TZIjgCiWaaPMiWb58SERbSFO"
     },
     {
       "id": 220,
       "author": "maxine-at-forecast--noether--config-tracker-remote",
       "content": "Observation: Edits were applied to the main repo (/Users/max/git-forecast/crosslink/crosslink/src/) rather than the worktree. The Read/Edit tools resolved to the main repo path. Need to copy changes to the worktree files.",
       "created_at": "2026-03-04T21:52:37.189525Z",
-      "kind": "observation"
+      "kind": "observation",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAIhU7RZsk5J0zlEiSrDWS7TJDPovriPUmvAi5lEMn76LAAAAIGpu1waVDvZLsWx+MkQv6gOdJsBERM7b5jqZr5KQiMW7"
     },
     {
       "id": 221,
@@ -34,28 +38,36 @@
       "kind": "intervention",
       "trigger_type": "tool_blocked",
       "intervention_context": "Trying to compare main repo files with worktree files",
-      "driver_key_fingerprint": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE"
+      "driver_key_fingerprint": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgcuMZPirkIxF7LzrTf5jBfyjWPGB6o8WiSn4m725n/qEAAAAgbuau8Flqp/7veCtK11EZ+lFddiNXBRfuFIdPfnp/yU4="
     },
     {
       "id": 223,
       "author": "maxine-at-forecast--noether--config-tracker-remote",
       "content": "Result: All code changes applied and verified. 7 files modified (sync.rs, knowledge.rs, shared_writer.rs, config.rs, trust.rs, migrate.rs, agent.rs). Added read_tracker_remote() in sync.rs, String config type, tracker_remote config key. All 149 tests pass, clippy clean, fmt clean.",
       "created_at": "2026-03-04T23:18:53.332133Z",
-      "kind": "result"
+      "kind": "result",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgLZlrzvbjLnBXnA9KexlOlOladqC5X9wmB0t+WPVheaQAAAAgYnFXfckTecyncI9oHfyx6zmGPjvNz/+ckCjv4TMvfQs="
     },
     {
       "id": 225,
       "author": "maxine-at-forecast--noether--config-tracker-remote",
       "content": "Self-review: (1) read_tracker_remote defaults to 'origin' - backward compatible ✓ (2) style.rs and agent.rs:165 intentionally not changed - they reference different remotes ✓ (3) All 149 tests pass ✓ (4) clippy clean ✓ (5) fmt clean ✓ (6) Config registered with String type, get/set/show/list/diff all work ✓",
       "created_at": "2026-03-04T23:23:13.754905Z",
-      "kind": "observation"
+      "kind": "observation",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgb7mVHUKnJ3LBXPqQrWk09uvuhfIpr/uqYmKIqvviWegAAAAgLF1OzV1Drsy+uJ5UYYHXrioIAC1hJ2XRTLuDoJFl+S4="
     },
     {
       "id": 226,
       "author": "maxine-at-forecast--noether--config-tracker-remote",
       "content": "Wrote DONE to .kickoff-status. Feature branch ready for PR.",
       "created_at": "2026-03-04T23:23:41.828422Z",
-      "kind": "handoff"
+      "kind": "handoff",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgVDCLnWO0fo3BtQgtHLPkpQDvkEDmq2ScUvLGoJLlF90AAAAhAM9z28kjAnTPgcKKrG4R4R1YqSF6Mk4DQBXvlVYice1k"
     }
   ]
 }

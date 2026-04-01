@@ -17,14 +17,18 @@
       "author": "m1--track-driver-signing-key",
       "content": "Plan: (1) Add resolve_driver_fingerprint() to identity.rs reading .crosslink/driver-key.pub, (2) v13 migration in db.rs adding driver_key_fingerprint column to comments, (3) Add field to Comment in models.rs and CommentEntry in issue_file.rs, (4) Update add_intervention_comment in db.rs and shared_writer.rs to accept/store fingerprint, (5) Update intervene.rs to resolve and pass driver fingerprint, (6) Add trust/approvals/<id>.json metadata files in trust.rs recording approver fingerprint, (7) Update get_comments queries to include new column",
       "created_at": "2026-03-01T16:08:50.645130401Z",
-      "kind": "plan"
+      "kind": "plan",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgFoWGdf8C0mPTr2RZuZ1lr9Sm95ax/zRkAFsMLj2oBIQAAAAhALe0BRvyomNRAW1SNBmqTzJdRCWwar+VTgneNJEJbr6f"
     },
     {
       "id": 48,
       "author": "m1--track-driver-signing-key",
       "content": "Committed: feat: track driver signing key in interventions and trust approvals [CL-40] | Files: 10 files changed, 143 insertions(+), 19 deletions(-)",
       "created_at": "2026-03-01T16:18:09.718855331Z",
-      "kind": "result"
+      "kind": "result",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhANhX72ZhtcaJ+Ap+QDWFVskdo22m6H7t0pVNk27AIIQ2AAAAIQCS2pJInyEoWkq1JhaWjHji/HUcArMCbNNloUCO8Rhqiw=="
     },
     {
       "id": 125,

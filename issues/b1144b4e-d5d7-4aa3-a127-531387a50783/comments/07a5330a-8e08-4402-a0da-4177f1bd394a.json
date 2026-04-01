@@ -4,5 +4,7 @@
   "author": "maxine-at-forecast--noether--untrack-init-files",
   "content": "Plan: 1) Add missing .gitignore entries for .crosslink/rules/ and .mcp.json. 2) Update the managed section comments to reflect that rules are auto-generated, not project policy. 3) Run git rm --cached on all auto-generated files (hooks, mcp server, rules, integrations, .mcp.json). 4) Keep .claude/settings.json and .crosslink/hook-config.json tracked. 5) Verify files still exist on disk. 6) Run tests. 7) Commit.",
   "created_at": "2026-03-02T03:16:12.666149Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAL2Ec8Z94JMNCyfZiL4WniyY97RqMNUQibjkOqAv3P+NAAAAIQCcq1tVj/mHNRHTls2wC0Cb2NjLld3ZxxP6bMYmQ3TP1g=="
 }

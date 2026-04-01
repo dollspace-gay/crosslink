@@ -4,5 +4,7 @@
   "author": "maxine-at-forecast--noether--accept-both-conflict",
   "content": "Wrote .kickoff-status DONE. Feature complete and ready for push.",
   "created_at": "2026-03-02T08:57:05.626080Z",
-  "kind": "handoff"
+  "kind": "handoff",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgf3lLjTRNiwQoYg0HfooVADXX0n/U3SqwQW9kRgYIQEgAAAAgduB4oSDjmbshpWIJd4uDV9/Q7WCVIZu3siLhxa26IqI="
 }

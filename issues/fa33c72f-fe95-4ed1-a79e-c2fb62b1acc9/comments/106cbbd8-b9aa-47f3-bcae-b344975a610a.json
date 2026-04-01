@@ -4,5 +4,7 @@
   "author": "maxine-at-forecast--noether--ci-cd-restructure",
   "content": "Decision: Added concurrency groups to ci.yml, ci-feature.yml, and release-builds.yml to cancel stale runs. Using PR number for PR events and ref for push events to avoid cross-cancellation between PR validation and post-merge runs.",
   "created_at": "2026-03-02T09:21:10.183906Z",
-  "kind": "decision"
+  "kind": "decision",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgcd4Fikea1pk9nLhL3qRFlrykF3MRU3wJZITr1JaQ8LAAAAAhAM11KRYChldgEKpVRQ+rr6rVcM17O9t5w5bdOBQN3TFE"
 }

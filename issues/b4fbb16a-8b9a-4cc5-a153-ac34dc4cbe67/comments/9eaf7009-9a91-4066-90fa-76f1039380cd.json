@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Extracted per-language parsers from get_dependencies into _parse_cargo_deps, _parse_node_deps, _parse_python_deps, _parse_elixir_deps, _parse_go_deps. get_dependencies now delegates to these focused functions.",
   "created_at": "2026-03-26T19:43:39.101592285Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgVtsgm+VqdGAxkReGQUm2GOzDMRpaXDvoRHDrxVC5oLoAAAAgI9CeOO+Nlqnatljaa/A0WVrPNOBHini4oy5ht2nByEw="
 }

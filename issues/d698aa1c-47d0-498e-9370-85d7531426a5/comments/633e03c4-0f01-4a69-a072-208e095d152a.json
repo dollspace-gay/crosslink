@@ -4,5 +4,7 @@
   "author": "anon-295fd0bb",
   "content": "Found ~15 call sites using format!(\"#{}\", id) instead of format_issue_id(). Fixing all that could receive negative IDs: kickoff helpers/run/plan, TUI agents_tab, lock_check, sync/locks, server handlers, db/issues, orchestrator, shared_writer.",
   "created_at": "2026-03-19T15:34:00.184964987Z",
-  "kind": "observation"
+  "kind": "observation",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAKc6fJfqNwMD12EQwivFaiGAmSFAlolMzS+xvIzulw2oAAAAICoq2/kzOuomCcoAM0DVAlE0lFKZixpSoYkFxcP+Yel0"
 }

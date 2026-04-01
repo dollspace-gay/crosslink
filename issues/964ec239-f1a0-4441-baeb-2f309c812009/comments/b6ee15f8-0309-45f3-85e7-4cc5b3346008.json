@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Source template at crosslink/resources/claude/hooks/work-check.py has the bug on lines 202 and 236 — only checks for '#' prefix, not 'L' prefix. Deployed copy was manually patched but source never updated. Fix: add 'or Working on: L' check at both locations.",
   "created_at": "2026-03-18T13:05:53.224332143Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAIKMxdsnnFllAjfyvIcpJqPBosYxdaTA6jGjeSpOKqAfAAAAIDEHdJU3peBTfGz3L41noH/Xk5Y3LQsVrXzv4U5LQGZY"
 }

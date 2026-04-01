@@ -16,14 +16,18 @@
       "author": "anon-ab6221f8",
       "content": "Starting implementation of crosslink kickoff cleanup command (GH #298). Need to explore existing kickoff code, discovery logic, and plan the approach.",
       "created_at": "2026-03-11T13:21:13.778865445Z",
-      "kind": "plan"
+      "kind": "plan",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAOxNa9YCxSa2FZ/JkjfRqtiN24D4L0Qkjbe9rg8zxZlgAAAAIQDLqmWmyN6AQDOd2LYcpq2UypJO3JVwf5VKtwXVcUr3aQ=="
     },
     {
       "id": 273,
       "author": "anon-ab6221f8",
       "content": "Plan: 1) Extract shared discover_agents() from list(). 2) Add Cleanup variant to KickoffCommands in main.rs. 3) Implement cleanup() fn in kickoff.rs that reuses discovery, classifies agents, and removes done/stale ones. 4) Wire up dispatch.",
       "created_at": "2026-03-11T13:23:37.946006105Z",
-      "kind": "plan"
+      "kind": "plan",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAIcaRalp169tyt2Qm1OP80onvfDdQggP8nk4DuzPlYseAAAAIAGfxWZor65NHOOIeSqb5IxP15mWw0FrP3n6qNy2sImT"
     }
   ]
 }

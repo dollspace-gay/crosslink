@@ -7,5 +7,7 @@
   "kind": "intervention",
   "trigger_type": "tool_blocked",
   "intervention_context": "Trying to compare main repo files with worktree files",
-  "driver_key_fingerprint": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE"
+  "driver_key_fingerprint": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAMzOgX58hydAFlb1HTeib7OUN84rMJwqUVlUzb20VuKrAAAAIQCvGDUaKciv+xVf4swqNuqRwQg9ZxKFNGRgXLeRs+okxA=="
 }

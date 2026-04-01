@@ -4,5 +4,7 @@
   "author": "maxine-at-forecast--noether--untrack-init-files",
   "content": "Decision: Added .crosslink/rules/ and .mcp.json to .gitignore (they were missing). Updated comments to reflect rules are auto-generated from resource templates, not project policy. Only staged the git rm --cached deletions and .gitignore update — left hook-config.json reformatting out of scope.",
   "created_at": "2026-03-02T03:18:44.852950Z",
-  "kind": "decision"
+  "kind": "decision",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhALl7VYnceSnyN7pYxOVvkbh/qX5bN4E74axrjBqX23uOAAAAIQCfsJ51azy/fWE0lTes+VubbfybSZE5a+yDJyuiIHQXEw=="
 }

@@ -17,28 +17,36 @@
       "author": "maxine-at-forecast--noether--restrict-proptests",
       "content": "[auto] Session resumed after context compression.",
       "created_at": "2026-03-04T20:04:17.431264Z",
-      "kind": "note"
+      "kind": "note",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgMSXWoHLLDgR6mLCnq3+4Pplyok52kRXIkBW5dEpYYRUAAAAhAO+vctNBwiADCEDfICpfnkMnBmX3lShq19cAIJM8X2R4"
     },
     {
       "id": 210,
       "author": "maxine-at-forecast--noether--restrict-proptests",
       "content": "Plan: Add if condition to proptest job to only run on release/** branches or PRs targeting main. Single line change at line 131-134 in .github/workflows/ci.yml. The test job's smoke proptests (PROPTEST_CASES=10) remain unchanged.",
       "created_at": "2026-03-04T20:04:44.351320Z",
-      "kind": "plan"
+      "kind": "plan",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAKrU90n7OkOuQCpRuyA4Gc3G4rOjmTHWNxs034Pfv3xuAAAAIQC7oTKD+vNXQoA84xHIQuZ8CH6hlKYXHIDW34fLngAinw=="
     },
     {
       "id": 211,
       "author": "maxine-at-forecast--noether--restrict-proptests",
       "content": "Decision: Added 'if' condition to proptest job at line 135. Runs only on release/** pushes or PRs targeting main. This gates expensive 1000-case proptests to release gates while the test job's 10-case smoke run continues on all branches.",
       "created_at": "2026-03-04T20:05:11.950812Z",
-      "kind": "decision"
+      "kind": "decision",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgE6WsuyqTCuyKsJpquuzttcXMxopHo+72lnfq3Djb5jIAAAAgMJT6INcQ0Esex15weqRc6TrGrduC24djS2edv+e8Hc0="
     },
     {
       "id": 212,
       "author": "maxine-at-forecast--noether--restrict-proptests",
       "content": "Result: Added if condition to proptest job in ci.yml. Extended 1000-case proptests now gate only on release/** pushes and PRs to main. Smoke 10-case proptests in the test job remain unchanged on all branches. YAML validated, only proptest job affected.",
       "created_at": "2026-03-04T20:05:50.358590Z",
-      "kind": "result"
+      "kind": "result",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAIjehN9b1WcDTupHEOqNq64wiV9zkhXJwKtoIyTsGUwgAAAAIDp9XdUdCE5h5WfcQyWs9lP6/a7UevUcSPw5N02eS4Xb"
     }
   ]
 }

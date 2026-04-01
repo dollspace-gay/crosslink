@@ -4,5 +4,7 @@
   "author": "maxine-at-forecast--noether--improve-gitignore",
   "content": "Plan: Add gitignore generation to crosslink init. Key changes: (1) Add a write_root_gitignore() function that manages a marked section in root .gitignore with entries for .crosslink/ machine-local state and .claude/ auto-generated files. Use section markers (# === Crosslink managed ===) for idempotent replacement on re-init. (2) Update the existing .crosslink/.gitignore generation to include all machine-local files (issues.db*, session.json, daemon.pid, .cache/). (3) Add 'DO track' comments explaining what IS committed. (4) Add tests for fresh creation, idempotent re-init, and preserving user entries.",
   "created_at": "2026-03-02T02:36:14.230937Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAPwCACD6vx0ovpUptgCfWqwiagPcUnfrkEvC4/p/xV6dAAAAIQD0Nhwr7+8A6MkjDwh36l5ji9tVs02+duY2jMON/mpDCw=="
 }

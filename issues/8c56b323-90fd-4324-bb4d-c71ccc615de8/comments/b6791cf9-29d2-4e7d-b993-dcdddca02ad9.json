@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Add bearer token middleware. Generate a random token on server start, print it to stdout, and reject requests without a matching Authorization header. Read-only health endpoint exempt.",
   "created_at": "2026-03-26T17:46:47.637792627Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgQXllnVFWrV31UGRDvGN5JMvBk3Ygx1WswfR9od/LatAAAAAgAOI3qsS8K+AdmVqnwamnsbmz0FtYyfdc2OQS2lakBv4="
 }

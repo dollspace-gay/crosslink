@@ -17,7 +17,9 @@
       "author": "noether--add-container-agent",
       "content": "Plan: Implement container-based agent execution per DESIGN-CONTAINER-AGENTS.md. Phase 1 scope: 1) Embed Dockerfile + entrypoint in binary, 2) crosslink container build/start/ps/logs/stop/rm/shell subcommands, 3) Dynamic resource detection, 4) Update /kickoff and /check skills, 5) Container config in hook-config.json. Architecture: single task container hosts agent swarm, credentials-only auth mount, shared hub cache, hooks enforce policy inside container.",
       "created_at": "2026-03-02T07:19:01.531174710Z",
-      "kind": "plan"
+      "kind": "plan",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAPRNclguxRwsq6uSfIlRPTWwoQOjKPDMG7z6ny5jB8j6AAAAIQCc4BFZ6bPwkwwnvYuUiG4QTulAXr4T99OfkxDXQkytCg=="
     },
     {
       "id": 94,
@@ -27,14 +29,18 @@
       "kind": "intervention",
       "trigger_type": "manual_action",
       "intervention_context": "Waiting for human to push feature/add-container-based-agent-execution to origin",
-      "driver_key_fingerprint": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE"
+      "driver_key_fingerprint": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgVaE2rZt1Y6XnSJvMxJHgRskLoGt4PQatHWfleNfbN2sAAAAgJfc5aYu0AOs1G6+0WhlU4LK6Shu5mnG56eUtzEi2yhE="
     },
     {
       "id": 95,
       "author": "noether--add-container-agent",
       "content": "Delivered: crosslink container subcommand (build/start/ps/logs/stop/rm/kill/shell/snapshot), embedded Dockerfile + entrypoint, CLI wiring, design doc v3. PR #150 opened. All 146 tests pass, clippy and fmt clean.",
       "created_at": "2026-03-02T07:44:54.028211932Z",
-      "kind": "result"
+      "kind": "result",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAK+yhUk4vzVKk6zCYzNRtJvqPw6OAzMy7z0zklOGZfoWAAAAIQDuj6BmNf/ZGKHPbk2r1WTdntSc4YU6tfpMpUFCnJuQAw=="
     }
   ]
 }

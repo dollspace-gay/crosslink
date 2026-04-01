@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Replaced all bare except-pass and overly broad Exception catches across ALL hook files with specific types: OSError for file ops, json.JSONDecodeError for parsing, KeyError/TypeError for config lookups, subprocess.TimeoutExpired/FileNotFoundError for process spawning. Files: crosslink_config.py, pre-web-check.py, prompt-guard.py, post-edit-check.py, work-check.py, session-start.py.",
   "created_at": "2026-03-26T19:43:57.530222877Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAPm5KBdU8IrXEROa9b20uoJtEsNwK1km1xlwMUG51JWQAAAAIF69F3oHoq0uru8QWoxNrUbDJjalbHPOtINA8Cn314E1"
 }

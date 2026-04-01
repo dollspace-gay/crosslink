@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Fixed: Removed unused request type interfaces: CreateIssueRequest, UpdateIssueRequest, CreateSubissueRequest, CreateCommentRequest, AddLabelRequest, AddBlockerRequest, StartSessionRequest, EndSessionRequest, WorkOnIssueRequest, CreateMilestoneRequest, AssignMilestoneRequest, DecomposeRequest.",
   "created_at": "2026-03-26T19:50:01.353896580Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhANAqIjQlxPP8daQV/vplf66WoHhRSYV9H3tJsyb3OCc6AAAAIAKo/YZ9tf/dZLbkUvlfG3hBMj786wa0d4hrZaQb9kVQ"
 }

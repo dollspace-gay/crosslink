@@ -4,5 +4,7 @@
   "author": "maxine-at-forecast--noether--ci-cd-restructure",
   "content": "Observation: crosslink session work state keeps resetting between tool calls — the session focus does not persist across hook checks. Working around by re-calling session work before each gated operation.",
   "created_at": "2026-03-02T09:21:39.611159Z",
-  "kind": "observation"
+  "kind": "observation",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgMt3lsPPAdaOCaa4vKgibyBjDNw/7ZaN4oWkfZF9Nh7QAAAAhAIXWLISHKHcANublmCHVUETIOu3TyAil/bwB1+fIltBZ"
 }

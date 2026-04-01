@@ -17,7 +17,9 @@
       "author": "maxine-at-forecast--noether--ci-cd-restructure",
       "content": "Set up git flow per GH #129. Created develop branch, set as default, configured 3 rulesets (main, develop, release/*). Removed approval requirement per user request. Deleted old redundant ruleset.",
       "created_at": "2026-03-02T10:41:33.624090Z",
-      "kind": "handoff"
+      "kind": "handoff",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgBd5w5QLH9mJy2WxLT7ISGfRUFaCveFgc1MpeokztY0YAAAAhAMe67YY4qB1DE5k9yQrWzN3YH+9MCzm8L/VCewQCXL4G"
     }
   ]
 }

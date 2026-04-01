@@ -4,5 +4,7 @@
   "author": "maxine-at-forecast--noether--init-blocked-lint",
   "content": "Result: Implemented both changes:\n\n1. global.md - Added 'Blocked Actions' subsection under Priority 1: Security documenting permanently blocked git commands (push/merge/rebase/reset/etc.), gated commands (commit requires active issue), and always-allowed read-only commands.\n\n2. kickoff.md - Three additions:\n   a. Blocked actions context block in the agent prompt (alongside worktree awareness)\n   b. Step 8b: lint/format check instructions with per-language examples (cargo clippy/fmt, eslint, ruff, go vet/gofmt)\n   c. Self-review checklist: added lint/formatter pass item\n\nAll 146 tests pass, clippy clean, fmt clean.",
   "created_at": "2026-03-02T02:39:00.717401Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAK2gm8FyF4N2N2xGRVYGt1+lh9Gvx47wupuYpQNkX8FTAAAAIQDhL37T/1NI2qRXF/FmeRO8An5Oin45UaKw7A9oJths3A=="
 }

@@ -16,21 +16,27 @@
       "author": "noether--add-container-agent",
       "content": "Plan: Run the three manual tests from PR #150 test plan: 1) crosslink container build with Docker, 2) crosslink container start with a worktree, 3) verify hooks block git push inside container. Using the debug binary built in the worktree.",
       "created_at": "2026-03-02T07:46:08.077190366Z",
-      "kind": "plan"
+      "kind": "plan",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAOGRaTsVvRIkm+gHqDcYytluM3wuXU+kz3Pb6J970a1DAAAAIQDo+cuu/g2Ux+VKlogUzXynPvI/ofYMPBYwZQv1tPMv+A=="
     },
     {
       "id": 97,
       "author": "noether--add-container-agent",
       "content": "Observation: hook-config.json doesn't allow docker commands. Need to temporarily add 'docker ' to allowed_bash_prefixes to run manual container tests.",
       "created_at": "2026-03-02T07:46:32.523769526Z",
-      "kind": "observation"
+      "kind": "observation",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAJYJ2IzaNRWSPM07D4Q5e+VeP0juY0pxiJO/NnT6BrFWAAAAIQDGiRAmukP76RfRVRhfQMcqZqiXfVSQlewmy35gE7L7Zg=="
     },
     {
       "id": 98,
       "author": "noether--add-container-agent",
       "content": "Bug found: Claude CLI install script uses bash syntax but Dockerfile RUN uses /bin/sh (dash on Ubuntu 24.04). Fix: pipe to bash instead of sh.",
       "created_at": "2026-03-02T07:49:44.862235645Z",
-      "kind": "observation"
+      "kind": "observation",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAIfqOINvtaeun0lxGBDcr4AqDEkGGeSWubpFnMLGFMRlAAAAIHHghHqdotXVz28VRT2h/ZSbrqXf6kNIbbu/Hq/N79Pn"
     }
   ]
 }

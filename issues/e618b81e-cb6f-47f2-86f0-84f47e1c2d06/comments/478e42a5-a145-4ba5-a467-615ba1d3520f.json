@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Add V2 layout dispatch in claim_lock and release_lock. When is_v2_layout(), delegate to the SharedWriter V2 methods instead of writing to V1 locks.json.",
   "created_at": "2026-03-26T17:42:04.396376316Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAPTQ5uviUAMVJZ4n5DgrqALVzkmTR4/TjangxeW4aDJeAAAAIQDBQkcmNbgefTrKYwEnd2fTPQ+ElJfPNb6OtUqjU4E1pQ=="
 }

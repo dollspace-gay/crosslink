@@ -4,5 +4,7 @@
   "author": "anon-295fd0bb",
   "content": "GH #425: Worktree creation resolves paths relative to cwd instead of repo root. Need to audit all worktree creation paths (kickoff, featree, agent init) and ensure they use repo root. Also add a guard against creating worktrees inside the repo tree.",
   "created_at": "2026-03-19T15:15:42.932880403Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAOkSoJjSj5ynXy9ZX35qPwOLeI+/NoFTIPkewdNrlD66AAAAIQDL6AldQ9IG43MI5t+HG/dJ58uBT3fpi9KDguQl8eAHHA=="
 }

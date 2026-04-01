@@ -4,5 +4,7 @@
   "author": "agent-206-ext-query",
   "content": "Plan: Implemented external source querying for knowledge and issue commands via --repo flag. Core module: src/external.rs (source resolution, caching, readers). Command handlers: src/commands/external_knowledge.rs, src/commands/external_issues.rs. MCP server updated with source parameter and search_external_issues tool. Config registry extended with external-cache-ttl, external-url-ttl, and repo-alias map. Write commands reject --repo with clear error message.",
   "created_at": "2026-03-19T00:17:35.496814Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhANd8VuoAj32sxta4UyAJgXTxUkTpjw2fisSw0ZTisDruAAAAIQCGEwYgDmcyJewEWMLUh8tNgZdYQCtfXnJSNbqLW21cYg=="
 }

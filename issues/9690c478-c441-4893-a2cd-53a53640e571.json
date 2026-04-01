@@ -17,63 +17,81 @@
       "author": "m1--full-system-adversarial-review",
       "content": "Plan: Performing full-system adversarial review using /ad skill. Will review the entire codebase for security issues, code quality problems, architectural concerns, and potential bugs. Key areas: db.rs (SQL injection), identity.rs (signing security), daemon.rs (resource leaks), knowledge.rs (input validation), fuzz targets (coverage gaps).",
       "created_at": "2026-03-01T01:02:16.610372Z",
-      "kind": "plan"
+      "kind": "plan",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgQtUjo4U3/RU1HcAG6wtHRSgR71NJ5bTIYjIBpb9ahBEAAAAhAIxiFFrLKExFmPqJMpqI40Q1eSiGAi10R2MGCBjKGaIl"
     },
     {
       "id": 34,
       "author": "m1--full-system-adversarial-review",
       "content": "Observation: Test suite passes cleanly — 658 unit tests, 146 integration tests, 0 failures. Project is in healthy state. Note: test_security_path_traversal_export took >60s.",
       "created_at": "2026-03-01T01:08:22.229272Z",
-      "kind": "observation"
+      "kind": "observation",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgNBTgGLkoneSOQmidLT7RotLuOfT+Dhvst0UIRY/Y2/EAAAAgff485hDjILzFa05baQcHMaGXgV+NgzsADsIR1H/izxM="
     },
     {
       "id": 35,
       "author": "m1--full-system-adversarial-review",
       "content": "Observation: /ad skill failed due to 'chainlink' vs 'crosslink' command name mismatch in skill definition. Proceeding with manual structured adversarial review covering: (1) SQL injection in db.rs, (2) identity/signing security, (3) daemon resource leaks, (4) knowledge input validation, (5) fuzz coverage gaps, (6) dependency audit, (7) CI/CD review, (8) general code quality.",
       "created_at": "2026-03-01T01:08:36.128303Z",
-      "kind": "observation"
+      "kind": "observation",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgLzlGbmlqtO/5kfb8e60UBu57jeHkuuIy4Y8UxiTXGFwAAAAgKaQTEgjrYr13kPqYtwYVPUnrTiTVXJjgH0JDUWLYeyA="
     },
     {
       "id": 36,
       "author": "m1--full-system-adversarial-review",
       "content": "Observation: Adversarial review complete across 5 parallel review streams. Total findings: ~60+ issues identified across db.rs, identity/signing, daemon/sync, knowledge/input-validation, and deps/CI/fuzz. Now triaging by severity to identify truly critical issues requiring code fixes vs. recommendations.",
       "created_at": "2026-03-01T01:12:48.030365Z",
-      "kind": "observation"
+      "kind": "observation",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAIkuzafETu9WjLEhicjGutR4wm1I3A2q1AQ+JSarN0B5AAAAIAvns0Cp970aARcODy1gMuPf903DZPWIJJDzkb3jUIFZ"
     },
     {
       "id": 37,
       "author": "m1--full-system-adversarial-review",
       "content": "Decision: After triaging all ~60 findings, identified 2 issues that require code fixes (security/correctness bugs):\n\n1. CRITICAL — Knowledge page slug path traversal (knowledge.rs:289,301,312): Slug passed directly to file path without validation. Allows reading/writing/deleting files outside the knowledge cache via '../' sequences.\n\n2. HIGH — Byte-based string truncate panic (commands/knowledge.rs:347): Uses byte slicing (&s[..n]) which panics on multi-byte Unicode. Safe version already exists in utils.rs.\n\nAll other findings are either: (a) not real vulnerabilities for a local CLI tool (export path, symlinks — user already has filesystem access), (b) architectural recommendations (key revocation, audit logging), (c) hardening suggestions (file permissions, deserialization limits, CHECK constraints), or (d) incorrect analysis (principal verification is actually handled correctly by ssh-keygen -Y verify). These will be documented as recommendations only.",
       "created_at": "2026-03-01T01:14:19.676771Z",
-      "kind": "decision"
+      "kind": "decision",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhALoJwUeb1/CdipE9PnD/3KchynJ5ArU8Ta4nmcNmEXiSAAAAIHSl2rzM4Gy4P6x1gHUWymKnHADIQJIlmGsHbcWQ4YF3"
     },
     {
       "id": 38,
       "author": "m1--full-system-adversarial-review",
       "content": "Result: All tests pass (245 lib + 664 cmd + 146 integration = 1055 tests). 6 new tests added for path traversal validation. Pre-existing test_security_path_traversal_export takes >60s as baseline.",
       "created_at": "2026-03-01T01:52:42.129556Z",
-      "kind": "result"
+      "kind": "result",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAO5NeVpn1FcysMRgexF+9fIWLZ9pVF3+VYxVxvi8euw5AAAAIC95N+YaMexVG3OjRGq+IHSXTDF3DtCxJCM4cDyQtLnu"
     },
     {
       "id": 39,
       "author": "m1--full-system-adversarial-review",
       "content": "Result: Committed fix for 2 critical issues:\n1. CRITICAL — Path traversal in knowledge page slug (knowledge.rs): Added safe_page_path() with character validation + canonicalization defense-in-depth. 6 new tests.\n2. HIGH — Unicode panic in truncate (commands/knowledge.rs): Replaced byte-based slicing with crate::utils::truncate which uses .chars().take().\n\nAll 1055+ tests pass. Commit: 5be0eca",
       "created_at": "2026-03-01T01:59:53.662053Z",
-      "kind": "result"
+      "kind": "result",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAOANy4xk+bMWiRYWyV4sgIwuWCaQcOpGubvleuyVWvbaAAAAIQDk0xy8JKt8/4B5RSUO4IMFDCG8RcNP6XM5J+JsdcL4yQ=="
     },
     {
       "id": 40,
       "author": "m1--full-system-adversarial-review",
       "content": "Result: Full adversarial review complete. 2 critical fixes committed. All tests pass. .kickoff-status written as DONE.",
       "created_at": "2026-03-01T02:00:43.863547Z",
-      "kind": "result"
+      "kind": "result",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAJtBn5Jlj59/4ezH2WlK6DdsCBa+Dy1Zmn85cBguF/fxAAAAIC4Db9fjQaAf+YOMWcffJovr9mQuzCD6iTSKDV4KFYwt"
     },
     {
       "id": 41,
       "author": "m1--full-system-adversarial-review",
       "content": "Result: Full adversarial review ADR documented. 30 recommendations across 6 categories:\n\n## Fixes Applied (2)\n- F1 CRITICAL: Path traversal in knowledge slugs — fixed with safe_page_path() + 6 tests\n- F2 HIGH: Unicode panic in truncate — fixed by delegating to crate::utils::truncate\n\n## Security — Signing & Trust (7)\n- S1 HIGH: SSH keys generated without passphrase (-N \"\")\n- S2 HIGH: allowed_signers has no cryptographic integrity protection\n- S3 HIGH: No key revocation or rotation mechanism\n- S4 MEDIUM: verify_content() only checks exit code, doesn't parse output\n- S5 MEDIUM: AllowedSigners parsing accepts any string as public key\n- S6 MEDIUM: No audit logging of signature verification results\n- S7 MEDIUM: Trust modifications don't record approver metadata\n\n## Concurrency & Data Integrity (6)\n- C1 HIGH: TOCTOU race in claim_lock() — two agents can claim same lock\n- C2 HIGH: Display ID collision under concurrent creation\n- C3 HIGH: Daemon silently swallows DB/sync init errors\n- C4 HIGH: Daemon has no SIGTERM/SIGINT handler\n- C5 MEDIUM: File writes not atomic (std::fs::write is not atomic)\n- C6 MEDIUM: Stale lock detection vulnerable to clock skew\n\n## Database (5)\n- D1 HIGH: Silent error suppression in schema migrations (let _ = ...)\n- D2 MEDIUM: No CHECK constraints on enum columns\n- D3 MEDIUM: Transaction rollback errors silently suppressed\n- D4 MEDIUM: parse_datetime silently falls back to Utc::now()\n- D5 LOW: UUID column nullable with UNIQUE index\n\n## Input Validation (4)\n- V1 MEDIUM: No max length on string inputs (titles, descriptions, comments)\n- V2 MEDIUM: No enum validation for status/priority/kind\n- V3 MEDIUM: JSON import deserialization has no size limits\n- V4 LOW: Agent ID allows single-character names\n\n## CI/CD & Testing (5)\n- T1 HIGH: Only 6 of 30+ code paths fuzzed\n- T2 MEDIUM: Fuzz CI jobs use continue-on-error: true\n- T3 MEDIUM: Fuzz durations only 30 seconds\n- T4 MEDIUM: No explicit permissions block on CI jobs\n- T5 MEDIUM: Cargo deps use broad version ranges\n\n## VS Code Extension (3)\n- E1 MEDIUM: Binary installed without checksum verification\n- E2 MEDIUM: execSync used instead of execFileSync\n- E3 LOW: Daemon output not sanitized for ANSI codes\n\n## Triaged as Non-Issues (5)\n- Export path (user already has fs access), symlink attacks (local-only dir), principal verification (ssh-keygen handles it), DB file permissions (standard for CLI), rate limiting (not exposed to untrusted callers)\n\nFull details in ADR.md. Commit 5be0eca contains the two fixes.",
       "created_at": "2026-03-01T02:07:09.814207Z",
-      "kind": "result"
+      "kind": "result",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgSM3KZ1PZ84s/215ojdWqXDbw6oA2PpzX6Qf4qgfunFcAAAAgbs0vlbU469jlZgzQifUisJVemUDgLXGlr6AXtDjBPbU="
     },
     {
       "id": 129,

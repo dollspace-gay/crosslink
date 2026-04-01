@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Add a shell_escape helper that wraps values in single quotes with proper escaping. Apply to all interpolated values in build_agent_command.",
   "created_at": "2026-03-26T16:10:41.826317108Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhALK6SdZVoN93sAjR2MVz7+0ArX4I1oJPxaPK0AzQTouZAAAAIF4T8y8bthA4mtBynPGnWdtdvtp8y2zhzxYX968Yh9Uq"
 }

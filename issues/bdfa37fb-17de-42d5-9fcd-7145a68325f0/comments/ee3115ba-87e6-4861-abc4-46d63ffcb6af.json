@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "This is a 3000+ LOC refactor that should be its own dedicated PR. Deferring to a separate branch — not suitable for a QA fix pass where we need to maintain test stability across many small changes.",
   "created_at": "2026-03-26T17:49:26.387948688Z",
-  "kind": "decision"
+  "kind": "decision",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgSNhbOw23D9y6tZ8OPTXrm6ikEnkiA6EYR8mM8+D/w1YAAAAhALVxUFGmK/mLpB+kOs1oYqPysyYgxebn7Z5ne/WG+Rjn"
 }

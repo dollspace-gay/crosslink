@@ -4,5 +4,7 @@
   "author": "m1--fix-agent-init-signing-key-override",
   "content": "Committed fix: removed configure_git_ssh_signing() call from setup_driver_signing() in init.rs. Hub cache signing in sync.rs untouched. All 146 tests pass, no warnings.",
   "created_at": "2026-03-01T02:25:19.710745393Z",
-  "kind": "note"
+  "kind": "note",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAKaxdQdDNh+4h4xJ4VPE0auLnqhozkr4t2RJKH5KCL3IAAAAIQCdUqZkrPc9tM3H8CtlPz7OCISaXmjGpP5dvhk0B16r7A=="
 }

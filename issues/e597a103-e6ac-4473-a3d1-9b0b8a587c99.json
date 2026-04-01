@@ -17,21 +17,27 @@
       "author": "maxine-at-forecast--noether--improve-gitignore",
       "content": "Plan: Add gitignore generation to crosslink init. Key changes: (1) Add a write_root_gitignore() function that manages a marked section in root .gitignore with entries for .crosslink/ machine-local state and .claude/ auto-generated files. Use section markers (# === Crosslink managed ===) for idempotent replacement on re-init. (2) Update the existing .crosslink/.gitignore generation to include all machine-local files (issues.db*, session.json, daemon.pid, .cache/). (3) Add 'DO track' comments explaining what IS committed. (4) Add tests for fresh creation, idempotent re-init, and preserving user entries.",
       "created_at": "2026-03-02T02:36:14.230937Z",
-      "kind": "plan"
+      "kind": "plan",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgcq2iMqXq+7IdrNvIsiav4CYsU1Ngrb4/hOJs4lHmcNcAAAAgAMoKlj4r2stDqGVSJCqk1mTsrd5548pfNd8OtmezLlw="
     },
     {
       "id": 72,
       "author": "maxine-at-forecast--noether--improve-gitignore",
       "content": "Completed: Added write_root_gitignore() to init.rs with section-marker-based idempotent gitignore management. Covers .crosslink/ machine-local state and .claude/ auto-generated dirs. Updated .crosslink/.gitignore to include integrations/. 8 new tests. All tests pass, clippy clean. Committed as b3d736e.",
       "created_at": "2026-03-02T02:51:14.118030Z",
-      "kind": "handoff"
+      "kind": "handoff",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgPwLq446RynnooDgin+mTOpmQwqBH1YKRA4fAbFeistkAAAAhAJ0hunr4dZWV7+bIz91n2tn/Kd1U2zs2y/nJscf0xxBB"
     },
     {
       "id": 73,
       "author": "maxine-at-forecast--noether--improve-gitignore",
       "content": "Feature complete. Committed b3d736e. .kickoff-status written. Ready for PR.",
       "created_at": "2026-03-02T02:51:36.545119Z",
-      "kind": "handoff"
+      "kind": "handoff",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgZzV5Eh/FdlaryED+02U157Io8OJaVSywwplIcEkr9mQAAAAgaygzfW4gVF31u793fy6EG5tYoP5o0faMiHpthjqejqg="
     },
     {
       "id": 139,

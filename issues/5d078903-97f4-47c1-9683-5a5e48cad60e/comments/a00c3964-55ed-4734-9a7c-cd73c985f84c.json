@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "No shell-escape crate in deps. Adding a shell_escape_arg function to utils.rs that wraps values in single quotes with embedded single-quote escaping.",
   "created_at": "2026-03-26T16:11:30.582148049Z",
-  "kind": "decision"
+  "kind": "decision",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAIAkzNL4k+mP5jmeAZm2/IWQVKIjXUeuWXr4l1jhuZ06AAAAICdrAM/rqjnlIv3HO4zFvPpClV8wu6Wb1Tdes6KolvrY"
 }

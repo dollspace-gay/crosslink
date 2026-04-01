@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Fixed: Extracted format_event_description to tui/mod.rs as a shared function. Both agents_tab::format_event_summary and config_tab::describe_event now delegate to it. The shared version handles all Event variants including IssueUpdated with title display.",
   "created_at": "2026-03-26T20:01:00.969708332Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAOJZPsDG4fO3Qe8DrIWihmXFrqp6wqiM791+3orK6+M5AAAAIFWHQtFryScvA9nHiZcmOI6vZ8gk7higmb/4IlPqV39M"
 }

@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "GH #385: Add curated jj commands to DEFAULT_ALLOWED_BASH. Using option 2 from the issue: allow read-only commands (log, diff, status, show, bookmark list) while leaving mutation commands gated. Also add to the hook-config.json template.",
   "created_at": "2026-03-23T18:33:24.411184394Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhANjZ027p6Jnji3Pae843tvOrNEn/Xo/zObpJ6pJxEZqDAAAAIEwW79IhtvqxbLkLxypxwwEUKPQu0ZbEKTpxq19Y9GbT"
 }

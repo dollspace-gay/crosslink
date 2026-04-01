@@ -4,5 +4,7 @@
   "author": "maxine-at-forecast--noether--knowledge-norms",
   "content": "Completed: Added knowledge management prompting norms. Created knowledge.md rule file, registered in build.rs/init.rs, updated kickoff.md with steps 3b/3c, updated session-start.py to show knowledge page count. All 917 tests pass, clippy/fmt clean. Committed as 877b9a7. Remaining work: user needs to git push and open PR.",
   "created_at": "2026-03-02T09:02:27.491965Z",
-  "kind": "handoff"
+  "kind": "handoff",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAIM0neF1YlxQDhD40PBFY23ZseZ8ZHYXqPgry4B8GbHuAAAAIQDDHXU9Sqaizc1KzLeXc7siWT0w/8ste36mDF4yoSb8tQ=="
 }

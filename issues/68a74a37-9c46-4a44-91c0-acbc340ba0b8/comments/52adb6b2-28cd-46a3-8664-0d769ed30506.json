@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "insert_relation_raw takes 2 args (generates its own timestamp) — dropping created_at from relation snapshot for now. Separate issue #43 tracks preserving original timestamps. Milestone method is insert_hydrated_milestone_issue not insert_milestone_issue.",
   "created_at": "2026-03-26T16:37:08.822569558Z",
-  "kind": "observation"
+  "kind": "observation",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgbg5kb+LpRNfBDp+QqUR6GBUTaaKoQEQaqAWU+kbpd/UAAAAhAJcr3doQ2obCj+nuUxpqAGRDGZfA8k1P3Nlu5bZPG//Q"
 }

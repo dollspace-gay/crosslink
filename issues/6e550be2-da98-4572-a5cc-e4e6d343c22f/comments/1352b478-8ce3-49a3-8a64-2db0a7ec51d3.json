@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Implemented auto-detection of lint/test commands during crosslink init. detect_conventions() populates agent_lint_commands and agent_test_commands in agent_overrides. work-check.py merges these into allowed_bash_prefixes for agent contexts. Only populates empty arrays to preserve manual config.",
   "created_at": "2026-03-23T16:55:49.034946619Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgf0Ki22TOmSgG1Kh3Sv9skkVkuIcqxexL2/ZGO/7pshAAAAAhANUfPQF0Vq+nIP+Iy2vPCuG6MqyBb0EGp4TZqofbz1GE"
 }

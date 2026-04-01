@@ -17,14 +17,18 @@
       "author": "m1--track-driver-signing-key",
       "content": "[auto] Session resumed after context compression.",
       "created_at": "2026-03-01T16:05:12.083467897Z",
-      "kind": "note"
+      "kind": "note",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAIA1XD42tpRttIZxaCd/1B1g3ViJbxJYa19Cbkv5m54ZAAAAICSRrCNKZoONKKqBDiGxptDp9GAZK2xZgEXKB9SHnBlO"
     },
     {
       "id": 46,
       "author": "m1--track-driver-signing-key",
       "content": "Launched feature agent in tmux session feat-track-driver-signing-key, worktree at .worktrees/track-driver-signing-key, implementation issue #40",
       "created_at": "2026-03-01T16:05:14.851502726Z",
-      "kind": "result"
+      "kind": "result",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAKIxogEpHnDcEMuA1yv/5gXR+VfEeYZXsMhbX0CI/CI3AAAAIQDzDzV+eMA6KadEt719ZkJf7SFdTT/JXj/U3xv5Fz5gTg=="
     },
     {
       "id": 49,
@@ -33,7 +37,9 @@
       "created_at": "2026-03-01T16:34:38.628384995Z",
       "kind": "intervention",
       "trigger_type": "manual_action",
-      "intervention_context": "Testing GH #88 feature"
+      "intervention_context": "Testing GH #88 feature",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAINS3FkWWQydaKzosWzxt6QBloc5bFlL38DiU49leVlZAAAAIFxr9ivEvKoYBkxIcrUGxRO+t+PjbKkCIal4Tdnc/bsl"
     },
     {
       "id": 50,
@@ -42,14 +48,18 @@
       "created_at": "2026-03-01T16:35:34.083767029Z",
       "kind": "intervention",
       "trigger_type": "manual_action",
-      "intervention_context": "Testing GH #88 feature"
+      "intervention_context": "Testing GH #88 feature",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAO9bzv3v/jRhdp4elEAi9HW6lQfsBhvVfBiGYBtzDJ9FAAAAIQCD4uAA/YzfUNHjovKC1xpYNt18ncrFhBho4mL+T3z+FA=="
     },
     {
       "id": 51,
       "author": "m1--track-driver-signing-key",
       "content": "Result: Kicked off GH #88 agent in worktree, agent implemented feature in 1 commit (10 files, 143 insertions). All 146 tests pass. Manual verification confirmed driver fingerprint appears in both intervention output and trust approval JSON. PR #109 opened. Also filed GH #110 for container-based agent execution epic based on architecture discussion with driver.",
       "created_at": "2026-03-01T17:04:33.196187981Z",
-      "kind": "result"
+      "kind": "result",
+      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgOKOEFHrmxd+rAFLy10F0GysDPdf4nQvREq/79FSGjycAAAAgA8/hcv5YlZFLhYwK8YmpyRgyUHyS0gW6cZ/3J9mAFwc="
     },
     {
       "id": 126,

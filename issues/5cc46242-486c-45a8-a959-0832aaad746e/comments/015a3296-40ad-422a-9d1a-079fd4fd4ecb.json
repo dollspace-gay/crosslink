@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "IssueFile (hub JSON format) also has String status/priority. Changing to enums here too since serde rename_all=lowercase gives identical JSON output. This ensures the type safety extends to the hub boundary.",
   "created_at": "2026-03-26T18:59:23.287157297Z",
-  "kind": "decision"
+  "kind": "decision",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgcoS9i5zrmAtDKGBTfUnX/PdsSBDNp1EX98gT2XqnHzkAAAAhAN0H72DM0/vNMzEfTST/z+5FkN+sPpUjiLW2+4g7JVPy"
 }

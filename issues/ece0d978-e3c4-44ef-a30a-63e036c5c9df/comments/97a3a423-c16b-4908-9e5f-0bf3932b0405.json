@@ -4,5 +4,7 @@
   "author": "anon-295fd0bb",
   "content": "Existing cli_integration.rs has 186 tests covering most CLI commands. The new smoke harness will be a SEPARATE test binary (tests/smoke.rs + tests/smoke/ modules) focused on what's missing: server API, WebSocket, multi-agent coordination, adversarial/torture tests, corruption recovery, boundary attacks, and the tooling commands (cpitd, workflow, context, style, design-doc, mc). The new harness will NOT duplicate existing CLI tests.",
   "created_at": "2026-03-13T12:24:18.513312014Z",
-  "kind": "observation"
+  "kind": "observation",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgXd4RQHixSFtwMd/sbPdqGrwudFBUE6SQdC7I9ZA9BA0AAAAgPiaOeEMxKJvalqhyv0x+/3uqJuSEFmm5muHNnD+Hj7c="
 }

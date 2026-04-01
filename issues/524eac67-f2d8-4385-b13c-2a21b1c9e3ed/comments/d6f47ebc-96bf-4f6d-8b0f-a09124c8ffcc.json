@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Extract the shared walkthrough TUI state machine into config_registry.rs (or a new walkthrough.rs). Both init.rs and config.rs have near-identical preset/group/confirm screen flows. Will read both implementations first to catalog the differences.",
   "created_at": "2026-03-26T18:04:33.522498362Z",
-  "kind": "plan"
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgTugMb8aJE8C1ykN03HfBy7cBacmHryNywT0Z90yRkNgAAAAgDTpxZGzqc7cVwjcT+X5i/cb6e5l6OnXTngtR+YV+3p4="
 }

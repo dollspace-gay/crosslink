@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Delivered: (1) Added gh and 20+ common CLI tools to DEFAULT_ALLOWED_BASH. (2) Session work/quick now writes .crosslink/.active-issue sentinel, session end clears it. (3) work-check.py reads sentinel file first (~1ms) before falling back to subprocess (~100ms).",
   "created_at": "2026-03-30T18:31:12.805569877Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgDfdb3A9zoOXksLEZqv2K9jzHcW1NepMieLREF5zvyyYAAAAgBf4m5jbX3lA3Z/6cNtbYAP+flKkzzIvgG5KG1CXXBmI="
 }

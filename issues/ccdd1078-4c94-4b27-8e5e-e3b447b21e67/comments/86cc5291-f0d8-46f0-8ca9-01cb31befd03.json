@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Delivered: kickoff cleanup command with --dry-run, --force, --keep N, --json flags. Refactored list() to share discovery via discover_agents(). All 737 tests pass. Tested against 31 real worktrees: correctly identifies 22 done, 9 stale, 0 active.",
   "created_at": "2026-03-11T13:34:21.981205470Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgMpWUPLSn1UTS2CAJwCFUUfjjEE8lACXG/Ri775Qo4BcAAAAhALhh6qP6qPD22GHcWRzODZWByPs5JPIepNkXioYbOYCU"
 }

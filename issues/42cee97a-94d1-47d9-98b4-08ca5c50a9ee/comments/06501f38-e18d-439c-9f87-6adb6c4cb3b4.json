@@ -4,5 +4,7 @@
   "author": "anon-ab6221f8",
   "content": "Delivered: Added --base flag to swarm merge, auto-detects develop/main/origin variants. Replaced hardcoded develop in branch creation and diff generation. Refactored discover_worktrees and extract_diff_ranges to use shared detect_base_branch helper.",
   "created_at": "2026-03-30T18:56:13.636450307Z",
-  "kind": "result"
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAOnCAO8A4I2r+kwV/I74FLieEXiUZFehm8g4zNCJWg/UAAAAIQDgbUX73V8xzuDTQSJauIGgiPmujsKSn4SK7/kQq/T2ag=="
 }

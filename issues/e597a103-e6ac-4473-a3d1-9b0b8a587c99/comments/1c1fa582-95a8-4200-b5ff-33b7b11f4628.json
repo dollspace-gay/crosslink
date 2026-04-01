@@ -4,5 +4,7 @@
   "author": "maxine-at-forecast--noether--improve-gitignore",
   "content": "Completed: Added write_root_gitignore() to init.rs with section-marker-based idempotent gitignore management. Covers .crosslink/ machine-local state and .claude/ auto-generated dirs. Updated .crosslink/.gitignore to include integrations/. 8 new tests. All tests pass, clippy clean. Committed as b3d736e.",
   "created_at": "2026-03-02T02:51:14.118030Z",
-  "kind": "handoff"
+  "kind": "handoff",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgAUKZqAW3tz9swCC8p2wW5e7JW0DlDGkoJQjVxDND4tUAAAAhAM1aDh5RtXPPtBp/8Y/gujBMp1N2LJJcFn264NVqAlN3"
 }
