@@ -64,3 +64,5 @@ maxine-at-forecast--noether--rules-local@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1N
 maxine-at-forecast--noether--design-skill@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBg4qzGXFNXc13SQmwMs27Jl7whUk2Xat4XkUhEIrRWM crosslink-agent:maxine-at-forecast--noether--design-skill@noether-4.local
 # approved by doll at 2026-04-01 20:22:01 UTC
 maxine-at-forecast--noether--milestone-review@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHZaIVdtYIxCBBY4Q8FYQoISQror4gVLTpNbNP+C/RKQ crosslink-agent:maxine-at-forecast--noether--milestone-review@noether-4.local
+# approved by doll at 2026-04-01 20:22:14 UTC
+agent-217-kickoff-ux@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC1QqI8XITGcwnym3RKV3VN6PzyGqo6JAaVivDVtxl+1 crosslink-agent:agent-217-kickoff-ux@futura.local
