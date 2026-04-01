@@ -420,10 +420,23 @@ pub fn sync_cmd(crosslink_dir: &Path, db: &Database) -> Result<()> {
             }
         }
         SignatureVerification::Unsigned { commit } => {
-            println!(
-                "Locks synced. WARNING: Latest commit ({}) is NOT signed.",
-                &commit[..7.min(commit.len())]
-            );
+            // Suppress the warning for bootstrap commits (init creates locks.json
+            // before signing is configured, so it's always unsigned).
+            let is_bootstrap = sync
+                .commit_message(commit)
+                .map(|msg| crate::sync::bootstrap::is_bootstrap_message(&msg))
+                .unwrap_or(false);
+            if is_bootstrap {
+                println!(
+                    "Locks synced (commit {} is an unsigned bootstrap commit).",
+                    &commit[..7.min(commit.len())]
+                );
+            } else {
+                println!(
+                    "Locks synced. WARNING: Latest commit ({}) is NOT signed.",
+                    &commit[..7.min(commit.len())]
+                );
+            }
         }
         SignatureVerification::Invalid { commit, reason } => {
             println!(
