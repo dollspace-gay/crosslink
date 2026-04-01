@@ -346,7 +346,7 @@ impl SyncManager {
                             &canonical,
                             sig,
                         );
-                        if let Ok(true) = original_ok {
+                        if matches!(original_ok, Ok(true)) {
                             verified += 1;
                             continue;
                         }

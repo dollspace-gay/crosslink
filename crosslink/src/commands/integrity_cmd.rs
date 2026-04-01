@@ -524,7 +524,7 @@ fn check_layout(crosslink_dir: &Path, repair: bool) -> CheckResult {
 /// human-attested entries from agent-signed ones.
 const BACKFILL_SIGNING_NAMESPACE: &str = "crosslink-backfill";
 
-/// Principal used for human backfill attestation in allowed_signers.
+/// Principal used for human backfill attestation in `allowed_signers`.
 const BACKFILL_PRINCIPAL: &str = "backfill@crosslink";
 
 fn sign_backfill(crosslink_dir: &Path, confirm: bool, key_override: Option<&Path>) -> Result<()> {
@@ -775,8 +775,8 @@ fn resolve_signing_key(key_override: Option<&Path>) -> Result<PathBuf> {
 /// If the path ends in `.pub`, strip it to get the private key path.
 fn strip_pub_extension(path: &Path) -> PathBuf {
     let s = path.to_string_lossy();
-    if s.ends_with(".pub") {
-        PathBuf::from(&s[..s.len() - 4])
+    if let Some(stripped) = s.strip_suffix(".pub") {
+        PathBuf::from(stripped)
     } else {
         path.to_path_buf()
     }
