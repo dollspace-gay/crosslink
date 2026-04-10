@@ -45,6 +45,9 @@ pub fn collect_completed(db: &Database, crosslink_dir: &Path) -> Result<CollectS
 
         let outcome = if status_content.trim().starts_with("DONE") {
             "success"
+        } else if dispatch.attempt_number >= 2 {
+            // Both Sonnet and Opus failed — mark as exhausted so we don't retry
+            "exhausted"
         } else {
             "failure"
         };
@@ -152,6 +155,7 @@ fn build_replicate_template(
     let status_display = match status {
         "success" => "Reproduced",
         "failure" => "Could not reproduce",
+        "exhausted" => "Could not reproduce (all attempts exhausted)",
         _ => status,
     };
 
