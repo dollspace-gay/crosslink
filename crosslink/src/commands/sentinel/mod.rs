@@ -50,10 +50,11 @@ pub fn dispatch_cmd(
         SentinelCommands::Status => watch::status(crosslink_dir, db),
         SentinelCommands::History {
             limit,
+            detail,
             json: json_flag,
         } => {
             let use_json = json || json_flag;
-            history::show_history(db, limit, use_json)
+            history::show_history(db, limit, detail, use_json)
         }
         SentinelCommands::Stop => watch::stop(crosslink_dir),
         SentinelCommands::Metrics { json: json_flag } => {

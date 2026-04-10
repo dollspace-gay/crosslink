@@ -253,6 +253,22 @@ impl Database {
         Ok(rows)
     }
 
+    /// List all dispatches for a given sentinel run, ordered by creation time.
+    pub fn list_dispatches_for_run(&self, run_id: &str) -> Result<Vec<SentinelDispatch>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, run_id, signal_ref, signal_title, source, disposition,
+                    agent_id, crosslink_issue_id, gh_issue_number, label,
+                    attempt_number, model_used, outcome, outcome_detail,
+                    created_at, completed_at
+             FROM sentinel_dispatches WHERE run_id = ?1
+             ORDER BY created_at",
+        )?;
+        let rows = stmt
+            .query_map(params![run_id], Self::map_dispatch_row)?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
     /// Get success rate metrics grouped by model and label.
     pub fn get_dispatch_metrics(&self) -> Result<Vec<DispatchMetric>> {
         let mut stmt = self.conn.prepare(

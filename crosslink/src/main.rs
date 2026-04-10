@@ -1805,6 +1805,9 @@ pub enum SentinelCommands {
         /// Maximum number of runs to show
         #[arg(long, default_value = "10")]
         limit: usize,
+        /// Show per-dispatch details for each run
+        #[arg(long)]
+        detail: bool,
         /// Output as JSON
         #[arg(long)]
         json: bool,

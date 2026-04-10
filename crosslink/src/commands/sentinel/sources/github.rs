@@ -12,16 +12,15 @@ struct GhIssue {
     number: i64,
     title: String,
     body: Option<String>,
-    #[serde(default, rename = "labels")]
-    _labels: Vec<GhLabel>,
+    #[serde(default)]
+    labels: Vec<GhLabel>,
     #[serde(rename = "createdAt")]
     created_at: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct GhLabel {
-    #[serde(rename = "name")]
-    _name: String,
+    name: String,
 }
 
 /// Polls GitHub for issues with `agent-todo:*` labels via the `gh` CLI.
@@ -110,18 +109,36 @@ impl GitHubLabelSource {
 
         let signals = issues
             .into_iter()
-            .map(|issue| Signal {
-                source: SourceKind::GitHub,
-                kind: SignalKind::LabelAdded,
-                reference: format!("GH#{}:{}", issue.number, label_suffix),
-                title: issue.title,
-                body: issue.body.unwrap_or_default(),
-                metadata: serde_json::json!({
-                    "label": label,
-                    "number": issue.number,
-                    "created_at": issue.created_at,
-                }),
-                detected_at: now,
+            .filter_map(|issue| {
+                // Defensive: verify the label we asked for is actually present in the
+                // response. Protects against future `gh` API changes or filter bugs.
+                let all_label_names: Vec<String> =
+                    issue.labels.iter().map(|l| l.name.clone()).collect();
+                if !all_label_names.iter().any(|name| name == label) {
+                    tracing::warn!(
+                        "GH#{} returned for label '{}' but doesn't have it (has: {:?}); skipping",
+                        issue.number,
+                        label,
+                        all_label_names
+                    );
+                    return None;
+                }
+
+                Some(Signal {
+                    source: SourceKind::GitHub,
+                    kind: SignalKind::LabelAdded,
+                    reference: format!("GH#{}:{}", issue.number, label_suffix),
+                    title: issue.title,
+                    body: issue.body.unwrap_or_default(),
+                    metadata: serde_json::json!({
+                        "label": label,
+                        "number": issue.number,
+                        "created_at": issue.created_at,
+                        // Include all labels so triage engine can route on label combinations
+                        "all_labels": all_label_names,
+                    }),
+                    detected_at: now,
+                })
             })
             .collect();
 

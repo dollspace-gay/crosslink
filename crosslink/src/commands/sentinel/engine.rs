@@ -148,21 +148,23 @@ pub fn run_oneshot(
             // This can happen if SeenSet was loaded before a previous cycle's dispatch was recorded
         }
 
-        // 5. Check capacity
-        let in_flight = db.count_pending_dispatches()?;
-        if in_flight >= config.max_concurrent_agents as i64 {
-            if !quiet {
-                println!(
-                    "  defer: {} (at capacity: {}/{})",
-                    signal.reference, in_flight, config.max_concurrent_agents
-                );
+        // 5. Triage
+        let mut disposition = triage(signal, &decision, config, Some(&tuning));
+
+        // 6. Capacity check: if triage decided to dispatch but we're at capacity,
+        //    override to Defer so the signal is retried on the next cycle.
+        if matches!(disposition, super::dispatch::Disposition::Dispatch { .. }) {
+            let in_flight = db.count_pending_dispatches()?;
+            if in_flight >= config.max_concurrent_agents as i64 {
+                disposition = super::dispatch::Disposition::Defer {
+                    reason: format!(
+                        "at capacity: {}/{}",
+                        in_flight, config.max_concurrent_agents
+                    ),
+                };
             }
-            stats.deferred += 1;
-            continue;
         }
 
-        // 6. Triage
-        let disposition = triage(signal, &decision, config, Some(&tuning));
         match disposition {
             super::dispatch::Disposition::Dispatch {
                 description,
@@ -237,7 +239,12 @@ pub fn run_oneshot(
                 }
                 stats.skipped += 1;
             }
-            // Defer is handled by the pre-triage capacity check above (continue)
+            super::dispatch::Disposition::Defer { reason } => {
+                if !quiet {
+                    println!("  defer: {} ({})", signal.reference, reason);
+                }
+                stats.deferred += 1;
+            }
             super::dispatch::Disposition::Triage { priority, labels } => {
                 // Triage-only signals get a crosslink issue with priority + labels
                 let issue_id = create_sentinel_issue(db, writer, signal)?;
@@ -375,8 +382,22 @@ fn spawn_agent(
         }
     }
 
+    // Append a strict path-enforcement section so the agent honors AgentScope.allowed_paths
+    // even if the prompt template's natural language is ambiguous.
+    let scoped_description = format!(
+        "{description}\n\n## Path Enforcement (sentinel scope)\n\
+         You may ONLY create or modify files under these path prefixes:\n{}\n\
+         Modifying files outside these prefixes is a contract violation.",
+        scope
+            .allowed_paths
+            .iter()
+            .map(|p| format!("- `{p}`"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+
     let opts = KickoffOpts {
-        description,
+        description: &scoped_description,
         issue: Some(issue_id),
         container: ContainerMode::None,
         verify: scope.verify.clone(),

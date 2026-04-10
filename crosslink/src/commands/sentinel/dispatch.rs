@@ -21,11 +21,17 @@ pub enum Disposition {
     },
     /// Already handled or no matching rule — skip.
     Skip { reason: String },
+    /// Eligible but cannot dispatch right now (e.g. at concurrent agent capacity).
+    /// Will be retried on the next cycle.
+    Defer { reason: String },
 }
 
 /// Constrains what a dispatched agent can do.
 #[derive(Debug, Clone)]
 pub struct AgentScope {
+    /// Path prefixes the agent is allowed to write to (e.g. ["tests/", "src/"]).
+    /// Enforced via the kickoff prompt + allowed-tools whitelist.
+    pub allowed_paths: Vec<String>,
     pub verify: VerifyLevel,
     pub timeout: Duration,
     pub model: String,
@@ -85,7 +91,9 @@ pub fn triage(
                 Disposition::Dispatch {
                     description,
                     scope: AgentScope {
-                        verify: VerifyLevel::Local,
+                        allowed_paths: vec!["tests/".into()],
+                        // Replicate uses the config default verify level (typically Local)
+                        verify: config.default_agent.verify_level(),
                         timeout: Duration::from_secs(timeout_secs),
                         model,
                     },
@@ -112,6 +120,8 @@ pub fn triage(
                 Disposition::Dispatch {
                     description,
                     scope: AgentScope {
+                        allowed_paths: vec!["src/".into(), "tests/".into()],
+                        // Fix dispatches always use Ci to push branch + open draft PR
                         verify: VerifyLevel::Ci,
                         timeout: Duration::from_secs(fix_timeout),
                         model,
