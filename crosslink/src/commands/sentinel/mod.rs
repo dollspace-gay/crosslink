@@ -4,6 +4,7 @@ pub mod dispatch;
 pub mod engine;
 pub mod history;
 pub mod metrics;
+pub mod notify;
 #[allow(dead_code)]
 pub mod seen_set;
 pub mod sources;

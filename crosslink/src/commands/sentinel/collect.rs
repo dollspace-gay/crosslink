@@ -4,6 +4,7 @@ use std::process::Command;
 
 use crate::db::Database;
 
+use super::config::SentinelConfig;
 use super::seen_set::gh_comment_already_posted;
 
 /// Statistics from a result collection pass.
@@ -25,7 +26,11 @@ struct WorktreeArtifacts {
 /// Poll completed agents, read findings, post results to GitHub, update records.
 ///
 /// Runs every sentinel cycle (after dispatch phase in oneshot, every cycle in watch).
-pub fn collect_completed(db: &Database, crosslink_dir: &Path) -> Result<CollectStats> {
+pub fn collect_completed(
+    db: &Database,
+    crosslink_dir: &Path,
+    config: Option<&SentinelConfig>,
+) -> Result<CollectStats> {
     let pending = db.get_pending_dispatches()?;
     let mut stats = CollectStats::default();
 
@@ -111,6 +116,19 @@ pub fn collect_completed(db: &Database, crosslink_dir: &Path) -> Result<CollectS
         }
 
         db.update_dispatch_outcome(dispatch.id, outcome, &findings)?;
+
+        // Send outbound notification if configured
+        if let Some(cfg) = config {
+            if let Err(e) = super::notify::notify_dispatch_completed(
+                &cfg.notifications,
+                dispatch,
+                outcome,
+                &findings,
+            ) {
+                tracing::warn!("notification failed for dispatch #{}: {e}", dispatch.id);
+            }
+        }
+
         stats.collected += 1;
     }
 

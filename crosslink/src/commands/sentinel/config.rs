@@ -13,6 +13,7 @@ pub struct SentinelConfig {
     pub default_agent: DefaultAgentConfig,
     pub escalation: EscalationConfig,
     pub webhook: WebhookServerConfig,
+    pub notifications: NotificationConfig,
 }
 
 impl Default for SentinelConfig {
@@ -25,6 +26,7 @@ impl Default for SentinelConfig {
             default_agent: DefaultAgentConfig::default(),
             escalation: EscalationConfig::default(),
             webhook: WebhookServerConfig::default(),
+            notifications: NotificationConfig::default(),
         }
     }
 }
@@ -168,6 +170,32 @@ impl Default for WebhookServerConfig {
             port: 9876,
             secret: None,
         }
+    }
+}
+
+/// Outbound notification configuration.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct NotificationConfig {
+    pub enabled: bool,
+    /// Webhook URLs to POST dispatch results to. Supports Slack incoming
+    /// webhooks (auto-detected by URL pattern) and generic JSON endpoints.
+    pub webhook_urls: Vec<String>,
+}
+
+impl Default for NotificationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            webhook_urls: Vec::new(),
+        }
+    }
+}
+
+impl NotificationConfig {
+    /// Check if a URL looks like a Slack incoming webhook.
+    pub fn is_slack_url(&self, url: &str) -> bool {
+        url.contains("hooks.slack.com")
     }
 }
 

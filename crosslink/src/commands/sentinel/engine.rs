@@ -235,7 +235,7 @@ pub fn run_oneshot(
     }
 
     // 7. Collect results from previously completed agents
-    match collect::collect_completed(db, crosslink_dir) {
+    match collect::collect_completed(db, crosslink_dir, Some(config)) {
         Ok(collect_stats) => stats.collected = collect_stats.collected,
         Err(e) => tracing::warn!("result collection failed: {e}"),
     }
