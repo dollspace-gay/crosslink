@@ -125,9 +125,13 @@ pub fn triage(signal: &Signal, decision: &SignalDecision, config: &SentinelConfi
                 labels: vec!["hygiene".into()],
             }
         }
-        _ => Disposition::Skip {
-            reason: "no matching rule for source".into(),
-        },
+        SourceKind::CI => {
+            // CI failures are triaged for human review with high priority
+            Disposition::Triage {
+                priority: "high".into(),
+                labels: vec!["ci-failure".into()],
+            }
+        }
     }
 }
 

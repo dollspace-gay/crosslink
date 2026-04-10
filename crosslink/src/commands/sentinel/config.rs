@@ -33,6 +33,7 @@ impl Default for SentinelConfig {
 pub struct SourcesConfig {
     pub github_labels: GitHubLabelsConfig,
     pub internal_hygiene: InternalHygieneConfig,
+    pub github_ci: GitHubCIConfig,
 }
 
 impl Default for SourcesConfig {
@@ -40,6 +41,7 @@ impl Default for SourcesConfig {
         Self {
             github_labels: GitHubLabelsConfig::default(),
             internal_hygiene: InternalHygieneConfig::default(),
+            github_ci: GitHubCIConfig::default(),
         }
     }
 }
@@ -78,6 +80,19 @@ impl Default for InternalHygieneConfig {
             enabled: true,
             stale_threshold_days: 30,
         }
+    }
+}
+
+/// GitHub CI failure source configuration.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct GitHubCIConfig {
+    pub enabled: bool,
+}
+
+impl Default for GitHubCIConfig {
+    fn default() -> Self {
+        Self { enabled: false }
     }
 }
 

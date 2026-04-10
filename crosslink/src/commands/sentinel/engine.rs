@@ -54,6 +54,9 @@ pub fn run_oneshot(
             Err(e) => tracing::warn!("failed to initialize github-labels source: {e}"),
         }
     }
+    if config.sources.github_ci.enabled {
+        sources.push(Box::new(super::sources::ci::GitHubCISource::new()));
+    }
     if config.sources.internal_hygiene.enabled {
         let hygiene_config = super::sources::internal::InternalHygieneConfig {
             stale_threshold_days: config.sources.internal_hygiene.stale_threshold_days,

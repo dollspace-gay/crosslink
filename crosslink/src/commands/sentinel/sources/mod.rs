@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+pub mod ci;
 #[allow(dead_code)]
 pub mod github;
 pub mod internal;
