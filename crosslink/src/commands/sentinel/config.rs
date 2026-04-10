@@ -54,7 +54,10 @@ impl Default for GitHubLabelsConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            labels: vec!["agent-todo: replicate".to_string()],
+            labels: vec![
+                "agent-todo: replicate".to_string(),
+                "agent-todo: fix".to_string(),
+            ],
         }
     }
 }

@@ -85,6 +85,34 @@ pub fn triage(signal: &Signal, decision: &SignalDecision, config: &SentinelConfi
                         attempt,
                     }
                 }
+                "agent-todo: fix" => {
+                    let gh_num = signal
+                        .metadata
+                        .get("number")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
+
+                    // Fix agents get more time: 60min base (vs 30min for replicate)
+                    let fix_timeout_secs = (config.default_agent.timeout_minutes * 60) * 2;
+                    let fix_timeout = if attempt > 1 {
+                        fix_timeout_secs * u64::from(config.escalation.timeout_multiplier_pct) / 100
+                    } else {
+                        fix_timeout_secs
+                    };
+
+                    let description = build_fix_prompt(gh_num, &signal.title, &signal.body);
+
+                    Disposition::Dispatch {
+                        description,
+                        scope: AgentScope {
+                            allowed_paths: vec!["src/".into(), "tests/".into()],
+                            verify: VerifyLevel::Ci,
+                            timeout: Duration::from_secs(fix_timeout),
+                            model,
+                        },
+                        attempt,
+                    }
+                }
                 other => Disposition::Skip {
                     reason: format!("unrecognized agent-todo label: {other}"),
                 },
@@ -124,5 +152,38 @@ Constraints:
 - Do NOT fix the bug — only reproduce it
 - Do NOT push code or create PRs
 - Time limit: 30 minutes"#
+    )
+}
+
+fn build_fix_prompt(gh_issue_number: i64, title: &str, body: &str) -> String {
+    let body_truncated = if body.len() > 4000 {
+        format!("{}...\n\n(truncated)", &body[..4000])
+    } else {
+        body.to_string()
+    };
+
+    format!(
+        r#"Fix the bug described in GitHub issue #{gh_issue_number}.
+
+Title: {title}
+Body:
+{body_truncated}
+
+Your task:
+1. Read the issue carefully and understand the expected vs actual behavior
+2. Explore the codebase to find the root cause
+3. Write a failing test that demonstrates the bug
+4. Implement the fix
+5. Run the full test suite to confirm the fix works and nothing else breaks
+6. Record your findings as a crosslink comment (--kind resolution)
+7. Push your branch and open a draft PR linking GH#{gh_issue_number}
+
+Draft PR title: fix: {title} (sentinel)
+
+Constraints:
+- You may modify files in src/ and tests/
+- Push your branch when tests pass
+- Open a DRAFT PR (not ready for review) — a human will review it
+- Time limit: 60 minutes"#
     )
 }

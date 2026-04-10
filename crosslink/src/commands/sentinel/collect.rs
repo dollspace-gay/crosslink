@@ -62,16 +62,28 @@ pub fn collect_completed(db: &Database, crosslink_dir: &Path) -> Result<CollectS
         // Compute duration
         let duration = format_elapsed(&dispatch.created_at);
 
-        // Build structured comment
-        let comment_body = build_replicate_template(
-            outcome,
-            agent_id,
-            dispatch.model_used.as_deref().unwrap_or("unknown"),
-            dispatch.attempt_number,
-            &duration,
-            &findings,
-            dispatch.id,
-        );
+        // Build structured comment (template varies by dispatch type)
+        let comment_body = if dispatch.label.contains("fix") {
+            build_fix_template(
+                outcome,
+                agent_id,
+                dispatch.model_used.as_deref().unwrap_or("unknown"),
+                dispatch.attempt_number,
+                &duration,
+                &findings,
+                dispatch.id,
+            )
+        } else {
+            build_replicate_template(
+                outcome,
+                agent_id,
+                dispatch.model_used.as_deref().unwrap_or("unknown"),
+                dispatch.attempt_number,
+                &duration,
+                &findings,
+                dispatch.id,
+            )
+        };
 
         // Post to GH issue (with Layer 4 dedup check)
         if let Some(gh_num) = dispatch.gh_issue_number {
@@ -184,6 +196,54 @@ fn build_replicate_template(
 
 - [ ] Review the agent's findings
 - [ ] Label `agent-todo: fix` to trigger an automated fix attempt
+
+---
+*Posted by crosslink sentinel | sentinel #{dispatch_id}*"#
+    )
+}
+
+/// Build the structured fix result template for GitHub.
+fn build_fix_template(
+    status: &str,
+    agent_id: &str,
+    model: &str,
+    attempt: i32,
+    duration: &str,
+    findings: &str,
+    dispatch_id: i64,
+) -> String {
+    let status_display = match status {
+        "success" => "Fixed",
+        "failure" => "Could not fix",
+        "exhausted" => "Could not fix (all attempts exhausted)",
+        _ => status,
+    };
+
+    let findings_section = if findings.is_empty() {
+        "No findings recorded.".to_string()
+    } else {
+        findings.to_string()
+    };
+
+    format!(
+        r#"## Sentinel: Fix Report
+
+| Field | Value |
+|-------|-------|
+| Status | {status_display} |
+| Agent | `{agent_id}` |
+| Model | {model} |
+| Attempt | {attempt} of 2 |
+| Duration | {duration} |
+
+### Findings
+
+{findings_section}
+
+### Next steps
+
+- [ ] Review the draft PR
+- [ ] Run CI and verify the fix
 
 ---
 *Posted by crosslink sentinel | sentinel #{dispatch_id}*"#

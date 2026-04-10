@@ -44,7 +44,7 @@
     "sources": {
       "github_labels": {
         "enabled": true,
-        "labels": ["agent-todo: replicate"]
+        "labels": ["agent-todo: replicate", "agent-todo: fix"]
       }
     },
     "default_agent": {
