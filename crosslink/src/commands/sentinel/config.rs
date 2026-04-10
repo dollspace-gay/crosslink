@@ -34,6 +34,7 @@ pub struct SourcesConfig {
     pub github_labels: GitHubLabelsConfig,
     pub internal_hygiene: InternalHygieneConfig,
     pub github_ci: GitHubCIConfig,
+    pub maintenance_sweep: MaintenanceSweepSourceConfig,
 }
 
 impl Default for SourcesConfig {
@@ -42,6 +43,7 @@ impl Default for SourcesConfig {
             github_labels: GitHubLabelsConfig::default(),
             internal_hygiene: InternalHygieneConfig::default(),
             github_ci: GitHubCIConfig::default(),
+            maintenance_sweep: MaintenanceSweepSourceConfig::default(),
         }
     }
 }
@@ -79,6 +81,27 @@ impl Default for InternalHygieneConfig {
         Self {
             enabled: true,
             stale_threshold_days: 30,
+        }
+    }
+}
+
+/// Maintenance sweep source configuration.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct MaintenanceSweepSourceConfig {
+    pub enabled: bool,
+    pub lint_enabled: bool,
+    pub test_coverage_enabled: bool,
+    pub lint_warning_threshold: u64,
+}
+
+impl Default for MaintenanceSweepSourceConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            lint_enabled: true,
+            test_coverage_enabled: false,
+            lint_warning_threshold: 10,
         }
     }
 }

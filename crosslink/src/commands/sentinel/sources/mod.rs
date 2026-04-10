@@ -6,6 +6,7 @@ pub mod ci;
 #[allow(dead_code)]
 pub mod github;
 pub mod internal;
+pub mod maintenance;
 
 /// Classification of where a signal originated.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

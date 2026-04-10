@@ -65,6 +65,19 @@ pub fn run_oneshot(
             super::sources::internal::InternalHygieneSource::new(crosslink_dir, hygiene_config),
         ));
     }
+    if config.sources.maintenance_sweep.enabled {
+        let sweep_config = super::sources::maintenance::MaintenanceSweepConfig {
+            lint_enabled: config.sources.maintenance_sweep.lint_enabled,
+            test_coverage_enabled: config.sources.maintenance_sweep.test_coverage_enabled,
+            lint_warning_threshold: config.sources.maintenance_sweep.lint_warning_threshold,
+        };
+        // Resolve repo root for running commands
+        if let Ok(root) = resolve_repo_root(crosslink_dir) {
+            sources.push(Box::new(
+                super::sources::maintenance::MaintenanceSweepSource::new(&root, sweep_config),
+            ));
+        }
+    }
 
     // 2. Load SeenSet
     let seen = SeenSet::load(db)?;
@@ -344,4 +357,18 @@ fn spawn_agent(
     };
 
     run(crosslink_dir, db, writer, &opts)
+}
+
+/// Resolve the repo root from a crosslink directory.
+fn resolve_repo_root(crosslink_dir: &Path) -> Result<std::path::PathBuf> {
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .current_dir(crosslink_dir)
+        .output()?;
+    if !output.status.success() {
+        anyhow::bail!("Not in a git repository");
+    }
+    Ok(std::path::PathBuf::from(
+        String::from_utf8_lossy(&output.stdout).trim(),
+    ))
 }
