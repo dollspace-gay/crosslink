@@ -327,6 +327,11 @@ enum Commands {
         #[command(subcommand)]
         action: SwarmCommands,
     },
+    /// Autonomous maintenance sentinel (monitors sources, dispatches agents)
+    Sentinel {
+        #[command(subcommand)]
+        action: SentinelCommands,
+    },
     /// Interactive terminal dashboard (read-only)
     Tui,
     /// Mission control: tmux dashboard showing all active agents
@@ -1776,6 +1781,38 @@ enum SwarmCommands {
     },
 }
 
+#[derive(Subcommand)]
+pub enum SentinelCommands {
+    /// One-shot sentinel sweep
+    Run {
+        /// Print what would be dispatched without acting
+        #[arg(long)]
+        dry_run: bool,
+        /// Only process signals matching this label
+        #[arg(long)]
+        label: Option<String>,
+    },
+    /// Start persistent sentinel daemon
+    Watch {
+        /// Poll interval in minutes
+        #[arg(long, default_value = "10")]
+        interval: u64,
+    },
+    /// Show sentinel daemon status and in-flight agents
+    Status,
+    /// Show past sentinel runs and outcomes
+    History {
+        /// Maximum number of runs to show
+        #[arg(long, default_value = "10")]
+        limit: usize,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Stop the sentinel daemon
+    Stop,
+}
+
 #[derive(Subcommand, Clone, Copy)]
 enum ContextCommands {
     /// Measure context injection sizes and estimate token overhead
@@ -2854,6 +2891,19 @@ fn main() -> Result<()> {
                     commands::swarm::trust_init(&crosslink_dir, &model)
                 }
             }
+        }
+        Commands::Sentinel { action } => {
+            let crosslink_dir = find_crosslink_dir()?;
+            let db = get_db()?;
+            let writer = get_writer(&crosslink_dir);
+            commands::sentinel::dispatch_cmd(
+                action,
+                &crosslink_dir,
+                &db,
+                writer.as_ref(),
+                cli.quiet,
+                cli.json,
+            )
         }
         Commands::Tui => {
             let db = get_db()?;
