@@ -82,6 +82,19 @@ pub fn run_oneshot(
     // 2. Load SeenSet
     let seen = SeenSet::load(db)?;
 
+    // 2b. Load self-tuning overrides from historical success rates
+    let tuning = if config.escalation.enabled {
+        super::tuning::TuningOverride::from_history(db, config).unwrap_or_else(|e| {
+            tracing::warn!("self-tuning load failed: {e}");
+            super::tuning::TuningOverride::none()
+        })
+    } else {
+        super::tuning::TuningOverride::none()
+    };
+    if tuning.has_overrides() && !quiet {
+        println!("  self-tuning: model overrides active based on historical data");
+    }
+
     // 3. Poll all sources
     let mut all_signals: Vec<Signal> = Vec::new();
     for source in &mut sources {
@@ -149,7 +162,7 @@ pub fn run_oneshot(
         }
 
         // 6. Triage
-        let disposition = triage(signal, &decision, config);
+        let disposition = triage(signal, &decision, config, Some(&tuning));
         match disposition {
             super::dispatch::Disposition::Dispatch {
                 description,

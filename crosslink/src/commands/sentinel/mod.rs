@@ -9,6 +9,7 @@ pub mod patterns;
 #[allow(dead_code)]
 pub mod seen_set;
 pub mod sources;
+pub mod tuning;
 pub mod watch;
 #[allow(dead_code)]
 pub mod webhook;

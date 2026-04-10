@@ -38,9 +38,30 @@ pub struct AgentScope {
 }
 
 /// Run a signal through the triage engine to determine its disposition.
-pub fn triage(signal: &Signal, decision: &SignalDecision, config: &SentinelConfig) -> Disposition {
+///
+/// If `tuning` is provided, it may override the default model for signals
+/// where historical data shows poor Sonnet performance.
+pub fn triage(
+    signal: &Signal,
+    decision: &SignalDecision,
+    config: &SentinelConfig,
+    tuning: Option<&super::tuning::TuningOverride>,
+) -> Disposition {
+    let label = signal
+        .metadata
+        .get("label")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
     let (model, attempt) = match decision {
-        SignalDecision::New => (config.default_agent.model.clone(), 1u32),
+        SignalDecision::New => {
+            // Check if self-tuning recommends a different model for this label
+            let model = tuning
+                .and_then(|t| t.model_for_label(label))
+                .map(String::from)
+                .unwrap_or_else(|| config.default_agent.model.clone());
+            (model, 1u32)
+        }
         SignalDecision::Escalate => (config.escalation.model.clone(), 2u32),
         SignalDecision::Skip(reason) => {
             return Disposition::Skip {
@@ -57,67 +78,59 @@ pub fn triage(signal: &Signal, decision: &SignalDecision, config: &SentinelConfi
     };
 
     match &signal.source {
-        SourceKind::GitHub => {
-            let label = signal
-                .metadata
-                .get("label")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+        SourceKind::GitHub => match label {
+            "agent-todo: replicate" => {
+                let gh_num = signal
+                    .metadata
+                    .get("number")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
 
-            match label {
-                "agent-todo: replicate" => {
-                    let gh_num = signal
-                        .metadata
-                        .get("number")
-                        .and_then(|v| v.as_i64())
-                        .unwrap_or(0);
+                let description = build_replicate_prompt(gh_num, &signal.title, &signal.body);
 
-                    let description = build_replicate_prompt(gh_num, &signal.title, &signal.body);
-
-                    Disposition::Dispatch {
-                        description,
-                        scope: AgentScope {
-                            allowed_paths: vec!["tests/".into()],
-                            verify: VerifyLevel::Local,
-                            timeout: Duration::from_secs(timeout_secs),
-                            model,
-                        },
-                        attempt,
-                    }
+                Disposition::Dispatch {
+                    description,
+                    scope: AgentScope {
+                        allowed_paths: vec!["tests/".into()],
+                        verify: VerifyLevel::Local,
+                        timeout: Duration::from_secs(timeout_secs),
+                        model,
+                    },
+                    attempt,
                 }
-                "agent-todo: fix" => {
-                    let gh_num = signal
-                        .metadata
-                        .get("number")
-                        .and_then(|v| v.as_i64())
-                        .unwrap_or(0);
-
-                    // Fix agents get more time: 60min base (vs 30min for replicate)
-                    let fix_timeout_secs = (config.default_agent.timeout_minutes * 60) * 2;
-                    let fix_timeout = if attempt > 1 {
-                        fix_timeout_secs * u64::from(config.escalation.timeout_multiplier_pct) / 100
-                    } else {
-                        fix_timeout_secs
-                    };
-
-                    let description = build_fix_prompt(gh_num, &signal.title, &signal.body);
-
-                    Disposition::Dispatch {
-                        description,
-                        scope: AgentScope {
-                            allowed_paths: vec!["src/".into(), "tests/".into()],
-                            verify: VerifyLevel::Ci,
-                            timeout: Duration::from_secs(fix_timeout),
-                            model,
-                        },
-                        attempt,
-                    }
-                }
-                other => Disposition::Skip {
-                    reason: format!("unrecognized agent-todo label: {other}"),
-                },
             }
-        }
+            "agent-todo: fix" => {
+                let gh_num = signal
+                    .metadata
+                    .get("number")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
+
+                // Fix agents get more time: 60min base (vs 30min for replicate)
+                let fix_timeout_secs = (config.default_agent.timeout_minutes * 60) * 2;
+                let fix_timeout = if attempt > 1 {
+                    fix_timeout_secs * u64::from(config.escalation.timeout_multiplier_pct) / 100
+                } else {
+                    fix_timeout_secs
+                };
+
+                let description = build_fix_prompt(gh_num, &signal.title, &signal.body);
+
+                Disposition::Dispatch {
+                    description,
+                    scope: AgentScope {
+                        allowed_paths: vec!["src/".into(), "tests/".into()],
+                        verify: VerifyLevel::Ci,
+                        timeout: Duration::from_secs(fix_timeout),
+                        model,
+                    },
+                    attempt,
+                }
+            }
+            other => Disposition::Skip {
+                reason: format!("unrecognized agent-todo label: {other}"),
+            },
+        },
         SourceKind::Internal => {
             // Internal hygiene signals are triaged for human review, not auto-dispatched
             Disposition::Triage {
