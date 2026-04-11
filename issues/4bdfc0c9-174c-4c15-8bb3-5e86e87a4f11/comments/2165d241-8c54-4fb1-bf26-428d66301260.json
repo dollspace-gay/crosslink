@@ -1,0 +1,8 @@
+{
+  "uuid": "2165d241-8c54-4fb1-bf26-428d66301260",
+  "issue_uuid": "4bdfc0c9-174c-4c15-8bb3-5e86e87a4f11",
+  "author": "anon-ab6221f8",
+  "content": "Crate-wide clippy fixed. cargo clippy --all-targets -- -D warnings: 0 errors. cargo fmt: clean. 4643 tests pass. Single allow remaining: clippy::large_stack_arrays at crate level (test-only, span resolution bug).",
+  "created_at": "2026-04-11T02:30:36.741701462Z",
+  "kind": "handoff"
+}
