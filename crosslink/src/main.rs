@@ -36,6 +36,11 @@
 #![allow(clippy::struct_excessive_bools, clippy::fn_params_excessive_bools)]
 // Option<&T> vs &Option<T>: both are valid depending on context.
 #![allow(clippy::ref_option)]
+// Large stack arrays in test code: `vec![...]` literals expand to array literals
+// internally, and clippy can't trace the span back through macro expansion to
+// suggest a fix. Test code where stack frame size doesn't matter for production.
+// See https://github.com/rust-lang/rust-clippy/issues for the underlying span bug.
+#![allow(clippy::large_stack_arrays)]
 
 mod checkpoint;
 mod clock_skew;
