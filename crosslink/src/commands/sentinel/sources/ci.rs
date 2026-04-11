@@ -25,7 +25,7 @@ pub struct GitHubCISource {
 }
 
 impl GitHubCISource {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             default_branch: None,
         }
@@ -63,7 +63,7 @@ impl GitHubCISource {
 }
 
 impl Source for GitHubCISource {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "github-ci"
     }
 

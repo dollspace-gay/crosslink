@@ -73,7 +73,7 @@ fn find_repeat_failures(db: &Database) -> Result<Vec<Pattern>> {
 
     let rows: Vec<(String, i64)> = stmt
         .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
-        .filter_map(|r| r.ok())
+        .filter_map(Result::ok)
         .collect();
 
     if rows.is_empty() {
@@ -140,7 +140,7 @@ fn find_escalation_heavy_signals(db: &Database) -> Result<Vec<Pattern>> {
         .query_map([], |row| {
             Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
         })?
-        .filter_map(|r| r.ok())
+        .filter_map(Result::ok)
         .collect();
 
     let mut patterns = Vec::new();
@@ -148,8 +148,7 @@ fn find_escalation_heavy_signals(db: &Database) -> Result<Vec<Pattern>> {
         patterns.push(Pattern {
             kind: "escalation-heavy".to_string(),
             description: format!(
-                "'{}': Sonnet failed {sonnet_fails}x, escalated to Opus {opus_attempts}x — consider defaulting to Opus",
-                label
+                "'{label}': Sonnet failed {sonnet_fails}x, escalated to Opus {opus_attempts}x — consider defaulting to Opus"
             ),
             signal_refs: Vec::new(),
             count: *sonnet_fails,

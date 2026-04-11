@@ -32,24 +32,13 @@ impl Default for SentinelConfig {
 }
 
 /// Source adapter configuration.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct SourcesConfig {
     pub github_labels: GitHubLabelsConfig,
     pub internal_hygiene: InternalHygieneConfig,
     pub github_ci: GitHubCIConfig,
     pub maintenance_sweep: MaintenanceSweepSourceConfig,
-}
-
-impl Default for SourcesConfig {
-    fn default() -> Self {
-        Self {
-            github_labels: GitHubLabelsConfig::default(),
-            internal_hygiene: InternalHygieneConfig::default(),
-            github_ci: GitHubCIConfig::default(),
-            maintenance_sweep: MaintenanceSweepSourceConfig::default(),
-        }
-    }
 }
 
 /// GitHub label polling configuration.
@@ -111,16 +100,10 @@ impl Default for MaintenanceSweepSourceConfig {
 }
 
 /// GitHub CI failure source configuration.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct GitHubCIConfig {
     pub enabled: bool,
-}
-
-impl Default for GitHubCIConfig {
-    fn default() -> Self {
-        Self { enabled: false }
-    }
 }
 
 /// Default agent settings for dispatched agents.
@@ -173,7 +156,7 @@ impl Default for WebhookServerConfig {
 }
 
 /// Outbound notification configuration.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct NotificationConfig {
     pub enabled: bool,
@@ -182,18 +165,9 @@ pub struct NotificationConfig {
     pub webhook_urls: Vec<String>,
 }
 
-impl Default for NotificationConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            webhook_urls: Vec::new(),
-        }
-    }
-}
-
 impl NotificationConfig {
     /// Check if a URL looks like a Slack incoming webhook.
-    pub fn is_slack_url(&self, url: &str) -> bool {
+    pub fn is_slack_url(url: &str) -> bool {
         url.contains("hooks.slack.com")
     }
 }

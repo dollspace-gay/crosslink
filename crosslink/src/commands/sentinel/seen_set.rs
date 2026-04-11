@@ -15,18 +15,18 @@ struct SeenRecord {
     completed_at: Option<DateTime<Utc>>,
 }
 
-/// In-memory dedup cache loaded from sentinel_dispatches.
+/// In-memory dedup cache loaded from `sentinel_dispatches`.
 ///
 /// Determines whether a signal should be dispatched (New), retried with
 /// escalation (Escalate), or skipped entirely (Skip).
 pub struct SeenSet {
-    /// signal_ref -> most recent dispatch record
+    /// `signal_ref` -> most recent dispatch record
     seen: HashMap<String, SeenRecord>,
 }
 
 impl SeenSet {
-    /// Load the SeenSet from the database. Takes the most recent dispatch
-    /// per signal_ref.
+    /// Load the `SeenSet` from the database. Takes the most recent dispatch
+    /// per `signal_ref`.
     pub fn load(db: &Database) -> Result<Self> {
         let dispatches = db.load_dispatch_seen_set()?;
         let mut seen = HashMap::with_capacity(dispatches.len());
@@ -61,15 +61,14 @@ impl SeenSet {
             "success" => SignalDecision::Skip("already resolved"),
             "exhausted" => SignalDecision::Skip("both attempts failed"),
 
-            "failure" | "timeout" => self.evaluate_retry(record, config),
-            "orphaned" => self.evaluate_retry(record, config),
+            "failure" | "timeout" | "orphaned" => Self::evaluate_retry(record, config),
 
             _ => SignalDecision::Skip("unknown state"),
         }
     }
 
     /// Check if a failed/orphaned dispatch is eligible for escalation retry.
-    fn evaluate_retry(&self, record: &SeenRecord, config: &SentinelConfig) -> SignalDecision {
+    fn evaluate_retry(record: &SeenRecord, config: &SentinelConfig) -> SignalDecision {
         if !config.escalation.enabled {
             return SignalDecision::Skip("escalation disabled");
         }
@@ -88,7 +87,7 @@ impl SeenSet {
 
 /// Layer 3: Authoritative database dedup check.
 ///
-/// Even if the in-memory SeenSet is stale (e.g., sentinel restarted mid-cycle),
+/// Even if the in-memory `SeenSet` is stale (e.g., sentinel restarted mid-cycle),
 /// this check prevents duplicate dispatches.
 pub fn db_dedup_check(
     db: &Database,
@@ -116,11 +115,10 @@ pub fn db_dedup_check(
                 .completed_at
                 .as_ref()
                 .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
-                .map(|dt| {
+                .is_none_or(|dt| {
                     let elapsed = Utc::now().signed_duration_since(dt.with_timezone(&Utc));
                     elapsed.num_minutes() >= config.escalation.cooldown_minutes as i64
-                })
-                .unwrap_or(true);
+                });
             if cooldown_ok {
                 Ok(SignalDecision::Escalate)
             } else {
@@ -136,7 +134,7 @@ pub fn db_dedup_check(
 /// Before posting a result comment, verify we haven't already posted for this
 /// dispatch ID. Checks for the marker string `sentinel #<dispatch-id>` in
 /// existing comments.
-pub fn gh_comment_already_posted(gh_issue_number: i64, dispatch_id: i64) -> Result<bool> {
+pub fn gh_comment_already_posted(gh_issue_number: i64, dispatch_id: i64) -> bool {
     let marker = format!("sentinel #{dispatch_id}");
     let output = std::process::Command::new("gh")
         .args([
@@ -153,7 +151,7 @@ pub fn gh_comment_already_posted(gh_issue_number: i64, dispatch_id: i64) -> Resu
     match output {
         Ok(out) if out.status.success() => {
             let stdout = String::from_utf8_lossy(&out.stdout);
-            Ok(stdout.contains(&marker))
+            stdout.contains(&marker)
         }
         Ok(out) => {
             let stderr = String::from_utf8_lossy(&out.stderr);
@@ -163,11 +161,11 @@ pub fn gh_comment_already_posted(gh_issue_number: i64, dispatch_id: i64) -> Resu
                 stderr.trim()
             );
             // On failure, assume not posted (proceed cautiously)
-            Ok(false)
+            false
         }
         Err(e) => {
             tracing::warn!("gh command failed for comment dedup: {e}");
-            Ok(false)
+            false
         }
     }
 }

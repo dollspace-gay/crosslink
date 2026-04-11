@@ -23,6 +23,18 @@ struct WorktreeArtifacts {
     files_changed: Option<String>,
 }
 
+/// Inputs for rendering a result template.
+struct TemplateContext<'a> {
+    status: &'a str,
+    agent_id: &'a str,
+    model: &'a str,
+    attempt: i32,
+    duration: &'a str,
+    findings: &'a str,
+    artifacts: &'a WorktreeArtifacts,
+    dispatch_id: i64,
+}
+
 /// Poll completed agents, read findings, post results to GitHub, update records.
 ///
 /// Runs every sentinel cycle (after dispatch phase in oneshot, every cycle in watch).
@@ -65,11 +77,9 @@ pub fn collect_completed(
         };
 
         // Read agent findings from crosslink comments on the linked issue
-        let findings = if let Some(issue_id) = dispatch.crosslink_issue_id {
-            read_agent_findings(db, issue_id)
-        } else {
-            String::new()
-        };
+        let findings = dispatch
+            .crosslink_issue_id
+            .map_or_else(String::new, |issue_id| read_agent_findings(db, issue_id));
 
         let duration = format_elapsed(&dispatch.created_at);
 
@@ -77,41 +87,28 @@ pub fn collect_completed(
         let artifacts = extract_worktree_artifacts(&wt_path, dispatch.label.contains("fix"));
 
         // Build structured comment (template varies by dispatch type)
+        let ctx = TemplateContext {
+            status: outcome,
+            agent_id,
+            model: dispatch.model_used.as_deref().unwrap_or("unknown"),
+            attempt: dispatch.attempt_number,
+            duration: &duration,
+            findings: &findings,
+            artifacts: &artifacts,
+            dispatch_id: dispatch.id,
+        };
         let comment_body = if dispatch.label.contains("fix") {
-            build_fix_template(
-                outcome,
-                agent_id,
-                dispatch.model_used.as_deref().unwrap_or("unknown"),
-                dispatch.attempt_number,
-                &duration,
-                &findings,
-                &artifacts,
-                dispatch.id,
-            )
+            build_fix_template(&ctx)
         } else {
-            build_replicate_template(
-                outcome,
-                agent_id,
-                dispatch.model_used.as_deref().unwrap_or("unknown"),
-                dispatch.attempt_number,
-                &duration,
-                &findings,
-                &artifacts,
-                dispatch.id,
-            )
+            build_replicate_template(&ctx)
         };
 
         // Post to GH issue (with Layer 4 dedup check)
         if let Some(gh_num) = dispatch.gh_issue_number {
-            match gh_comment_already_posted(gh_num, dispatch.id) {
-                Ok(true) => {
-                    tracing::debug!("sentinel #{} already posted to GH#{}", dispatch.id, gh_num);
-                }
-                _ => {
-                    if let Err(e) = post_gh_comment(gh_num, &comment_body) {
-                        tracing::warn!("failed to post results to GH#{gh_num}: {e}");
-                    }
-                }
+            if gh_comment_already_posted(gh_num, dispatch.id) {
+                tracing::debug!("sentinel #{} already posted to GH#{}", dispatch.id, gh_num);
+            } else if let Err(e) = post_gh_comment(gh_num, &comment_body) {
+                tracing::warn!("failed to post results to GH#{gh_num}: {e}");
             }
         }
 
@@ -119,14 +116,12 @@ pub fn collect_completed(
 
         // Send outbound notification if configured
         if let Some(cfg) = config {
-            if let Err(e) = super::notify::notify_dispatch_completed(
+            super::notify::notify_dispatch_completed(
                 &cfg.notifications,
                 dispatch,
                 outcome,
                 &findings,
-            ) {
-                tracing::warn!("notification failed for dispatch #{}: {e}", dispatch.id);
-            }
+            );
         }
 
         stats.collected += 1;
@@ -165,34 +160,37 @@ fn find_test_file(wt_path: &Path) -> Option<String> {
         .output()
         .ok();
 
-    let diff_args = if let Some(ref base) = base_output {
-        if base.status.success() {
-            let base_sha = String::from_utf8_lossy(&base.stdout).trim().to_string();
-            vec![
-                "diff".to_string(),
-                "--name-only".to_string(),
-                "--diff-filter=AM".to_string(),
-                format!("{base_sha}..HEAD"),
-                "--".to_string(),
-                "tests/".to_string(),
-            ]
-        } else {
-            // Fallback: list all tracked test files
+    let diff_args = base_output.as_ref().map_or_else(
+        || {
             vec![
                 "ls-files".to_string(),
                 "--".to_string(),
                 "tests/".to_string(),
             ]
-        }
-    } else {
-        vec![
-            "ls-files".to_string(),
-            "--".to_string(),
-            "tests/".to_string(),
-        ]
-    };
+        },
+        |base| {
+            if base.status.success() {
+                let base_sha = String::from_utf8_lossy(&base.stdout).trim().to_string();
+                vec![
+                    "diff".to_string(),
+                    "--name-only".to_string(),
+                    "--diff-filter=AM".to_string(),
+                    format!("{base_sha}..HEAD"),
+                    "--".to_string(),
+                    "tests/".to_string(),
+                ]
+            } else {
+                // Fallback: list all tracked test files
+                vec![
+                    "ls-files".to_string(),
+                    "--".to_string(),
+                    "tests/".to_string(),
+                ]
+            }
+        },
+    );
 
-    let args_refs: Vec<&str> = diff_args.iter().map(|s| s.as_str()).collect();
+    let args_refs: Vec<&str> = diff_args.iter().map(String::as_str).collect();
     let output = Command::new("git")
         .args(&args_refs)
         .current_dir(wt_path)
@@ -215,9 +213,13 @@ fn read_test_output(wt_path: &Path) -> Option<String> {
     // Try to extract test output from the report's criteria or phases
     if let Some(phases) = report.get("phases") {
         if let Some(testing) = phases.get("testing") {
-            let tests_run = testing.get("tests_run").and_then(|v| v.as_u64());
-            let tests_passed = testing.get("tests_passed").and_then(|v| v.as_u64());
-            let tests_failed = testing.get("tests_failed").and_then(|v| v.as_u64());
+            let tests_run = testing.get("tests_run").and_then(serde_json::Value::as_u64);
+            let tests_passed = testing
+                .get("tests_passed")
+                .and_then(serde_json::Value::as_u64);
+            let tests_failed = testing
+                .get("tests_failed")
+                .and_then(serde_json::Value::as_u64);
             if let (Some(run), Some(passed), Some(failed)) = (tests_run, tests_passed, tests_failed)
             {
                 return Some(format!(
@@ -311,9 +313,8 @@ fn repo_root(crosslink_dir: &Path) -> Result<std::path::PathBuf> {
 
 /// Read observation and resolution comments from a crosslink issue.
 fn read_agent_findings(db: &Database, issue_id: i64) -> String {
-    let comments = match db.get_comments(issue_id) {
-        Ok(c) => c,
-        Err(_) => return String::new(),
+    let Ok(comments) = db.get_comments(issue_id) else {
+        return String::new();
     };
 
     comments
@@ -341,47 +342,45 @@ pub fn format_elapsed(started_at: &str) -> String {
 }
 
 /// Build the structured reproduction result template for GitHub.
-fn build_replicate_template(
-    status: &str,
-    agent_id: &str,
-    model: &str,
-    attempt: i32,
-    duration: &str,
-    findings: &str,
-    artifacts: &WorktreeArtifacts,
-    dispatch_id: i64,
-) -> String {
-    let status_display = match status {
+fn build_replicate_template(ctx: &TemplateContext<'_>) -> String {
+    let status_display = match ctx.status {
         "success" => "Reproduced",
         "failure" => "Could not reproduce",
         "exhausted" => "Could not reproduce (all attempts exhausted)",
-        _ => status,
+        _ => ctx.status,
     };
 
-    let test_file_row = artifacts
+    let test_file_row = ctx
+        .artifacts
         .test_file
         .as_ref()
         .map(|f| format!("| Test file | `{f}` |\n"))
         .unwrap_or_default();
 
-    let findings_section = if findings.is_empty() {
+    let findings_section = if ctx.findings.is_empty() {
         "No findings recorded.".to_string()
     } else {
-        findings.to_string()
+        ctx.findings.to_string()
     };
 
-    let test_output_section = artifacts
+    let test_output_section = ctx
+        .artifacts
         .test_output
         .as_ref()
         .map(|output| {
-            // Truncate to 50 lines
             let truncated: String = output.lines().take(50).collect::<Vec<_>>().join("\n");
             format!("### Test output\n\n```\n{truncated}\n```\n")
         })
         .unwrap_or_default();
 
+    let agent_id = ctx.agent_id;
+    let model = ctx.model;
+    let attempt = ctx.attempt;
+    let duration = ctx.duration;
+    let dispatch_id = ctx.dispatch_id;
+
     format!(
-        r#"## Sentinel: Reproduction Report
+        "## Sentinel: Reproduction Report
 
 | Field | Value |
 |-------|-------|
@@ -402,47 +401,41 @@ fn build_replicate_template(
 - [ ] Label `agent-todo: fix` to trigger an automated fix attempt
 
 ---
-*Posted by crosslink sentinel | sentinel #{dispatch_id}*"#
+*Posted by crosslink sentinel | sentinel #{dispatch_id}*"
     )
 }
 
 /// Build the structured fix result template for GitHub.
-fn build_fix_template(
-    status: &str,
-    agent_id: &str,
-    model: &str,
-    attempt: i32,
-    duration: &str,
-    findings: &str,
-    artifacts: &WorktreeArtifacts,
-    dispatch_id: i64,
-) -> String {
-    let status_display = match status {
+fn build_fix_template(ctx: &TemplateContext<'_>) -> String {
+    let status_display = match ctx.status {
         "success" => "Fixed",
         "failure" => "Could not fix",
         "exhausted" => "Could not fix (all attempts exhausted)",
-        _ => status,
+        _ => ctx.status,
     };
 
-    let pr_row = artifacts
+    let pr_row = ctx
+        .artifacts
         .pr_number
         .as_ref()
         .map(|n| format!("| PR | #{n} (draft) |\n"))
         .unwrap_or_default();
 
-    let diff_row = artifacts
+    let diff_row = ctx
+        .artifacts
         .files_changed
         .as_ref()
         .map(|s| format!("| Changes | {s} |\n"))
         .unwrap_or_default();
 
-    let findings_section = if findings.is_empty() {
+    let findings_section = if ctx.findings.is_empty() {
         "No findings recorded.".to_string()
     } else {
-        findings.to_string()
+        ctx.findings.to_string()
     };
 
-    let test_output_section = artifacts
+    let test_output_section = ctx
+        .artifacts
         .test_output
         .as_ref()
         .map(|output| {
@@ -451,8 +444,14 @@ fn build_fix_template(
         })
         .unwrap_or_default();
 
+    let agent_id = ctx.agent_id;
+    let model = ctx.model;
+    let attempt = ctx.attempt;
+    let duration = ctx.duration;
+    let dispatch_id = ctx.dispatch_id;
+
     format!(
-        r#"## Sentinel: Fix Report
+        "## Sentinel: Fix Report
 
 | Field | Value |
 |-------|-------|
@@ -473,7 +472,7 @@ fn build_fix_template(
 - [ ] Run CI and verify the fix
 
 ---
-*Posted by crosslink sentinel | sentinel #{dispatch_id}*"#
+*Posted by crosslink sentinel | sentinel #{dispatch_id}*"
     )
 }
 

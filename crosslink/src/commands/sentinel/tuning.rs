@@ -50,7 +50,7 @@ impl TuningOverride {
 
     /// Get the model to use for a given label, or None if no override.
     pub fn model_for_label(&self, label: &str) -> Option<&str> {
-        self.overrides.get(label).map(|s| s.as_str())
+        self.overrides.get(label).map(String::as_str)
     }
 
     /// Check if any overrides are active.

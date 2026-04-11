@@ -84,18 +84,21 @@ pub fn stop(crosslink_dir: &Path) -> Result<()> {
 pub fn status(crosslink_dir: &Path, db: &Database) -> Result<()> {
     let pid_file = crosslink_dir.join("sentinel.pid");
 
-    let running = if let Some(pid) = read_pid(&pid_file) {
-        if is_process_running(pid) {
-            println!("Sentinel running (PID {pid})");
-            true
-        } else {
-            println!("Sentinel not running (stale PID file)");
+    let running = read_pid(&pid_file).map_or_else(
+        || {
+            println!("Sentinel not running");
             false
-        }
-    } else {
-        println!("Sentinel not running");
-        false
-    };
+        },
+        |pid| {
+            if is_process_running(pid) {
+                println!("Sentinel running (PID {pid})");
+                true
+            } else {
+                println!("Sentinel not running (stale PID file)");
+                false
+            }
+        },
+    );
 
     let pending_dispatches = db.get_pending_dispatches()?;
     let config = SentinelConfig::load(crosslink_dir)?;
@@ -257,7 +260,7 @@ async fn async_watch_loop(
 
         tokio::select! {
             // Polling timer fired
-            _ = &mut sleep_until => {
+            () = &mut sleep_until => {
                 let cycle_dir = crosslink_dir.clone();
                 let cycle_config = config.clone();
                 let result = tokio::task::spawn_blocking(move || {
@@ -266,14 +269,11 @@ async fn async_watch_loop(
                 .await
                 .context("polling cycle task panicked")?;
 
-                match result {
-                    Ok(()) => {
-                        backoff_multiplier = 1;
-                    }
-                    Err(e) => {
-                        tracing::error!("sentinel polling cycle failed: {e}");
-                        backoff_multiplier = (backoff_multiplier * 2).min(8);
-                    }
+                if let Err(e) = result {
+                    tracing::error!("sentinel polling cycle failed: {e}");
+                    backoff_multiplier = (backoff_multiplier * 2).min(8);
+                } else {
+                    backoff_multiplier = 1;
                 }
 
                 next_poll_at = tokio::time::Instant::now() + interval * backoff_multiplier;
@@ -324,7 +324,7 @@ async fn recv_webhook(
     }
 }
 
-/// Execute a single polling cycle (sync, called via spawn_blocking).
+/// Execute a single polling cycle (sync, called via `spawn_blocking`).
 fn run_polling_cycle(crosslink_dir: &Path, config: &SentinelConfig) -> Result<()> {
     let db = Database::open(&crosslink_dir.join("issues.db"))?;
     let writer = crate::shared_writer::SharedWriter::new(crosslink_dir)
@@ -356,7 +356,7 @@ fn run_polling_cycle(crosslink_dir: &Path, config: &SentinelConfig) -> Result<()
     Ok(())
 }
 
-/// Execute a single webhook-driven cycle for one signal (sync, via spawn_blocking).
+/// Execute a single webhook-driven cycle for one signal (sync, via `spawn_blocking`).
 fn run_webhook_cycle(
     crosslink_dir: &Path,
     config: &SentinelConfig,
@@ -373,7 +373,7 @@ fn run_webhook_cycle(
         &db,
         writer.as_ref(),
         config,
-        vec![signal],
+        &[signal],
         "webhook",
         true, // quiet in daemon mode
     )?;

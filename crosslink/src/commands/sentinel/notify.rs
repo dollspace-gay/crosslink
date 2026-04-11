@@ -14,20 +14,18 @@ pub fn notify_dispatch_completed(
     dispatch: &SentinelDispatch,
     outcome: &str,
     findings_summary: &str,
-) -> Result<()> {
+) {
     if !config.enabled {
-        return Ok(());
+        return;
     }
 
     let message = build_notification_message(dispatch, outcome, findings_summary);
 
     for url in &config.webhook_urls {
-        if let Err(e) = send_webhook(url, &message, config.is_slack_url(url)) {
+        if let Err(e) = send_webhook(url, &message, NotificationConfig::is_slack_url(url)) {
             tracing::warn!("notification to {} failed: {e}", mask_url(url));
         }
     }
-
-    Ok(())
 }
 
 /// Build the notification message payload.
@@ -57,8 +55,7 @@ fn build_notification_message(
     let model = dispatch.model_used.as_deref().unwrap_or("unknown");
     let gh_link = dispatch
         .gh_issue_number
-        .map(|n| format!("GH#{n}"))
-        .unwrap_or_else(|| dispatch.signal_ref.clone());
+        .map_or_else(|| dispatch.signal_ref.clone(), |n| format!("GH#{n}"));
 
     let summary = if findings_summary.len() > 300 {
         format!("{}...", &findings_summary[..300])
@@ -177,12 +174,7 @@ fn send_webhook(url: &str, message: &NotificationMessage, is_slack: bool) -> Res
 
 /// Mask a URL for safe logging (hide everything after the host).
 fn mask_url(url: &str) -> String {
-    if let Some(pos) = url
-        .find("//")
+    url.find("//")
         .and_then(|p| url[p + 2..].find('/').map(|q| p + 2 + q))
-    {
-        format!("{}/*****", &url[..pos])
-    } else {
-        "***".to_string()
-    }
+        .map_or_else(|| "***".to_string(), |pos| format!("{}/*****", &url[..pos]))
 }

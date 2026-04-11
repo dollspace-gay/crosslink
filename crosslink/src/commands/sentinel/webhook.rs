@@ -129,15 +129,14 @@ async fn handle_github_webhook(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("unknown");
 
-    match event_type {
-        "issues" => handle_issue_event(&state, &body).await,
-        _ => {
-            tracing::debug!("Ignoring webhook event type: {event_type}");
-            Ok(Json(WebhookResponse {
-                status: "ignored".into(),
-                signal_ref: None,
-            }))
-        }
+    if event_type == "issues" {
+        handle_issue_event(&state, &body).await
+    } else {
+        tracing::debug!("Ignoring webhook event type: {event_type}");
+        Ok(Json(WebhookResponse {
+            status: "ignored".into(),
+            signal_ref: None,
+        }))
     }
 }
 

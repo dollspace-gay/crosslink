@@ -55,6 +55,17 @@ pub struct DispatchMetric {
     pub success_rate: f64,
 }
 
+/// Counter columns for completing a sentinel run.
+#[derive(Debug, Clone, Default)]
+pub struct RunCounters {
+    pub signals_found: i64,
+    pub dispatched: i64,
+    pub collected: i64,
+    pub triaged: i64,
+    pub skipped: i64,
+    pub deferred: i64,
+}
+
 /// Parameters for inserting a new sentinel dispatch record.
 pub struct NewDispatch<'a> {
     pub run_id: &'a str,
@@ -84,16 +95,7 @@ impl Database {
     }
 
     /// Update a sentinel run with final statistics.
-    pub fn complete_sentinel_run(
-        &self,
-        run_id: &str,
-        signals_found: i64,
-        dispatched: i64,
-        collected: i64,
-        triaged: i64,
-        skipped: i64,
-        deferred: i64,
-    ) -> Result<()> {
+    pub fn complete_sentinel_run(&self, run_id: &str, counters: &RunCounters) -> Result<()> {
         let now = Utc::now().to_rfc3339();
         self.conn.execute(
             "UPDATE sentinel_runs
@@ -102,13 +104,13 @@ impl Database {
              WHERE run_id = ?8",
             params![
                 now,
-                signals_found,
-                dispatched,
-                collected,
-                triaged,
-                skipped,
-                deferred,
-                run_id
+                counters.signals_found,
+                counters.dispatched,
+                counters.collected,
+                counters.triaged,
+                counters.skipped,
+                counters.deferred,
+                run_id,
             ],
         )?;
         Ok(())
@@ -211,7 +213,7 @@ impl Database {
         Ok(count)
     }
 
-    /// Get the most recent dispatch for a given (gh_issue_number, label) pair.
+    /// Get the most recent dispatch for a given `(gh_issue_number, label)` pair.
     /// Used for the authoritative dedup check (Layer 3).
     pub fn get_latest_dispatch_for_signal(
         &self,
@@ -233,7 +235,7 @@ impl Database {
         Ok(rows.pop())
     }
 
-    /// Load all dispatches for SeenSet construction (most recent per signal_ref).
+    /// Load all dispatches for `SeenSet` construction (most recent per `signal_ref`).
     pub fn load_dispatch_seen_set(&self) -> Result<Vec<SentinelDispatch>> {
         let mut stmt = self.conn.prepare(
             "SELECT d.id, d.run_id, d.signal_ref, d.signal_title, d.source, d.disposition,
@@ -312,7 +314,7 @@ impl Database {
         Ok(rows)
     }
 
-    /// Shared row mapper for sentinel_dispatches queries.
+    /// Shared row mapper for `sentinel_dispatches` queries.
     fn map_dispatch_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SentinelDispatch> {
         Ok(SentinelDispatch {
             id: row.get(0)?,

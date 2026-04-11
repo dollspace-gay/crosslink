@@ -30,11 +30,11 @@ pub struct GitHubLabelSource {
 }
 
 impl GitHubLabelSource {
-    pub fn new(config: &SentinelConfig) -> Result<Self> {
-        Ok(Self {
+    pub fn new(config: &SentinelConfig) -> Self {
+        Self {
             labels: config.sources.github_labels.labels.clone(),
             repo: None,
-        })
+        }
     }
 
     /// Detect the current repo's owner/name via `gh repo view`.
@@ -69,7 +69,7 @@ impl GitHubLabelSource {
     }
 
     /// Poll GitHub for issues matching a single label.
-    fn poll_label(&self, repo: &str, label: &str) -> Result<Vec<Signal>> {
+    fn poll_label(repo: &str, label: &str) -> Result<Vec<Signal>> {
         let output = Command::new("gh")
             .args([
                 "issue",
@@ -147,7 +147,7 @@ impl GitHubLabelSource {
 }
 
 impl Source for GitHubLabelSource {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "github-labels"
     }
 
@@ -155,11 +155,11 @@ impl Source for GitHubLabelSource {
         let repo = self.detect_repo()?;
         let mut all_signals = Vec::new();
 
-        for label in &self.labels.clone() {
-            match self.poll_label(&repo, label) {
+        for label in self.labels.clone() {
+            match Self::poll_label(&repo, &label) {
                 Ok(signals) => all_signals.extend(signals),
                 Err(e) => {
-                    tracing::warn!("failed to poll label '{}': {}", label, e);
+                    tracing::warn!("failed to poll label '{label}': {e}");
                 }
             }
         }

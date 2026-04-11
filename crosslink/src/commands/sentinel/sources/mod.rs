@@ -50,7 +50,7 @@ pub enum SignalDecision {
 /// A source adapter that polls for maintenance signals.
 pub trait Source {
     /// Human-readable name for logging.
-    fn name(&self) -> &str;
+    fn name(&self) -> &'static str;
 
     /// Poll for new signals. The implementation should use the `SeenSet`
     /// passed by the engine to pre-filter already-handled signals.

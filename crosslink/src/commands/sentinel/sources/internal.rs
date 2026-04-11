@@ -30,7 +30,7 @@ impl InternalHygieneSource {
         }
     }
 
-    /// Find open issues with no activity for more than stale_threshold_days.
+    /// Find open issues with no activity for more than `stale_threshold_days`.
     fn find_stale_issues(&self) -> Result<Vec<Signal>> {
         let db = crate::db::Database::open(&self.db_path)?;
         let threshold = Utc::now() - chrono::Duration::days(self.config.stale_threshold_days);
@@ -50,13 +50,13 @@ impl InternalHygieneSource {
                 let updated_at: String = row.get(2)?;
                 Ok((id, title, updated_at))
             })?
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .map(|(id, title, updated_at)| Signal {
                 source: SourceKind::Internal,
                 kind: SignalKind::StaleIssue,
-                reference: format!("CL#{}:stale", id),
-                title: format!("Stale issue: {}", title),
-                body: format!("Issue #{} has not been updated since {}.", id, updated_at),
+                reference: format!("CL#{id}:stale"),
+                title: format!("Stale issue: {title}"),
+                body: format!("Issue #{id} has not been updated since {updated_at}."),
                 metadata: serde_json::json!({
                     "issue_id": id,
                     "last_updated": updated_at,
@@ -89,16 +89,13 @@ impl InternalHygieneSource {
                 let parent_id: i64 = row.get(2)?;
                 Ok((id, title, parent_id))
             })?
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .map(|(id, title, parent_id)| Signal {
                 source: SourceKind::Internal,
                 kind: SignalKind::StaleIssue,
-                reference: format!("CL#{}:orphan", id),
-                title: format!("Orphaned subissue: {}", title),
-                body: format!(
-                    "Issue #{} is open but its parent #{} is closed.",
-                    id, parent_id
-                ),
+                reference: format!("CL#{id}:orphan"),
+                title: format!("Orphaned subissue: {title}"),
+                body: format!("Issue #{id} is open but its parent #{parent_id} is closed."),
                 metadata: serde_json::json!({
                     "issue_id": id,
                     "parent_id": parent_id,
@@ -128,13 +125,13 @@ impl InternalHygieneSource {
                 let title: String = row.get(1)?;
                 Ok((id, title))
             })?
-            .filter_map(|r| r.ok())
+            .filter_map(std::result::Result::ok)
             .map(|(id, title)| Signal {
                 source: SourceKind::Internal,
                 kind: SignalKind::StaleIssue,
-                reference: format!("CL#{}:unlabeled", id),
-                title: format!("Unlabeled issue: {}", title),
-                body: format!("Issue #{} has no labels.", id),
+                reference: format!("CL#{id}:unlabeled"),
+                title: format!("Unlabeled issue: {title}"),
+                body: format!("Issue #{id} has no labels."),
                 metadata: serde_json::json!({
                     "issue_id": id,
                 }),
@@ -147,7 +144,7 @@ impl InternalHygieneSource {
 }
 
 impl Source for InternalHygieneSource {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "internal-hygiene"
     }
 

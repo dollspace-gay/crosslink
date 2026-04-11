@@ -40,7 +40,7 @@ pub fn run_oneshot(
     }
 
     if dry_run {
-        return run_dry(config, quiet);
+        return Ok(run_dry(config, quiet));
     }
 
     // Poll all configured sources to gather signals
@@ -51,7 +51,7 @@ pub fn run_oneshot(
         db,
         writer,
         config,
-        all_signals,
+        &all_signals,
         "oneshot",
         quiet,
     )
@@ -66,10 +66,7 @@ fn poll_all_sources(
 ) -> Vec<Signal> {
     let mut sources: Vec<Box<dyn Source>> = Vec::new();
     if config.sources.github_labels.enabled {
-        match GitHubLabelSource::new(config) {
-            Ok(src) => sources.push(Box::new(src)),
-            Err(e) => tracing::warn!("failed to initialize github-labels source: {e}"),
-        }
+        sources.push(Box::new(GitHubLabelSource::new(config)));
     }
     if config.sources.github_ci.enabled {
         sources.push(Box::new(super::sources::ci::GitHubCISource::new()));
@@ -124,7 +121,7 @@ pub fn process_signal_batch(
     db: &Database,
     writer: Option<&SharedWriter>,
     config: &SentinelConfig,
-    all_signals: Vec<Signal>,
+    all_signals: &[Signal],
     mode: &str,
     quiet: bool,
 ) -> Result<CycleStats> {
@@ -153,7 +150,7 @@ pub fn process_signal_batch(
     };
 
     // 4. Triage and dispatch each signal
-    for signal in &all_signals {
+    for signal in all_signals {
         // Layer 2: in-memory dedup
         let decision = seen.evaluate(&signal.reference, config);
         if let SignalDecision::Skip(reason) = &decision {
@@ -311,12 +308,14 @@ pub fn process_signal_batch(
     // 8. Record run stats
     db.complete_sentinel_run(
         &run_id,
-        stats.signals_found as i64,
-        stats.dispatched as i64,
-        stats.collected as i64,
-        0, // triaged
-        stats.skipped as i64,
-        stats.deferred as i64,
+        &crate::db::sentinel::RunCounters {
+            signals_found: i64::from(stats.signals_found),
+            dispatched: i64::from(stats.dispatched),
+            collected: i64::from(stats.collected),
+            triaged: 0,
+            skipped: i64::from(stats.skipped),
+            deferred: i64::from(stats.deferred),
+        },
     )?;
 
     if !quiet {
@@ -329,7 +328,7 @@ pub fn process_signal_batch(
     Ok(stats)
 }
 
-fn run_dry(config: &SentinelConfig, quiet: bool) -> Result<CycleStats> {
+fn run_dry(config: &SentinelConfig, quiet: bool) -> CycleStats {
     if !quiet {
         println!("sentinel dry-run: would poll sources and dispatch agents");
         println!(
@@ -345,7 +344,7 @@ fn run_dry(config: &SentinelConfig, quiet: bool) -> Result<CycleStats> {
             );
         }
     }
-    Ok(CycleStats::default())
+    CycleStats::default()
 }
 
 /// Create a crosslink issue for a sentinel signal.
@@ -380,7 +379,7 @@ fn create_sentinel_issue(
 
 /// Spawn a kickoff agent for a sentinel dispatch.
 ///
-/// For fix dispatches (VerifyLevel::Ci), propagates GH_TOKEN so the agent
+/// For fix dispatches (`VerifyLevel::Ci`), propagates `GH_TOKEN` so the agent
 /// can push branches and create draft PRs.
 fn spawn_agent(
     crosslink_dir: &Path,

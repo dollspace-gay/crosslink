@@ -41,15 +41,13 @@ impl MaintenanceSweepSource {
     }
 
     /// Count lint warnings from `cargo clippy`.
-    fn check_clippy_warnings(&self) -> Result<Option<Signal>> {
-        let output = Command::new("cargo")
+    fn check_clippy_warnings(&self) -> Option<Signal> {
+        let Ok(output) = Command::new("cargo")
             .args(["clippy", "--message-format=short", "--quiet"])
             .current_dir(&self.repo_root)
-            .output();
-
-        let output = match output {
-            Ok(o) => o,
-            Err(_) => return Ok(None), // cargo not available
+            .output()
+        else {
+            return None; // cargo not available
         };
 
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -57,7 +55,7 @@ impl MaintenanceSweepSource {
 
         if warning_count >= self.config.lint_warning_threshold {
             let now = Utc::now();
-            Ok(Some(Signal {
+            Some(Signal {
                 source: SourceKind::Internal,
                 kind: SignalKind::StaleIssue,
                 reference: format!("MAINT:clippy:{}", now.format("%Y%m%d")),
@@ -74,27 +72,25 @@ impl MaintenanceSweepSource {
                     "threshold": self.config.lint_warning_threshold,
                 }),
                 detected_at: now,
-            }))
+            })
         } else {
-            Ok(None)
+            None
         }
     }
 
     /// Run `cargo test` and check for failures.
-    fn check_test_failures(&self) -> Result<Option<Signal>> {
-        let output = Command::new("cargo")
+    fn check_test_failures(&self) -> Option<Signal> {
+        let Ok(output) = Command::new("cargo")
             .args(["test", "--no-fail-fast", "--quiet"])
             .current_dir(&self.repo_root)
             .env("RUST_BACKTRACE", "0")
-            .output();
-
-        let output = match output {
-            Ok(o) => o,
-            Err(_) => return Ok(None),
+            .output()
+        else {
+            return None;
         };
 
         if output.status.success() {
-            return Ok(None);
+            return None;
         }
 
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -107,7 +103,7 @@ impl MaintenanceSweepSource {
         if failure_count > 0 {
             let now = Utc::now();
             let details = failure_lines.join("\n");
-            Ok(Some(Signal {
+            Some(Signal {
                 source: SourceKind::Internal,
                 kind: SignalKind::StaleIssue,
                 reference: format!("MAINT:test-fail:{}", now.format("%Y%m%d")),
@@ -121,15 +117,15 @@ impl MaintenanceSweepSource {
                     "failure_count": failure_count,
                 }),
                 detected_at: now,
-            }))
+            })
         } else {
-            Ok(None)
+            None
         }
     }
 }
 
 impl Source for MaintenanceSweepSource {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "maintenance-sweep"
     }
 
@@ -137,18 +133,14 @@ impl Source for MaintenanceSweepSource {
         let mut signals = Vec::new();
 
         if self.config.lint_enabled {
-            match self.check_clippy_warnings() {
-                Ok(Some(s)) => signals.push(s),
-                Ok(None) => {}
-                Err(e) => tracing::warn!("clippy sweep failed: {e}"),
+            if let Some(s) = self.check_clippy_warnings() {
+                signals.push(s);
             }
         }
 
         if self.config.test_coverage_enabled {
-            match self.check_test_failures() {
-                Ok(Some(s)) => signals.push(s),
-                Ok(None) => {}
-                Err(e) => tracing::warn!("test sweep failed: {e}"),
+            if let Some(s) = self.check_test_failures() {
+                signals.push(s);
             }
         }
 

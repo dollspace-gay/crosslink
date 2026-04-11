@@ -29,7 +29,7 @@ pub enum Disposition {
 /// Constrains what a dispatched agent can do.
 #[derive(Debug, Clone)]
 pub struct AgentScope {
-    /// Path prefixes the agent is allowed to write to (e.g. ["tests/", "src/"]).
+    /// Path prefixes the agent is allowed to write to (e.g. `["tests/", "src/"]`).
     /// Enforced via the kickoff prompt + allowed-tools whitelist.
     pub allowed_paths: Vec<String>,
     pub verify: VerifyLevel,
@@ -58,8 +58,7 @@ pub fn triage(
             // Check if self-tuning recommends a different model for this label
             let model = tuning
                 .and_then(|t| t.model_for_label(label))
-                .map(String::from)
-                .unwrap_or_else(|| config.default_agent.model.clone());
+                .map_or_else(|| config.default_agent.model.clone(), String::from);
             (model, 1u32)
         }
         SignalDecision::Escalate => (config.escalation.model.clone(), 2u32),
@@ -83,7 +82,7 @@ pub fn triage(
                 let gh_num = signal
                     .metadata
                     .get("number")
-                    .and_then(|v| v.as_i64())
+                    .and_then(serde_json::Value::as_i64)
                     .unwrap_or(0);
 
                 let description = build_replicate_prompt(gh_num, &signal.title, &signal.body);
@@ -104,7 +103,7 @@ pub fn triage(
                 let gh_num = signal
                     .metadata
                     .get("number")
-                    .and_then(|v| v.as_i64())
+                    .and_then(serde_json::Value::as_i64)
                     .unwrap_or(0);
 
                 // Fix agents get more time: 60min base (vs 30min for replicate)
@@ -162,7 +161,7 @@ fn build_replicate_prompt(gh_issue_number: i64, title: &str, body: &str) -> Stri
     let body_truncated = truncate_body(body, 4000);
 
     format!(
-        r#"Reproduce the bug described in GitHub issue #{gh_issue_number}.
+        "Reproduce the bug described in GitHub issue #{gh_issue_number}.
 
 Title: {title}
 Body:
@@ -180,7 +179,7 @@ Constraints:
 - You may ONLY create or modify files in tests/ directories
 - Do NOT fix the bug — only reproduce it
 - Do NOT push code or create PRs
-- Time limit: 30 minutes"#
+- Time limit: 30 minutes"
     )
 }
 
@@ -188,7 +187,7 @@ fn build_fix_prompt(gh_issue_number: i64, title: &str, body: &str) -> String {
     let body_truncated = truncate_body(body, 4000);
 
     format!(
-        r#"Fix the bug described in GitHub issue #{gh_issue_number}.
+        "Fix the bug described in GitHub issue #{gh_issue_number}.
 
 Title: {title}
 Body:
@@ -209,6 +208,6 @@ Constraints:
 - You may modify files in src/ and tests/
 - Push your branch when tests pass
 - Open a DRAFT PR (not ready for review) — a human will review it
-- Time limit: 60 minutes"#
+- Time limit: 60 minutes"
     )
 }
