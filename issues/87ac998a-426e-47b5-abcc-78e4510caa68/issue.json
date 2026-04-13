@@ -1,0 +1,10 @@
+{
+  "uuid": "87ac998a-426e-47b5-abcc-78e4510caa68",
+  "display_id": 676,
+  "title": "Fix kickoff env propagation: CLAUDE_CONFIG_DIR not reaching tmux agent (GH#555)",
+  "status": "open",
+  "priority": "high",
+  "created_by": "anon-ab6221f8",
+  "created_at": "2026-04-13T15:50:53.970551165Z",
+  "updated_at": "2026-04-13T15:50:53.970551165Z"
+}
