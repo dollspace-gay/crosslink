@@ -1,0 +1,8 @@
+{
+  "uuid": "eef4aaba-348e-41ff-ab53-681de4661b99",
+  "issue_uuid": "1fbbad1e-59d7-42e9-b484-42eef678a712",
+  "author": "jus4",
+  "content": "Cannot reproduce GH#560. Wrote test_help_section_spacing_consistent in crosslink/tests/cli_integration.rs covering 10 subcommands (root, issue, session, kickoff, config, init, swarm, sentinel, knowledge, integrity). All spacing between section headers is consistently exactly 1 blank line. Test passes. Commit: 2468f3a3",
+  "created_at": "2026-04-13T17:56:47.176378416Z",
+  "kind": "handoff"
+}
