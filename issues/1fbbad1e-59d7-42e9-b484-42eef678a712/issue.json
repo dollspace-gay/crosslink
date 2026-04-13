@@ -7,8 +7,9 @@
   "priority": "medium",
   "created_by": "anon-ab6221f8",
   "created_at": "2026-04-13T17:44:43.533598213Z",
-  "updated_at": "2026-04-13T17:44:45.582115082Z",
+  "updated_at": "2026-04-13T17:44:48.207685760Z",
   "labels": [
-    "sentinel"
+    "sentinel",
+    "bug"
   ]
 }
