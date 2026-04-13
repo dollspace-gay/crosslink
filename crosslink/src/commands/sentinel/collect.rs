@@ -68,12 +68,9 @@ pub fn collect_completed(
             continue;
         };
 
-        let outcome = if status_content.trim().starts_with("DONE") {
-            "success"
-        } else if dispatch.attempt_number >= 2 {
-            "exhausted"
-        } else {
-            "failure"
+        let Some(outcome) = classify_status(&status_content, dispatch.attempt_number) else {
+            stats.still_running += 1;
+            continue;
         };
 
         // Read agent findings from crosslink comments on the linked issue
@@ -311,6 +308,40 @@ fn repo_root(crosslink_dir: &Path) -> Result<std::path::PathBuf> {
     Ok(std::path::PathBuf::from(root))
 }
 
+/// Classify a `.kickoff-status` file body into a dispatch outcome.
+///
+/// Returns `Some(outcome_code)` for a terminal state, or `None` if the
+/// agent is still working (in which case the collect loop should leave
+/// the dispatch pending and try again on the next cycle).
+///
+/// Agent states (per `crosslink/src/commands/kickoff/launch.rs`):
+/// - `LAUNCHING` — tmux session being created
+/// - `RUNNING`   — agent executing in tmux
+/// - `FAILED`    — launch couldn't hand off to tmux
+/// - `DONE`      — agent finished cleanly (written by the agent itself)
+/// - `TIMEOUT`   — accepted as a future-compatible terminal state
+///
+/// Previously the collect loop treated every non-`DONE` value as a
+/// terminal `failure`, which caused it to harvest dispatches within
+/// seconds of their creation — producing `Duration | 0s` and
+/// `No findings recorded` in the posted GitHub comment because the
+/// agent hadn't yet written any observations (GH#561 defects 2 & 3).
+fn classify_status(status_content: &str, attempt_number: i32) -> Option<&'static str> {
+    let trimmed = status_content.trim();
+    if trimmed.starts_with("DONE") {
+        Some("success")
+    } else if trimmed.starts_with("FAILED") || trimmed.starts_with("TIMEOUT") {
+        if attempt_number >= 2 {
+            Some("exhausted")
+        } else {
+            Some("failure")
+        }
+    } else {
+        // RUNNING / LAUNCHING / empty / any other value — not terminal.
+        None
+    }
+}
+
 /// Read observation and resolution comments from a crosslink issue.
 fn read_agent_findings(db: &Database, issue_id: i64) -> String {
     let Ok(comments) = db.get_comments(issue_id) else {
@@ -474,6 +505,54 @@ fn build_fix_template(ctx: &TemplateContext<'_>) -> String {
 ---
 *Posted by crosslink sentinel | sentinel #{dispatch_id}*"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn classify_status_done_is_success() {
+        assert_eq!(classify_status("DONE", 1), Some("success"));
+        assert_eq!(classify_status("DONE\n", 1), Some("success"));
+        assert_eq!(classify_status("  DONE  ", 2), Some("success"));
+        assert_eq!(classify_status("DONE with extra info", 1), Some("success"));
+    }
+
+    #[test]
+    fn classify_status_failed_is_failure_then_exhausted() {
+        assert_eq!(classify_status("FAILED\n", 1), Some("failure"));
+        assert_eq!(classify_status("FAILED\n", 2), Some("exhausted"));
+        assert_eq!(
+            classify_status("FAILED: tmux send-keys", 1),
+            Some("failure")
+        );
+    }
+
+    #[test]
+    fn classify_status_timeout_is_terminal() {
+        assert_eq!(classify_status("TIMEOUT\n", 1), Some("failure"));
+        assert_eq!(classify_status("TIMEOUT\n", 2), Some("exhausted"));
+    }
+
+    #[test]
+    fn classify_status_running_leaves_pending() {
+        // This is the GH#561 regression: RUNNING must not be treated as
+        // a terminal outcome, otherwise the harvest runs while the agent
+        // is still working and posts a premature "0s / no findings" comment.
+        assert_eq!(classify_status("RUNNING\n", 1), None);
+        assert_eq!(classify_status("LAUNCHING\n", 1), None);
+        assert_eq!(classify_status("RUNNING", 2), None);
+    }
+
+    #[test]
+    fn classify_status_unknown_leaves_pending() {
+        // Defensive: anything we don't recognise should also be treated
+        // as "agent is still working" rather than silently terminal.
+        assert_eq!(classify_status("", 1), None);
+        assert_eq!(classify_status("partial-write", 1), None);
+        assert_eq!(classify_status("  ", 1), None);
+    }
 }
 
 /// Post a comment to a GitHub issue via `gh`.
