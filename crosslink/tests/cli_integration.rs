@@ -3724,6 +3724,101 @@ fn test_top_level_quick_no_hint() {
     );
 }
 
+// ==================== Help Output Spacing Tests ====================
+// GH#560 — assert consistent blank-line spacing between help sections.
+
+/// Returns a list of violation descriptions: each entry describes a section
+/// header whose preceding blank-line count is not exactly 1.
+///
+/// A "section header" is any line that:
+///   - starts at column 0 (no leading whitespace), AND
+///   - ends with `:`
+///
+/// Examples: `Commands:`, `Options:`, `Arguments:`
+fn check_help_section_spacing(output: &str) -> Vec<String> {
+    let lines: Vec<&str> = output.lines().collect();
+    let mut violations = Vec::new();
+
+    let is_section_header = |line: &str| -> bool {
+        !line.is_empty()
+            && !line.starts_with(' ')
+            && !line.starts_with('\t')
+            && line.ends_with(':')
+    };
+
+    let section_indices: Vec<usize> = lines
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| is_section_header(l))
+        .map(|(i, _)| i)
+        .collect();
+
+    if section_indices.len() < 2 {
+        return violations;
+    }
+
+    for &idx in &section_indices[1..] {
+        let blank_count = lines[..idx]
+            .iter()
+            .rev()
+            .take_while(|l| l.trim().is_empty())
+            .count();
+
+        if blank_count != 1 {
+            violations.push(format!(
+                "Before section '{}' (line {}): expected 1 blank line, found {}",
+                lines[idx],
+                idx + 1,
+                blank_count
+            ));
+        }
+    }
+
+    violations
+}
+
+/// GH#560 — `crosslink --help` and all subcommand help outputs must have
+/// exactly one blank line between every adjacent pair of section headers
+/// (`Commands:`, `Options:`, `Arguments:`, …).
+///
+/// The issue reported that spacing between `Commands:` and `Options:`
+/// was "sometimes one blank line, sometimes two" — this test pins the
+/// expected behaviour.
+#[test]
+fn test_help_section_spacing_consistent() {
+    let cases: &[&[&str]] = &[
+        &["--help"],
+        &["issue", "--help"],
+        &["session", "--help"],
+        &["kickoff", "--help"],
+        &["config", "--help"],
+        &["init", "--help"],
+        &["swarm", "--help"],
+        &["sentinel", "--help"],
+        &["knowledge", "--help"],
+        &["integrity", "--help"],
+    ];
+
+    let bin = env!("CARGO_BIN_EXE_crosslink");
+
+    for args in cases {
+        let output = std::process::Command::new(bin)
+            .args(*args)
+            .output()
+            .unwrap_or_else(|e| panic!("failed to run crosslink {}: {}", args.join(" "), e));
+
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        let violations = check_help_section_spacing(&stdout);
+
+        assert!(
+            violations.is_empty(),
+            "crosslink {} has inconsistent section spacing:\n{}",
+            args.join(" "),
+            violations.join("\n")
+        );
+    }
+}
+
 // ==================== Dry-run Flag Normalization Tests ====================
 // Verify --dry-run (not --dry_run) works across commands that support it.
 
