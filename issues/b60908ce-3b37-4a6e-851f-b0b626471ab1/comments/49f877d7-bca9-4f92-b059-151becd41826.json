@@ -1,0 +1,8 @@
+{
+  "uuid": "49f877d7-bca9-4f92-b059-151becd41826",
+  "issue_uuid": "b60908ce-3b37-4a6e-851f-b0b626471ab1",
+  "author": "anon-ab6221f8",
+  "content": "Root cause: server's auth_middleware (src/server/mod.rs:30-54) requires Authorization: Bearer <token> on every /api/* route except /api/v1/health and /ws. Dashboard client (dashboard/src/api/client.ts) exports configureApiClient but nothing ever calls it, so requests go out without the header and every call 401s. Fix: new module dashboard/src/auth/bootstrap.ts runs before React mounts, reads ?token= from URL, persists to sessionStorage, scrubs URL via history.replaceState, and wires configureApiClient with a fetch wrapper that injects the header. Also: serve banner now prints a clickable Dashboard: http://addr/?token=<token> URL when --dashboard-dir is set. Tests: 7 new vitest cases.",
+  "created_at": "2026-04-13T15:32:52.525487733Z",
+  "kind": "resolution"
+}
