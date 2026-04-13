@@ -91,6 +91,10 @@ pub async fn run(
             axum::http::header::ACCEPT,
         ]);
 
+    // Remember whether a dashboard is being served so we can print a
+    // clickable URL (with the bearer token baked in) at startup.
+    let has_dashboard = dashboard_dir.is_some();
+
     let app = routes::build_router(state.clone(), dashboard_dir)
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -101,6 +105,13 @@ pub async fn run(
 
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     println!("crosslink serve: listening on http://{addr}");
+    if has_dashboard {
+        // The dashboard reads `?token=<value>` on first load, persists it to
+        // sessionStorage, and strips it from the URL (see
+        // `dashboard/src/auth/bootstrap.ts`). Subsequent reloads in the same
+        // tab reuse the stored token.
+        println!("  Dashboard: http://{addr}/?token={}", state.auth_token);
+    }
     println!("  API:       http://{addr}/api/v1/health");
     println!("  WebSocket: ws://{addr}/ws");
     println!("  Auth:      Bearer {}", state.auth_token);
