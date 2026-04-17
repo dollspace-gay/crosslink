@@ -231,8 +231,14 @@ async fn async_watch_loop(
             #[cfg(unix)]
             {
                 use tokio::signal::unix::{signal, SignalKind};
-                let mut sigterm = signal(SignalKind::terminate()).expect("SIGTERM handler");
-                let mut sigint = signal(SignalKind::interrupt()).expect("SIGINT handler");
+                let Ok(mut sigterm) = signal(SignalKind::terminate()) else {
+                    tracing::error!("Failed to register SIGTERM handler");
+                    return;
+                };
+                let Ok(mut sigint) = signal(SignalKind::interrupt()) else {
+                    tracing::error!("Failed to register SIGINT handler");
+                    return;
+                };
                 tokio::select! {
                     _ = sigterm.recv() => { let _ = tx.send("SIGTERM").await; }
                     _ = sigint.recv() => { let _ = tx.send("SIGINT").await; }
