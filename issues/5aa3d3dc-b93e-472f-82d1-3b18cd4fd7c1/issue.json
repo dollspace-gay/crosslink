@@ -8,16 +8,5 @@
   "created_by": "maxine--plan-050",
   "created_at": "2026-03-10T22:41:45.908222Z",
   "updated_at": "2026-03-24T00:30:09.844510Z",
-  "closed_at": "2026-03-24T00:30:09.844510Z",
-  "comments": [
-    {
-      "id": 257,
-      "author": "maxine--plan-050",
-      "content": "Covers REQ-10, AC-17, AC-18. Final step before cutting release branch. Bump crosslink/Cargo.toml from 0.4.0 to 0.5.0. Update CHANGELOG.md with all v0.5.0 changes including merged PRs (#294 CLI restructure, #295 kickoff init, #296 TUI scroll) and new features. Run cargo test + cargo clippy to verify AC-17.",
-      "created_at": "2026-03-10T22:41:47.455375Z",
-      "kind": "plan",
-      "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
-      "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAJW9fHoZ1xlJkEK/bcNwgJQZffqCDZxTmuKegN95D2sDAAAAIQCLlw77va3gZi/tL/zYtrV80EyddWfOR1Utmmz4xDEzPQ=="
-    }
-  ]
+  "closed_at": "2026-03-24T00:30:09.844510Z"
 }

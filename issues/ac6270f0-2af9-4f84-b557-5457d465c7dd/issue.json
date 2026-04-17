@@ -1,0 +1,15 @@
+{
+  "uuid": "ac6270f0-2af9-4f84-b557-5457d465c7dd",
+  "display_id": 103,
+  "title": "TUI Phase 1: core scaffold + Issues tab with ratatui",
+  "description": "Phase 1 TUI dashboard with ratatui 0.30 + crossterm 0.29. Tab trait, App struct, event loop, IssuesTab (list+detail+tree), PlaceholderTab. Migrated from crosslink/ subdir issue #1.",
+  "status": "closed",
+  "priority": "high",
+  "created_by": "maxine-at-forecast--noether--tui-dashboard",
+  "created_at": "2026-03-02T17:42:13.939895Z",
+  "updated_at": "2026-03-10T03:39:00.076357Z",
+  "closed_at": "2026-03-10T03:39:00.076357Z",
+  "labels": [
+    "feature"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "uuid": "5c807b3b-bce8-4a0a-a16b-7f0d0c0bc578",
+  "issue_uuid": "2939b51d-09c6-44b6-af90-332463d4f7ad",
+  "author": "m1--f3",
+  "content": "Starting implementation. Pattern: add style.rs module, StyleCommands enum in main.rs, HouseStyleConfig serde struct. Components map: rules\u2192.crosslink/rules/, hooks\u2192.claude/hooks/, commands\u2192.claude/commands/, config\u2192hook-config.json merge. Reuse CUSTOM_MARKER pattern from review.rs.",
+  "created_at": "2026-02-28T05:30:09.128015Z",
+  "kind": "note",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAI5vh4DFbZHTyBE/mBuXgAt83t0JMeU6wNW5zM9iEnHsAAAAIERMU/b2x6BnliD/hx4TfgvYYf+1hK2zLDSn0S7B4dNE"
+}

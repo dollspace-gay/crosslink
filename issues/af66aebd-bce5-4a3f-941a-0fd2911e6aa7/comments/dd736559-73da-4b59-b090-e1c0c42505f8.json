@@ -1,0 +1,10 @@
+{
+  "uuid": "dd736559-73da-4b59-b090-e1c0c42505f8",
+  "issue_uuid": "af66aebd-bce5-4a3f-941a-0fd2911e6aa7",
+  "author": "maxine-at-forecast--noether--fix-sessions-migration",
+  "content": "Decision: Fix the column name (primary fix) AND make v7 migration robust (defensive fix). The column name fix prevents re-running migrations on every open. The v7 robustness fix ensures that even if the migration does re-run (e.g., from a DB at user_version < 7), it handles the case where sessions has extra columns. Also dropping leftover sessions_new table.",
+  "created_at": "2026-03-02T02:33:33.464897Z",
+  "kind": "decision",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgGdoAdpFaOc60hllQmevXsyvCNMg5dM5mDhBAmVP+KRwAAAAgF9tUOpGJaAY46AeY146SwNo4sGRAscAGJnm57kwxXC8="
+}

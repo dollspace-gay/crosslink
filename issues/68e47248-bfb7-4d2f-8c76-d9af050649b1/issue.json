@@ -1,0 +1,14 @@
+{
+  "uuid": "68e47248-bfb7-4d2f-8c76-d9af050649b1",
+  "display_id": 174,
+  "title": "gh issues #299 and #301",
+  "description": "Created by crosslink kickoff",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "maxine--basel",
+  "created_at": "2026-03-10T23:49:01.997731Z",
+  "updated_at": "2026-03-11T00:42:15.044839Z",
+  "labels": [
+    "feature"
+  ]
+}

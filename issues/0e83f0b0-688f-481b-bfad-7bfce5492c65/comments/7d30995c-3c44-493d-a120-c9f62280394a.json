@@ -1,0 +1,10 @@
+{
+  "uuid": "7d30995c-3c44-493d-a120-c9f62280394a",
+  "issue_uuid": "0e83f0b0-688f-481b-bfad-7bfce5492c65",
+  "author": "maxine-at-forecast--noether--ci-cd-restructure",
+  "content": "Closed out 4 feature agents: accept-both (#153), knowledge-norms (#154), tmux-perms (#145), untrack-init (#143). Killed tmux sessions and removed worktrees.",
+  "created_at": "2026-03-02T09:35:19.075207Z",
+  "kind": "handoff",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAJ8M37XCmKN8bKLa6ogz9Wsac5z3Ahcpe1GMMpbiKTvQAAAAIBVzlJR64MUA3fGNI1qL7tSa9mCllR5xcCpVC662M91G"
+}

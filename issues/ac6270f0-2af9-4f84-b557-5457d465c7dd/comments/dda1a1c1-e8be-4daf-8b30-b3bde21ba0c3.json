@@ -1,0 +1,10 @@
+{
+  "uuid": "dda1a1c1-e8be-4daf-8b30-b3bde21ba0c3",
+  "issue_uuid": "ac6270f0-2af9-4f84-b557-5457d465c7dd",
+  "author": "maxine-at-forecast--noether--tui-dashboard",
+  "content": "[plan] Implementing Phase 1 TUI dashboard with ratatui 0.30 + crossterm 0.29. Files: src/tui/mod.rs (Tab trait, App struct, event loop), src/tui/issues_tab.rs (list+detail views with sort/filter/search), src/tui/tabs.rs (PlaceholderTab), src/commands/tui.rs (CLI entry point).",
+  "created_at": "2026-03-02T17:42:29.296187Z",
+  "kind": "note",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAPs6TeFhp45xZ8l6fr7NJQXPVOrERHJo2vT1UW1RhxmZAAAAIQCn8qraMY99wGqyL677czAjdPsmA3l5TgXpTR6CM6V8mQ=="
+}

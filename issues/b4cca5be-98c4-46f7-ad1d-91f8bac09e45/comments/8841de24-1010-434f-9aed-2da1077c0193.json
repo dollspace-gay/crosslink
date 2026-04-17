@@ -1,0 +1,10 @@
+{
+  "uuid": "8841de24-1010-434f-9aed-2da1077c0193",
+  "issue_uuid": "b4cca5be-98c4-46f7-ad1d-91f8bac09e45",
+  "author": "maxine-at-forecast--noether--fix-agent-init-reinit",
+  "content": "Plan: Restructure agent::init() to handle malformed agent.json gracefully. Three changes: (1) Add --force flag to AgentCommands::Init in main.rs, (2) Change init() to match on AgentConfig::load() Result instead of using ? \u2014 Ok(Some) without force bails, Err warns and proceeds (malformed file), Ok(None) proceeds normally, Ok(Some) with force warns and overwrites, (3) Add tests for malformed-file reinit and --force overwrite.",
+  "created_at": "2026-03-02T02:16:10.194992Z",
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgdx3Tf23sFcXVjOisK0HDwm76UzB6wKXbaefW8OxhPPUAAAAgT4uxXozfHAaX6N5jBUrvBkd2k8ypGorEBQ3FFbtOobE="
+}

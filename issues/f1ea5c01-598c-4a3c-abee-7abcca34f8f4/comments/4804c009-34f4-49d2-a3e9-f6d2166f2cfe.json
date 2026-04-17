@@ -1,0 +1,10 @@
+{
+  "uuid": "4804c009-34f4-49d2-a3e9-f6d2166f2cfe",
+  "issue_uuid": "f1ea5c01-598c-4a3c-abee-7abcca34f8f4",
+  "author": "m1--fix-agent-init-signing-key-override",
+  "content": "[auto] Session resumed after context compression.",
+  "created_at": "2026-03-01T02:20:42.399200930Z",
+  "kind": "note",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAI0YCmVIfIf44rhiS5pz7FQHotH1cIIVKNNRwM7v9gsyAAAAIQCkipOGy7CiS3etCf8WRoqU8EZ/Vq7gLSPv2ZTRWIENSg=="
+}

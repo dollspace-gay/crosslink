@@ -1,0 +1,10 @@
+{
+  "uuid": "82aafc8c-1699-4575-9ace-9e02d63d5738",
+  "issue_uuid": "5bfe8fda-3bd6-4277-9f2a-372d8b9d1893",
+  "author": "maxine--basel",
+  "content": "Committed: fix(docs): correct CLI commands, flags, and defaults after adversarial audit | Files: 14 files changed, 115 insertions(+), 109 deletions(-)",
+  "created_at": "2026-03-12T06:14:36.433781Z",
+  "kind": "result",
+  "signed_by": "SHA256:tP3whSCYO5fS8VQaOlKk18TksXDqvEv+VbwpAEfxy5A",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgbMJQrcFvxUHGFzKhLs2qsfUDMqPDdJSAHuIKkxY6rD4AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAiUwy2LMUEXnxf1D0wT3yq6b2MOMlowwsIixJZohIhlpZ6OqKNeFP1ynWHkNnPoo9zhJFWm1VDV0qo3VqXMy5Dw=="
+}

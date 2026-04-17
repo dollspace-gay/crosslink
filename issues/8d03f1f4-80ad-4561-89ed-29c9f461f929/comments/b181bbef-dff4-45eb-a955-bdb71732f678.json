@@ -1,0 +1,12 @@
+{
+  "uuid": "b181bbef-dff4-45eb-a955-bdb71732f678",
+  "issue_uuid": "8d03f1f4-80ad-4561-89ed-29c9f461f929",
+  "author": "maxine-at-forecast--noether--accept-both-conflict",
+  "content": "Working issue was switched to #77 by another agent/session. Had to re-set to #76.",
+  "created_at": "2026-03-02T08:40:57.117198Z",
+  "kind": "intervention",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAgSF3CPkaFe6p0MXIoaz2M5t96+yXjyx+lu4a97B0TyQUAAAAhALuktU827CLgw5TMkZLZ1TECp1+Bgr75udGg3Knq1wg4",
+  "trigger_type": "tool_blocked",
+  "intervention_context": "Attempting to edit knowledge.rs but work-check hook blocked because working issue was wrong"
+}

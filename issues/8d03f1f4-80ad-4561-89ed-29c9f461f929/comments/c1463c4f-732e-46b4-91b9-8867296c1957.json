@@ -1,0 +1,10 @@
+{
+  "uuid": "c1463c4f-732e-46b4-91b9-8867296c1957",
+  "issue_uuid": "8d03f1f4-80ad-4561-89ed-29c9f461f929",
+  "author": "maxine-at-forecast--noether--accept-both-conflict",
+  "content": "Completed: accept-both conflict resolution for knowledge branch. Added has_conflict_markers(), resolve_accept_both(), SyncOutcome struct, handle_rebase_conflict() method. Modified sync() and push() to detect rebase conflicts and fall back to accept-both. Updated all command-layer callers. 8 new unit tests. All 926 tests pass, clippy clean, fmt clean. Committed as cf0f2bd.",
+  "created_at": "2026-03-02T08:56:44.382305Z",
+  "kind": "handoff",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhANyvAtSdJIY664gtaAKiyM9sasym8mOTJ85xb1G5xmF3AAAAIQDgcO0LFy6KxU/pLJ8BOjOSf642mMexiZqYqLGnLnIZHA=="
+}

@@ -1,0 +1,10 @@
+{
+  "uuid": "5ade6184-6173-4cc8-a89a-f4f49760d139",
+  "issue_uuid": "88b95d60-d967-44d3-aba7-b9abeb4c54e4",
+  "author": "m1--track-driver-signing-key",
+  "content": "Committed: feat: track driver signing key in interventions and trust approvals [CL-40] | Files: 10 files changed, 143 insertions(+), 19 deletions(-)",
+  "created_at": "2026-03-01T16:18:09.718855331Z",
+  "kind": "result",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhANhX72ZhtcaJ+Ap+QDWFVskdo22m6H7t0pVNk27AIIQ2AAAAIQCS2pJInyEoWkq1JhaWjHji/HUcArMCbNNloUCO8Rhqiw=="
+}

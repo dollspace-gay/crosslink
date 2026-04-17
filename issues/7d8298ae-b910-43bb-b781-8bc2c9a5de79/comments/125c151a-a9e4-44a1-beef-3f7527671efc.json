@@ -1,0 +1,10 @@
+{
+  "uuid": "125c151a-a9e4-44a1-beef-3f7527671efc",
+  "issue_uuid": "7d8298ae-b910-43bb-b781-8bc2c9a5de79",
+  "author": "noether--add-container-agent",
+  "content": "Plan: Run the three manual tests from PR #150 test plan: 1) crosslink container build with Docker, 2) crosslink container start with a worktree, 3) verify hooks block git push inside container. Using the debug binary built in the worktree.",
+  "created_at": "2026-03-02T07:46:08.077190366Z",
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGUAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEoAAAAhAOGRaTsVvRIkm+gHqDcYytluM3wuXU+kz3Pb6J970a1DAAAAIQDo+cuu/g2Ux+VKlogUzXynPvI/ofYMPBYwZQv1tPMv+A=="
+}

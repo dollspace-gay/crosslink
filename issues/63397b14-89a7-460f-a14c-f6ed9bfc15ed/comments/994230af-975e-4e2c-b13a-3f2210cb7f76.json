@@ -1,0 +1,12 @@
+{
+  "uuid": "994230af-975e-4e2c-b13a-3f2210cb7f76",
+  "issue_uuid": "63397b14-89a7-460f-a14c-f6ed9bfc15ed",
+  "author": "m1--track-driver-signing-key",
+  "content": "Manual test: verifying driver fingerprint appears in intervention output",
+  "created_at": "2026-03-01T16:34:38.628384995Z",
+  "kind": "intervention",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGQAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEkAAAAhAINS3FkWWQydaKzosWzxt6QBloc5bFlL38DiU49leVlZAAAAIFxr9ivEvKoYBkxIcrUGxRO+t+PjbKkCIal4Tdnc/bsl",
+  "trigger_type": "manual_action",
+  "intervention_context": "Testing GH #88 feature"
+}

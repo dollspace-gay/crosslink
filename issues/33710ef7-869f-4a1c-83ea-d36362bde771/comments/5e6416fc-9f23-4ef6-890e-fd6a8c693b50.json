@@ -1,0 +1,10 @@
+{
+  "uuid": "5e6416fc-9f23-4ef6-890e-fd6a8c693b50",
+  "issue_uuid": "33710ef7-869f-4a1c-83ea-d36362bde771",
+  "author": "driver--fix-kickoff-agent-key-not-being-published-after-creation",
+  "content": "Plan: When kickoff calls agent::init with no_key=true, the new agent config has no ssh_public_key, so publish_agent_key is never called and ensure_agent_key_published also skips (no key in config). Fix: in init_worktree_agent (kickoff.rs), after creating the agent config with no_key=true, copy the parent's SSH key info into the new agent config, then call publish_agent_key to publish the parent's public key under the new agent ID.",
+  "created_at": "2026-03-08T19:00:06.576336Z",
+  "kind": "plan",
+  "signed_by": "SHA256:eHpbrpU/tOUroPHQwwGZTQKY+0tU0E2rZw5zFEs1jHE",
+  "signature": "U1NIU0lHAAAAAQAAAGgAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAAhuaXN0cDI1NgAAAEEEe0KY4l/Z7G/vfkx00kFwZtY3FjD8lde6VcPNSNT06kyL5ZUnzQGbJUMzOdlFd65s/RCzZhVJQVonLQ3yKzipGAAAABJjcm9zc2xpbmstYmFja2ZpbGwAAAAAAAAABnNoYTUxMgAAAGMAAAATZWNkc2Etc2hhMi1uaXN0cDI1NgAAAEgAAAAgCua36sJRRnWH3Ro+QoVUdQtSiFAdObtTUdB3fXy3qTMAAAAgYVsWo4NUsqu9k3piPFa6umR5F6xE9u0ZNiOF6oS+CUI="
+}
