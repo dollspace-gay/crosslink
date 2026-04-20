@@ -1,16 +1,23 @@
 // Drill-down view for a single tracked project. Pulls the full
 // `ProjectDetail` payload from `/api/v1/dashboard/projects/{*slug}` and
-// renders sections for issues, agents, and locks. Includes the
-// first slice of the write surface (close / reopen / comment on issues).
+// renders sections for issues, agents, and locks. Includes the full
+// P1.8–P1.9 write surface: close / reopen / comment / block / unblock /
+// relate / label / unlabel on issues, plus create-milestone.
 
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import {
+  useBlockIssue,
   useCloseIssue,
   useCommentIssue,
+  useCreateMilestone,
+  useLabelIssue,
   useProject,
+  useRelateIssue,
   useReopenIssue,
+  useUnblockIssue,
+  useUnlabelIssue,
 } from "@/api/client";
 import type { IssueFile } from "@/api/types";
 
@@ -106,6 +113,13 @@ export function ProjectDetail() {
         )}
       </section>
 
+      <section className="mb-6">
+        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Milestones
+        </h2>
+        <NewMilestoneForm slug={data.slug} />
+      </section>
+
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Issues ({openIssues.length} open, {closedIssues.length} closed)
@@ -139,12 +153,29 @@ export function ProjectDetail() {
 function OpenIssueRow({ slug, issue }: { slug: string; issue: IssueFile }) {
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [labelText, setLabelText] = useState("");
+  const [blockerText, setBlockerText] = useState("");
+  const [unblockText, setUnblockText] = useState("");
+  const [relateText, setRelateText] = useState("");
 
   const close = useCloseIssue(slug);
   const comment = useCommentIssue(slug);
+  const label = useLabelIssue(slug);
+  const unlabel = useUnlabelIssue(slug);
+  const block = useBlockIssue(slug);
+  const unblock = useUnblockIssue(slug);
+  const relate = useRelateIssue(slug);
 
   const id = issue.display_id;
   const canAct = id != null;
+
+  const moreError =
+    label.error?.message ??
+    unlabel.error?.message ??
+    block.error?.message ??
+    unblock.error?.message ??
+    relate.error?.message;
 
   return (
     <li className="px-3 py-2 text-sm">
@@ -156,6 +187,11 @@ function OpenIssueRow({ slug, issue }: { slug: string; issue: IssueFile }) {
         <span className="text-xs text-muted-foreground">[{issue.priority}]</span>
         {issue.due_at && (
           <span className="text-xs text-muted-foreground">due {issue.due_at}</span>
+        )}
+        {issue.blockers.length > 0 && (
+          <span className="text-xs text-amber-500">
+            blocked by {issue.blockers.length}
+          </span>
         )}
         <span className="ml-auto flex items-center gap-2">
           <button
@@ -174,8 +210,41 @@ function OpenIssueRow({ slug, issue }: { slug: string; issue: IssueFile }) {
           >
             {commentOpen ? "Cancel" : "Comment"}
           </button>
+          <button
+            type="button"
+            disabled={!canAct}
+            onClick={() => setMoreOpen((v) => !v)}
+            className="rounded border px-2 py-0.5 text-xs hover:bg-accent/10 disabled:opacity-50"
+          >
+            {moreOpen ? "Hide" : "More"}
+          </button>
         </span>
       </div>
+      {issue.labels.length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {issue.labels.map((l) => (
+            <span
+              key={l}
+              className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground"
+            >
+              {l}
+              {canAct && id != null && (
+                <button
+                  type="button"
+                  disabled={unlabel.isPending}
+                  onClick={() =>
+                    unlabel.mutate({ issueId: id, label: l })
+                  }
+                  className="text-muted-foreground hover:text-rose-500 disabled:opacity-50"
+                  aria-label={`Remove label ${l}`}
+                >
+                  ×
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
       {close.error && (
         <p className="mt-1 text-xs text-rose-500">{close.error.message}</p>
       )}
@@ -217,7 +286,211 @@ function OpenIssueRow({ slug, issue }: { slug: string; issue: IssueFile }) {
           </div>
         </form>
       )}
+      {moreOpen && canAct && id != null && (
+        <div className="mt-2 flex flex-col gap-2 rounded border bg-background/50 p-2">
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const v = labelText.trim();
+              if (!v) return;
+              label.mutate(
+                { issueId: id, label: v },
+                { onSuccess: () => setLabelText("") },
+              );
+            }}
+          >
+            <label className="text-xs text-muted-foreground w-16">Label</label>
+            <input
+              value={labelText}
+              onChange={(e) => setLabelText(e.target.value)}
+              placeholder="label-name"
+              className="flex-1 rounded border bg-background px-2 py-0.5 text-xs"
+            />
+            <button
+              type="submit"
+              disabled={!labelText.trim() || label.isPending}
+              className="rounded border px-2 py-0.5 text-xs hover:bg-accent/10 disabled:opacity-50"
+            >
+              {label.isPending ? "Adding…" : "Add"}
+            </button>
+          </form>
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const n = Number(blockerText.trim());
+              if (!Number.isInteger(n) || n <= 0) return;
+              block.mutate(
+                { issueId: id, blockerId: n },
+                { onSuccess: () => setBlockerText("") },
+              );
+            }}
+          >
+            <label className="text-xs text-muted-foreground w-16">
+              Blocked by
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={blockerText}
+              onChange={(e) => setBlockerText(e.target.value)}
+              placeholder="issue id"
+              className="flex-1 rounded border bg-background px-2 py-0.5 text-xs"
+            />
+            <button
+              type="submit"
+              disabled={!blockerText.trim() || block.isPending}
+              className="rounded border px-2 py-0.5 text-xs hover:bg-accent/10 disabled:opacity-50"
+            >
+              {block.isPending ? "Adding…" : "Block"}
+            </button>
+          </form>
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const n = Number(unblockText.trim());
+              if (!Number.isInteger(n) || n <= 0) return;
+              unblock.mutate(
+                { issueId: id, blockerId: n },
+                { onSuccess: () => setUnblockText("") },
+              );
+            }}
+          >
+            <label className="text-xs text-muted-foreground w-16">Unblock</label>
+            <input
+              type="number"
+              min={1}
+              value={unblockText}
+              onChange={(e) => setUnblockText(e.target.value)}
+              placeholder="issue id"
+              className="flex-1 rounded border bg-background px-2 py-0.5 text-xs"
+            />
+            <button
+              type="submit"
+              disabled={!unblockText.trim() || unblock.isPending}
+              className="rounded border px-2 py-0.5 text-xs hover:bg-accent/10 disabled:opacity-50"
+            >
+              {unblock.isPending ? "Clearing…" : "Clear"}
+            </button>
+          </form>
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const n = Number(relateText.trim());
+              if (!Number.isInteger(n) || n <= 0) return;
+              relate.mutate(
+                { issueId: id, otherId: n },
+                { onSuccess: () => setRelateText("") },
+              );
+            }}
+          >
+            <label className="text-xs text-muted-foreground w-16">
+              Related
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={relateText}
+              onChange={(e) => setRelateText(e.target.value)}
+              placeholder="issue id"
+              className="flex-1 rounded border bg-background px-2 py-0.5 text-xs"
+            />
+            <button
+              type="submit"
+              disabled={!relateText.trim() || relate.isPending}
+              className="rounded border px-2 py-0.5 text-xs hover:bg-accent/10 disabled:opacity-50"
+            >
+              {relate.isPending ? "Linking…" : "Link"}
+            </button>
+          </form>
+          {moreError && (
+            <p className="text-xs text-rose-500">{moreError}</p>
+          )}
+        </div>
+      )}
     </li>
+  );
+}
+
+function NewMilestoneForm({ slug }: { slug: string }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const create = useCreateMilestone(slug);
+
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="rounded border px-2 py-0.5 text-xs hover:bg-accent/10"
+      >
+        + New milestone
+      </button>
+    );
+  }
+
+  return (
+    <form
+      className="flex flex-col gap-2 rounded border bg-card p-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!name.trim()) return;
+        create.mutate(
+          {
+            name: name.trim(),
+            description: description.trim() || undefined,
+          },
+          {
+            onSuccess: () => {
+              setName("");
+              setDescription("");
+              setExpanded(false);
+            },
+          },
+        );
+      }}
+    >
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Milestone name"
+        className="rounded border bg-background px-2 py-1 text-sm"
+      />
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Description (optional)"
+        rows={2}
+        className="rounded border bg-background p-2 text-sm"
+      />
+      <div className="flex items-center gap-2">
+        <button
+          type="submit"
+          disabled={!name.trim() || create.isPending}
+          className="rounded border px-2 py-0.5 text-xs hover:bg-accent/10 disabled:opacity-50"
+        >
+          {create.isPending ? "Creating…" : "Create"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setExpanded(false);
+            setName("");
+            setDescription("");
+          }}
+          className="rounded border px-2 py-0.5 text-xs hover:bg-accent/10"
+        >
+          Cancel
+        </button>
+        {create.error && (
+          <span className="text-xs text-rose-500">{create.error.message}</span>
+        )}
+      </div>
+    </form>
   );
 }
 

@@ -48,6 +48,24 @@ pub fn build_router() -> Router<AppState> {
         .route("/w/{owner}/{repo}/issues/{id}/close", post(close_issue))
         .route("/w/{owner}/{repo}/issues/{id}/reopen", post(reopen_issue))
         .route("/w/{owner}/{repo}/issues/{id}/comment", post(comment_issue))
+        .route("/w/{owner}/{repo}/issues/{id}/block", post(block_issue))
+        .route("/w/{owner}/{repo}/issues/{id}/unblock", post(unblock_issue))
+        .route("/w/{owner}/{repo}/issues/{id}/relate", post(relate_issue))
+        .route("/w/{owner}/{repo}/issues/{id}/label", post(label_issue))
+        .route("/w/{owner}/{repo}/issues/{id}/unlabel", post(unlabel_issue))
+        .route("/w/{owner}/{repo}/milestones", post(create_milestone))
+        .route(
+            "/w/{owner}/{repo}/milestones/{id}/add",
+            post(milestone_add_issue),
+        )
+        .route(
+            "/w/{owner}/{repo}/milestones/{id}/remove",
+            post(milestone_remove_issue),
+        )
+        .route(
+            "/w/{owner}/{repo}/milestones/{id}/close",
+            post(close_milestone),
+        )
 }
 
 /// Wire-format representation of a tracked project on the list endpoint.
@@ -481,6 +499,270 @@ async fn comment_issue(
     }))
 }
 
+#[derive(Debug, Deserialize)]
+struct BlockerBody {
+    blocker_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+struct RelateBody {
+    other_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+struct LabelBody {
+    label: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct MilestoneCreateBody {
+    name: String,
+    #[serde(default)]
+    description: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MilestoneIssueBody {
+    issue_id: i64,
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/issues/{id}/block`
+///
+/// Body: `{ "blocker_id": N }`. Marks issue `{id}` as blocked by issue `N`.
+async fn block_issue(
+    State(state): State<AppState>,
+    Path((owner, repo, id)): Path<(String, String, i64)>,
+    Json(body): Json<BlockerBody>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let id_str = id.to_string();
+    let blocker_str = body.blocker_id.to_string();
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "block_issue",
+        Some(&format!("issue:{id}")),
+        &["issue", "block", &id_str, &blocker_str],
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
+    }))
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/issues/{id}/unblock`
+async fn unblock_issue(
+    State(state): State<AppState>,
+    Path((owner, repo, id)): Path<(String, String, i64)>,
+    Json(body): Json<BlockerBody>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let id_str = id.to_string();
+    let blocker_str = body.blocker_id.to_string();
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "unblock_issue",
+        Some(&format!("issue:{id}")),
+        &["issue", "unblock", &id_str, &blocker_str],
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
+    }))
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/issues/{id}/relate`
+///
+/// Body: `{ "other_id": N }`. Symmetric link — order doesn't matter.
+async fn relate_issue(
+    State(state): State<AppState>,
+    Path((owner, repo, id)): Path<(String, String, i64)>,
+    Json(body): Json<RelateBody>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let id_str = id.to_string();
+    let other_str = body.other_id.to_string();
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "relate_issue",
+        Some(&format!("issue:{id}")),
+        &["issue", "relate", &id_str, &other_str],
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
+    }))
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/issues/{id}/label`
+///
+/// Body: `{ "label": "bug" }`. Adds a single label. Empty rejected 400.
+async fn label_issue(
+    State(state): State<AppState>,
+    Path((owner, repo, id)): Path<(String, String, i64)>,
+    Json(body): Json<LabelBody>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    if body.label.trim().is_empty() {
+        return Err(ApiError::bad_request("label cannot be empty"));
+    }
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let id_str = id.to_string();
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "label_issue",
+        Some(&format!("issue:{id}")),
+        &["issue", "label", &id_str, &body.label],
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
+    }))
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/issues/{id}/unlabel`
+async fn unlabel_issue(
+    State(state): State<AppState>,
+    Path((owner, repo, id)): Path<(String, String, i64)>,
+    Json(body): Json<LabelBody>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    if body.label.trim().is_empty() {
+        return Err(ApiError::bad_request("label cannot be empty"));
+    }
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let id_str = id.to_string();
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "unlabel_issue",
+        Some(&format!("issue:{id}")),
+        &["issue", "unlabel", &id_str, &body.label],
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
+    }))
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/milestones`
+///
+/// Body: `{ "name": "...", "description": "..." }`. Name is required
+/// and must be non-empty; description is optional.
+async fn create_milestone(
+    State(state): State<AppState>,
+    Path((owner, repo)): Path<(String, String)>,
+    Json(body): Json<MilestoneCreateBody>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    if body.name.trim().is_empty() {
+        return Err(ApiError::bad_request("milestone name cannot be empty"));
+    }
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let mut args: Vec<&str> = vec!["milestone", "create", &body.name];
+    if let Some(desc) = body.description.as_deref() {
+        if !desc.trim().is_empty() {
+            args.push("-d");
+            args.push(desc);
+        }
+    }
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "create_milestone",
+        Some(&format!("milestone:{}", body.name)),
+        &args,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
+    }))
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/milestones/{id}/add`
+///
+/// Body: `{ "issue_id": N }`. Attaches issue `N` to milestone `{id}`.
+async fn milestone_add_issue(
+    State(state): State<AppState>,
+    Path((owner, repo, id)): Path<(String, String, i64)>,
+    Json(body): Json<MilestoneIssueBody>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let id_str = id.to_string();
+    let issue_str = body.issue_id.to_string();
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "milestone_add",
+        Some(&format!("milestone:{id}")),
+        &["milestone", "add", &id_str, &issue_str],
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
+    }))
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/milestones/{id}/remove`
+async fn milestone_remove_issue(
+    State(state): State<AppState>,
+    Path((owner, repo, id)): Path<(String, String, i64)>,
+    Json(body): Json<MilestoneIssueBody>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let id_str = id.to_string();
+    let issue_str = body.issue_id.to_string();
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "milestone_remove",
+        Some(&format!("milestone:{id}")),
+        &["milestone", "remove", &id_str, &issue_str],
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
+    }))
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/milestones/{id}/close`
+async fn close_milestone(
+    State(state): State<AppState>,
+    Path((owner, repo, id)): Path<(String, String, i64)>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let id_str = id.to_string();
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "close_milestone",
+        Some(&format!("milestone:{id}")),
+        &["milestone", "close", &id_str],
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
+    }))
+}
+
 /// Minimal typed error with status-code mapping. Patterned after axum
 /// idioms — manual `IntoResponse` implementation maps to the right
 /// status without pulling in a full error-handling crate.
@@ -809,6 +1091,108 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_label_issue_rejects_empty_label() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dashboard_db_path = tmp.path().join("dashboard.db");
+        let db = DashboardDb::open(&dashboard_db_path).unwrap();
+        let repo = tmp.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(&repo)
+            .args(["init", "-q"])
+            .status()
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO projects (slug, clone_path, default_branch, status, added_at)
+                 VALUES ('owner/repo', ?1, 'main', 'active', '2026-04-20T00:00:00Z')",
+                [repo.to_string_lossy().as_ref()],
+            )
+            .unwrap();
+
+        let (state, _tmp2) = test_state(Some(dashboard_db_path));
+        let app = Router::new()
+            .nest("/api/v1/dashboard", build_router())
+            .with_state(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/dashboard/w/owner/repo/issues/1/label")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"label":"   "}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_create_milestone_rejects_empty_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dashboard_db_path = tmp.path().join("dashboard.db");
+        let db = DashboardDb::open(&dashboard_db_path).unwrap();
+        let repo = tmp.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(&repo)
+            .args(["init", "-q"])
+            .status()
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO projects (slug, clone_path, default_branch, status, added_at)
+                 VALUES ('owner/repo', ?1, 'main', 'active', '2026-04-20T00:00:00Z')",
+                [repo.to_string_lossy().as_ref()],
+            )
+            .unwrap();
+
+        let (state, _tmp2) = test_state(Some(dashboard_db_path));
+        let app = Router::new()
+            .nest("/api/v1/dashboard", build_router())
+            .with_state(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/dashboard/w/owner/repo/milestones")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"name":"  "}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_block_issue_returns_404_for_untracked_slug() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dashboard_db_path = tmp.path().join("dashboard.db");
+        DashboardDb::open(&dashboard_db_path).unwrap();
+
+        let (state, _tmp2) = test_state(Some(dashboard_db_path));
+        let app = Router::new()
+            .nest("/api/v1/dashboard", build_router())
+            .with_state(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/dashboard/w/nobody/noop/issues/1/block")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"blocker_id":2}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

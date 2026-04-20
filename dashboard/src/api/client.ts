@@ -158,3 +158,142 @@ export function useCommentIssue(slug: string) {
     onSuccess: () => invalidate(),
   });
 }
+
+/// Mark issue `issueId` as blocked by `blockerId`.
+export function useBlockIssue(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<
+    ActionResponse,
+    ApiRequestError,
+    { issueId: number; blockerId: number }
+  >({
+    mutationFn: ({ issueId, blockerId }) =>
+      apiPost<ActionResponse>(`/w/${slug}/issues/${issueId}/block`, {
+        blocker_id: blockerId,
+      }),
+    onSuccess: () => invalidate(),
+  });
+}
+
+/// Drop a blocker relationship.
+export function useUnblockIssue(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<
+    ActionResponse,
+    ApiRequestError,
+    { issueId: number; blockerId: number }
+  >({
+    mutationFn: ({ issueId, blockerId }) =>
+      apiPost<ActionResponse>(`/w/${slug}/issues/${issueId}/unblock`, {
+        blocker_id: blockerId,
+      }),
+    onSuccess: () => invalidate(),
+  });
+}
+
+/// Symmetric link between two issues.
+export function useRelateIssue(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<
+    ActionResponse,
+    ApiRequestError,
+    { issueId: number; otherId: number }
+  >({
+    mutationFn: ({ issueId, otherId }) =>
+      apiPost<ActionResponse>(`/w/${slug}/issues/${issueId}/relate`, {
+        other_id: otherId,
+      }),
+    onSuccess: () => invalidate(),
+  });
+}
+
+/// Add a label to an issue.
+export function useLabelIssue(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<
+    ActionResponse,
+    ApiRequestError,
+    { issueId: number; label: string }
+  >({
+    mutationFn: ({ issueId, label }) =>
+      apiPost<ActionResponse>(`/w/${slug}/issues/${issueId}/label`, {
+        label,
+      }),
+    onSuccess: () => invalidate(),
+  });
+}
+
+/// Remove a label from an issue.
+export function useUnlabelIssue(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<
+    ActionResponse,
+    ApiRequestError,
+    { issueId: number; label: string }
+  >({
+    mutationFn: ({ issueId, label }) =>
+      apiPost<ActionResponse>(`/w/${slug}/issues/${issueId}/unlabel`, {
+        label,
+      }),
+    onSuccess: () => invalidate(),
+  });
+}
+
+/// Create a new milestone. `description` is optional.
+export function useCreateMilestone(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<
+    ActionResponse,
+    ApiRequestError,
+    { name: string; description?: string }
+  >({
+    mutationFn: ({ name, description }) =>
+      apiPost<ActionResponse>(`/w/${slug}/milestones`, {
+        name,
+        description,
+      }),
+    onSuccess: () => invalidate(),
+  });
+}
+
+/// Attach issue to milestone.
+export function useMilestoneAddIssue(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<
+    ActionResponse,
+    ApiRequestError,
+    { milestoneId: number; issueId: number }
+  >({
+    mutationFn: ({ milestoneId, issueId }) =>
+      apiPost<ActionResponse>(`/w/${slug}/milestones/${milestoneId}/add`, {
+        issue_id: issueId,
+      }),
+    onSuccess: () => invalidate(),
+  });
+}
+
+/// Detach issue from milestone.
+export function useMilestoneRemoveIssue(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<
+    ActionResponse,
+    ApiRequestError,
+    { milestoneId: number; issueId: number }
+  >({
+    mutationFn: ({ milestoneId, issueId }) =>
+      apiPost<ActionResponse>(`/w/${slug}/milestones/${milestoneId}/remove`, {
+        issue_id: issueId,
+      }),
+    onSuccess: () => invalidate(),
+  });
+}
+
+/// Close a milestone (sets status to closed; does not delete).
+export function useCloseMilestone(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<ActionResponse, ApiRequestError, number>({
+    mutationFn: (milestoneId: number) =>
+      apiPost<ActionResponse>(`/w/${slug}/milestones/${milestoneId}/close`),
+    onSuccess: () => invalidate(),
+  });
+}
