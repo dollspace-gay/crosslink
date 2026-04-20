@@ -127,6 +127,7 @@ pub fn build_router(state: AppState, dashboard_dir: Option<std::path::PathBuf>) 
 
     let mut app = Router::new()
         .nest("/api/v1", api)
+        .nest("/api/v1/dashboard", crate::dashboard::api::build_router())
         .route("/ws", get(ws_handler))
         .with_state(state);
 

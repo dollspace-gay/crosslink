@@ -19,6 +19,7 @@
 //! lives inside each project's `.crosslink/` and tracks that project's
 //! issues.
 
+pub mod api;
 pub mod db;
 pub mod poll;
 pub mod projects;

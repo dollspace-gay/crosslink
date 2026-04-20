@@ -5,6 +5,7 @@
 pub mod checkpoint;
 pub mod clock_skew;
 pub mod compaction;
+pub mod dashboard;
 pub mod db;
 pub mod events;
 pub mod external;

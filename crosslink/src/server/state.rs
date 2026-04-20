@@ -26,6 +26,12 @@ pub struct AppState {
     pub ws_tx: broadcast::Sender<WsEvent>,
     /// Bearer token for API authentication.
     pub auth_token: String,
+    /// Path to the per-user dashboard DB (`~/.crosslink/dashboard.db`),
+    /// populated only when the process was launched via `crosslink
+    /// dashboard serve`. `None` for the deprecated `crosslink serve`
+    /// path. Dashboard API handlers open fresh connections from this
+    /// path per request (`SQLite` opens are cheap).
+    pub dashboard_db_path: Option<PathBuf>,
 }
 
 impl AppState {
@@ -38,7 +44,16 @@ impl AppState {
             version: env!("CARGO_PKG_VERSION"),
             ws_tx,
             auth_token,
+            dashboard_db_path: None,
         }
+    }
+
+    /// Attach a dashboard DB path for the dashboard API handlers.
+    /// Returns `self` to enable builder-style chaining at server startup.
+    #[must_use]
+    pub fn with_dashboard_db(mut self, path: PathBuf) -> Self {
+        self.dashboard_db_path = Some(path);
+        self
     }
 
     /// Acquire the database lock asynchronously.

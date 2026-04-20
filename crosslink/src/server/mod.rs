@@ -72,7 +72,27 @@ pub async fn run(
     db: Database,
     crosslink_dir: PathBuf,
 ) -> Result<()> {
-    let state = AppState::new(db, crosslink_dir.clone());
+    run_with_dashboard_db(port, dashboard_dir, db, crosslink_dir, None).await
+}
+
+/// Variant of [`run`] that additionally registers a per-user dashboard
+/// `SQLite` path with `AppState`, enabling the `/api/v1/dashboard` API
+/// routes (GH #429). `crosslink dashboard serve` uses this variant;
+/// the deprecated `crosslink serve` passes `None` via [`run`].
+///
+/// # Errors
+/// As [`run`].
+pub async fn run_with_dashboard_db(
+    port: u16,
+    dashboard_dir: Option<PathBuf>,
+    db: Database,
+    crosslink_dir: PathBuf,
+    dashboard_db_path: Option<PathBuf>,
+) -> Result<()> {
+    let mut state = AppState::new(db, crosslink_dir.clone());
+    if let Some(path) = dashboard_db_path {
+        state = state.with_dashboard_db(path);
+    }
 
     // Start the heartbeat watcher in the background.
     watcher::start_watcher(crosslink_dir, state.ws_tx.clone());

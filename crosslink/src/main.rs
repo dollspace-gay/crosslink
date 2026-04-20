@@ -3108,7 +3108,17 @@ fn main() -> Result<()> {
                         async move { dashboard::poll::run(path, cancel).await }
                     });
 
-                    let server_result = server::run(port, dashboard_dir, db, crosslink_dir).await;
+                    // Pass the dashboard DB path to AppState so the
+                    // /api/v1/dashboard/* routes can open fresh
+                    // connections from it per request.
+                    let server_result = server::run_with_dashboard_db(
+                        port,
+                        dashboard_dir,
+                        db,
+                        crosslink_dir,
+                        Some(dashboard_db_path),
+                    )
+                    .await;
 
                     cancel.cancel();
                     let _ = poll_handle.await;
