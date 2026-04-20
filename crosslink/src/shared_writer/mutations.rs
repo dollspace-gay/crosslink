@@ -83,6 +83,8 @@ impl SharedWriter {
                     created_at: now,
                     updated_at: now,
                     closed_at: None,
+                    scheduled_at: None,
+                    due_at: None,
                     labels: vec![],
                     comments: vec![],
                     blockers: vec![],

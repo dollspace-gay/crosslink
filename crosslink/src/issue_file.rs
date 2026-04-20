@@ -27,6 +27,12 @@ pub struct IssueFile {
     pub updated_at: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub closed_at: Option<DateTime<Utc>>,
+    /// When the issue becomes actionable (GH #361). `None` means always actionable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scheduled_at: Option<DateTime<Utc>>,
+    /// Hard deadline (GH #361). `None` means no deadline.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub due_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub labels: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -172,6 +178,8 @@ impl From<&crate::checkpoint::CompactIssue> for IssueFile {
             created_at: compact.created_at,
             updated_at: compact.updated_at,
             closed_at: compact.closed_at,
+            scheduled_at: compact.scheduled_at,
+            due_at: compact.due_at,
             labels: compact.labels.iter().cloned().collect(),
             comments: vec![],
             blockers: compact.blockers.iter().copied().collect(),
@@ -535,6 +543,8 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             closed_at: None,
+            scheduled_at: None,
+            due_at: None,
             labels: vec!["bug".to_string(), "auth".to_string()],
             comments: vec![CommentEntry {
                 id: 1,
@@ -661,6 +671,8 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             closed_at: None,
+            scheduled_at: None,
+            due_at: None,
             labels: vec![],
             comments: vec![],
             blockers: vec![],
@@ -694,6 +706,8 @@ mod tests {
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
                 closed_at: None,
+                scheduled_at: None,
+                due_at: None,
                 labels: vec![],
                 comments: vec![],
                 blockers: vec![],
@@ -728,6 +742,8 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             closed_at: None,
+            scheduled_at: None,
+            due_at: None,
             labels: vec![],
             comments: vec![],
             blockers: vec![],
@@ -1163,6 +1179,8 @@ mod tests {
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
                 closed_at: None,
+                scheduled_at: None,
+                due_at: None,
                 labels: vec![],
                 comments: vec![],
                 blockers: vec![],
@@ -1202,6 +1220,8 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             closed_at: None,
+            scheduled_at: None,
+            due_at: None,
             labels: vec![],
             comments: vec![],
             blockers: vec![],
