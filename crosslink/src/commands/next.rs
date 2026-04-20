@@ -1,4 +1,5 @@
 use anyhow::Result;
+use chrono::{DateTime, Duration, Utc};
 use std::path::Path;
 
 use crate::db::Database;
@@ -42,6 +43,42 @@ const fn priority_weight(priority: crate::models::Priority) -> i32 {
     }
 }
 
+/// Format a positive duration as "X hours" or "X days" for the due-soon
+/// warning. Returns `None` if the duration is zero or negative.
+fn format_remaining(remaining: Duration) -> Option<String> {
+    let total_secs = remaining.num_seconds();
+    if total_secs <= 0 {
+        return None;
+    }
+    let hours = remaining.num_hours();
+    if hours < 24 {
+        let h = hours.max(1); // "Due in 0 hours" would be silly
+        return Some(format!("Due in {h} hour{}", if h == 1 { "" } else { "s" }));
+    }
+    let days = remaining.num_days();
+    Some(format!(
+        "Due in {days} day{}",
+        if days == 1 { "" } else { "s" }
+    ))
+}
+
+/// Effective scheduling dates for an issue. Subissues inherit from their
+/// parent (GH #361 REQ-12 — scheduling is a property of the parent deliverable).
+fn effective_schedule(
+    db: &Database,
+    issue: &Issue,
+) -> (Option<DateTime<Utc>>, Option<DateTime<Utc>>) {
+    if issue.scheduled_at.is_some() || issue.due_at.is_some() {
+        return (issue.scheduled_at, issue.due_at);
+    }
+    if let Some(parent_id) = issue.parent_id {
+        if let Ok(Some(parent)) = db.get_issue(parent_id) {
+            return (parent.scheduled_at, parent.due_at);
+        }
+    }
+    (None, None)
+}
+
 /// Calculate progress for issues with subissues
 fn calculate_progress(db: &Database, issue: &Issue) -> Result<Option<SubissueProgress>> {
     let subissues = db.get_subissues(issue.id)?;
@@ -73,6 +110,7 @@ pub fn run(db: &Database, crosslink_dir: &std::path::Path) -> Result<()> {
 
     // Score and sort issues
     let mut scored: Vec<ScoredIssue> = Vec::new();
+    let now = Utc::now();
 
     for issue in &all_ready {
         // Skip subissues - we want to recommend parent issues or standalone issues
@@ -87,6 +125,15 @@ pub fn run(db: &Database, crosslink_dir: &std::path::Path) -> Result<()> {
             }
         }
 
+        // Scheduling filter (GH #361 REQ-6 / AC-7): if scheduled_at is in the
+        // future, the issue isn't actionable yet.
+        let (scheduled_at, due_at) = effective_schedule(db, issue);
+        if let Some(s) = scheduled_at {
+            if s > now {
+                continue;
+            }
+        }
+
         let priority_score = priority_weight(issue.priority) * 100;
         let progress = calculate_progress(db, issue)?;
 
@@ -96,7 +143,13 @@ pub fn run(db: &Database, crosslink_dir: &std::path::Path) -> Result<()> {
             _ => 0,
         };
 
-        let score = priority_score + progress_bonus;
+        // Overdue boost (GH #361 REQ-7 / AC-8): +100 when due_at < now.
+        let overdue_bonus = match due_at {
+            Some(d) if d < now => 100,
+            _ => 0,
+        };
+
+        let score = priority_score + progress_bonus + overdue_bonus;
         scored.push(ScoredIssue {
             issue: issue.clone(),
             score,
@@ -146,6 +199,19 @@ pub fn run(db: &Database, crosslink_dir: &std::path::Path) -> Result<()> {
             let preview: String = desc.chars().take(80).collect();
             let suffix = if desc.chars().count() > 80 { "..." } else { "" };
             println!("       {preview}{suffix}");
+        }
+    }
+
+    // Due-soon warning (GH #361 REQ-8 / AC-9): printed when due_at is in the
+    // future and within 1 day. Overdue issues already get the +100 boost;
+    // this is specifically for imminent-but-not-yet-overdue deadlines.
+    let (_, top_due) = effective_schedule(db, &top.issue);
+    if let Some(due) = top_due {
+        let remaining = due - now;
+        if remaining > Duration::zero() && remaining <= Duration::days(1) {
+            if let Some(msg) = format_remaining(remaining) {
+                println!("       {msg}");
+            }
         }
     }
 

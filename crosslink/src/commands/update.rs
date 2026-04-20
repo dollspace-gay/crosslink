@@ -5,6 +5,7 @@ use crate::db::Database;
 use crate::shared_writer::{FieldUpdate, SharedWriter};
 use crate::utils::format_issue_id;
 
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     db: &Database,
     writer: Option<&SharedWriter>,
@@ -12,9 +13,16 @@ pub fn run(
     title: Option<&str>,
     description: Option<&str>,
     priority: Option<&str>,
+    scheduled_at: FieldUpdate<chrono::DateTime<chrono::Utc>>,
+    due_at: FieldUpdate<chrono::DateTime<chrono::Utc>>,
 ) -> Result<()> {
-    if title.is_none() && description.is_none() && priority.is_none() {
-        bail!("Nothing to update. Use --title, --description, or --priority");
+    let scheduling_touched = !matches!(scheduled_at, FieldUpdate::Unchanged)
+        || !matches!(due_at, FieldUpdate::Unchanged);
+    if title.is_none() && description.is_none() && priority.is_none() && !scheduling_touched {
+        bail!(
+            "Nothing to update. Use --title, --description, --priority, \
+             --scheduled/--no-scheduled, or --due/--no-due"
+        );
     }
 
     if let Some(p) = priority {
@@ -29,12 +37,29 @@ pub fn run(
         // "updating description" (Some), and the inner Option allows setting
         // the description to either a value (Some("text")) or clearing it (None).
         // Here we never clear, so the inner is always Some when the outer is Some.
-        w.update_issue(db, id, title, description.map(Some).into(), None, priority, FieldUpdate::Unchanged, FieldUpdate::Unchanged)?;
-        println!("Updated issue {}", format_issue_id(id));
-    } else if db.update_issue(id, title, description, priority)? {
+        w.update_issue(
+            db,
+            id,
+            title,
+            description.map(Some).into(),
+            None,
+            priority,
+            scheduled_at,
+            due_at,
+        )?;
         println!("Updated issue {}", format_issue_id(id));
     } else {
-        bail!("Issue {} not found", format_issue_id(id));
+        if scheduling_touched {
+            bail!(
+                "Updating scheduling dates requires the shared-writer path. \
+                 Run `crosslink agent init <id>` first to enable it."
+            );
+        }
+        if db.update_issue(id, title, description, priority)? {
+            println!("Updated issue {}", format_issue_id(id));
+        } else {
+            bail!("Issue {} not found", format_issue_id(id));
+        }
     }
 
     Ok(())
@@ -59,7 +84,16 @@ mod tests {
         let (db, _dir) = setup_test_db();
         let issue_id = db.create_issue("Original title", None, "medium").unwrap();
 
-        let result = run(&db, None, issue_id, Some("New title"), None, None);
+        let result = run(
+            &db,
+            None,
+            issue_id,
+            Some("New title"),
+            None,
+            None,
+            FieldUpdate::Unchanged,
+            FieldUpdate::Unchanged,
+        );
         assert!(result.is_ok());
 
         let issue = db.get_issue(issue_id).unwrap().unwrap();
@@ -71,7 +105,16 @@ mod tests {
         let (db, _dir) = setup_test_db();
         let issue_id = db.create_issue("Test", None, "medium").unwrap();
 
-        let result = run(&db, None, issue_id, None, Some("New description"), None);
+        let result = run(
+            &db,
+            None,
+            issue_id,
+            None,
+            Some("New description"),
+            None,
+            FieldUpdate::Unchanged,
+            FieldUpdate::Unchanged,
+        );
         assert!(result.is_ok());
 
         let issue = db.get_issue(issue_id).unwrap().unwrap();
@@ -83,7 +126,16 @@ mod tests {
         let (db, _dir) = setup_test_db();
         let issue_id = db.create_issue("Test", None, "medium").unwrap();
 
-        let result = run(&db, None, issue_id, None, None, Some("critical"));
+        let result = run(
+            &db,
+            None,
+            issue_id,
+            None,
+            None,
+            Some("critical"),
+            FieldUpdate::Unchanged,
+            FieldUpdate::Unchanged,
+        );
         assert!(result.is_ok());
 
         let issue = db.get_issue(issue_id).unwrap().unwrap();
@@ -104,6 +156,8 @@ mod tests {
             Some("New title"),
             Some("New description"),
             Some("high"),
+            FieldUpdate::Unchanged,
+            FieldUpdate::Unchanged,
         );
         assert!(result.is_ok());
 
@@ -118,7 +172,16 @@ mod tests {
         let (db, _dir) = setup_test_db();
         let issue_id = db.create_issue("Test", None, "medium").unwrap();
 
-        let result = run(&db, None, issue_id, None, None, None);
+        let result = run(
+            &db,
+            None,
+            issue_id,
+            None,
+            None,
+            None,
+            FieldUpdate::Unchanged,
+            FieldUpdate::Unchanged,
+        );
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -130,7 +193,16 @@ mod tests {
     fn test_update_nonexistent_issue() {
         let (db, _dir) = setup_test_db();
 
-        let result = run(&db, None, 99999, Some("New title"), None, None);
+        let result = run(
+            &db,
+            None,
+            99999,
+            Some("New title"),
+            None,
+            None,
+            FieldUpdate::Unchanged,
+            FieldUpdate::Unchanged,
+        );
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
     }
@@ -140,7 +212,16 @@ mod tests {
         let (db, _dir) = setup_test_db();
         let issue_id = db.create_issue("Test", None, "medium").unwrap();
 
-        let result = run(&db, None, issue_id, None, None, Some("urgent"));
+        let result = run(
+            &db,
+            None,
+            issue_id,
+            None,
+            None,
+            Some("urgent"),
+            FieldUpdate::Unchanged,
+            FieldUpdate::Unchanged,
+        );
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Invalid priority"));
     }
@@ -153,7 +234,17 @@ mod tests {
             .unwrap();
 
         // Only update title
-        run(&db, None, issue_id, Some("New title"), None, None).unwrap();
+        run(
+            &db,
+            None,
+            issue_id,
+            Some("New title"),
+            None,
+            None,
+            FieldUpdate::Unchanged,
+            FieldUpdate::Unchanged,
+        )
+        .unwrap();
 
         let issue = db.get_issue(issue_id).unwrap().unwrap();
         assert_eq!(issue.title, "New title");
@@ -166,7 +257,16 @@ mod tests {
         let (db, _dir) = setup_test_db();
         let issue_id = db.create_issue("Original", None, "medium").unwrap();
 
-        let result = run(&db, None, issue_id, Some("新しいタイトル 🎉"), None, None);
+        let result = run(
+            &db,
+            None,
+            issue_id,
+            Some("新しいタイトル 🎉"),
+            None,
+            None,
+            FieldUpdate::Unchanged,
+            FieldUpdate::Unchanged,
+        );
         assert!(result.is_ok());
 
         let issue = db.get_issue(issue_id).unwrap().unwrap();
@@ -180,7 +280,16 @@ mod tests {
             .create_issue("Test", Some("Has description"), "medium")
             .unwrap();
 
-        let result = run(&db, None, issue_id, None, Some(""), None);
+        let result = run(
+            &db,
+            None,
+            issue_id,
+            None,
+            Some(""),
+            None,
+            FieldUpdate::Unchanged,
+            FieldUpdate::Unchanged,
+        );
         assert!(result.is_ok());
 
         let issue = db.get_issue(issue_id).unwrap().unwrap();
@@ -193,7 +302,16 @@ mod tests {
         let issue_id = db.create_issue("Original", None, "medium").unwrap();
 
         let malicious = "'; DROP TABLE issues; --";
-        let result = run(&db, None, issue_id, Some(malicious), None, None);
+        let result = run(
+            &db,
+            None,
+            issue_id,
+            Some(malicious),
+            None,
+            None,
+            FieldUpdate::Unchanged,
+            FieldUpdate::Unchanged,
+        );
         assert!(result.is_ok());
 
         let issue = db.get_issue(issue_id).unwrap().unwrap();
@@ -217,6 +335,8 @@ mod tests {
             Some("Updated closed issue"),
             None,
             None,
+            FieldUpdate::Unchanged,
+            FieldUpdate::Unchanged,
         );
         assert!(result.is_ok());
 
@@ -236,7 +356,7 @@ mod tests {
             let (db, _dir) = setup_test_db();
             let issue_id = db.create_issue(&original, None, "medium").unwrap();
 
-            run(&db, None, issue_id, Some(&new_title), None, None).unwrap();
+            run(&db, None, issue_id, Some(&new_title), None, None, FieldUpdate::Unchanged, FieldUpdate::Unchanged).unwrap();
 
             let issue = db.get_issue(issue_id).unwrap().unwrap();
             prop_assert_eq!(issue.title, new_title);
@@ -247,7 +367,7 @@ mod tests {
             let (db, _dir) = setup_test_db();
             let issue_id = db.create_issue("Test", None, "medium").unwrap();
 
-            let result = run(&db, None, issue_id, None, None, Some(&priority));
+            let result = run(&db, None, issue_id, None, None, Some(&priority), FieldUpdate::Unchanged, FieldUpdate::Unchanged);
             prop_assert!(result.is_ok());
 
             let issue = db.get_issue(issue_id).unwrap().unwrap();
@@ -264,7 +384,7 @@ mod tests {
             let (db, _dir) = setup_test_db();
             let issue_id = db.create_issue("Test", None, "medium").unwrap();
 
-            let result = run(&db, None, issue_id, None, None, Some(&priority));
+            let result = run(&db, None, issue_id, None, None, Some(&priority), FieldUpdate::Unchanged, FieldUpdate::Unchanged);
             prop_assert!(result.is_err());
         }
 
@@ -272,7 +392,7 @@ mod tests {
         fn prop_nonexistent_issue_fails(issue_id in 1000i64..10000) {
             let (db, _dir) = setup_test_db();
 
-            let result = run(&db, None, issue_id, Some("New title"), None, None);
+            let result = run(&db, None, issue_id, Some("New title"), None, None, FieldUpdate::Unchanged, FieldUpdate::Unchanged);
             prop_assert!(result.is_err());
         }
 
@@ -281,7 +401,7 @@ mod tests {
             let (db, _dir) = setup_test_db();
             let issue_id = db.create_issue("Test", None, "medium").unwrap();
 
-            run(&db, None, issue_id, None, Some(&desc), None).unwrap();
+            run(&db, None, issue_id, None, Some(&desc), None, FieldUpdate::Unchanged, FieldUpdate::Unchanged).unwrap();
 
             let issue = db.get_issue(issue_id).unwrap().unwrap();
             prop_assert_eq!(issue.description, Some(desc));

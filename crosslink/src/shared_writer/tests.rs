@@ -1167,7 +1167,9 @@ mod integration {
         let writer = SharedWriter::new(&crosslink_dir).unwrap().unwrap();
         let db = make_db(work_dir.path());
 
-        let id = writer.create_issue(&db, "Desc test", None, "low", None, None).unwrap();
+        let id = writer
+            .create_issue(&db, "Desc test", None, "low", None, None)
+            .unwrap();
         writer
             .update_issue(
                 &db,
@@ -1196,7 +1198,16 @@ mod integration {
             .create_issue(&db, "Has desc", Some("initial desc"), "low", None, None)
             .unwrap();
         writer
-            .update_issue(&db, id, None, DescriptionUpdate::Clear, None, None, FieldUpdate::Unchanged, FieldUpdate::Unchanged)
+            .update_issue(
+                &db,
+                id,
+                None,
+                DescriptionUpdate::Clear,
+                None,
+                None,
+                FieldUpdate::Unchanged,
+                FieldUpdate::Unchanged,
+            )
             .unwrap();
 
         let issue = db.get_issue(id).unwrap().unwrap();
@@ -1301,7 +1312,9 @@ mod integration {
         let id1 = writer
             .create_issue(&db, "Delete me", None, "medium", None, None)
             .unwrap();
-        let id2 = writer.create_issue(&db, "Keep me", None, "medium", None, None).unwrap();
+        let id2 = writer
+            .create_issue(&db, "Keep me", None, "medium", None, None)
+            .unwrap();
 
         let delete_result = writer.delete_issue(&db, id1);
         // delete may fail on empty commit in test environments; verify at least the DB state
@@ -1892,7 +1905,14 @@ mod integration {
 
         // Create an issue with a description that won't match any local refs
         let id = writer
-            .create_issue(&db, "No local refs here", Some("Clean description"), "low", None, None)
+            .create_issue(
+                &db,
+                "No local refs here",
+                Some("Clean description"),
+                "low",
+                None,
+                None,
+            )
             .unwrap();
 
         // Mapping says L1 -> #5, but the issue has no L1 refs
@@ -2053,7 +2073,14 @@ mod integration {
 
         // Create
         let id = writer
-            .create_issue(&db, "Lifecycle issue", Some("Initial desc"), "medium", None, None)
+            .create_issue(
+                &db,
+                "Lifecycle issue",
+                Some("Initial desc"),
+                "medium",
+                None,
+                None,
+            )
             .unwrap();
 
         // Comment
@@ -2104,7 +2131,9 @@ mod integration {
         let id1 = writer
             .create_issue(&db, "Issue Alpha", None, "high", None, None)
             .unwrap();
-        let id2 = writer.create_issue(&db, "Issue Beta", None, "low", None, None).unwrap();
+        let id2 = writer
+            .create_issue(&db, "Issue Beta", None, "low", None, None)
+            .unwrap();
         let id3 = writer
             .create_issue(&db, "Issue Gamma", None, "medium", None, None)
             .unwrap();
@@ -2147,8 +2176,12 @@ mod integration {
         let db = make_db(work_dir.path());
 
         // Each create_issue triggers emit which calls next_event_seq
-        writer.create_issue(&db, "Seq 1", None, "low", None, None).unwrap();
-        writer.create_issue(&db, "Seq 2", None, "low", None, None).unwrap();
+        writer
+            .create_issue(&db, "Seq 1", None, "low", None, None)
+            .unwrap();
+        writer
+            .create_issue(&db, "Seq 2", None, "low", None, None)
+            .unwrap();
 
         // The event_seq field should be > 0 after two operations
         // We can't directly read event_seq, but we can verify events exist in the log
@@ -2173,15 +2206,21 @@ mod integration {
         {
             let writer = SharedWriter::new(&crosslink_dir).unwrap().unwrap();
             let db = make_db(work_dir.path());
-            writer.create_issue(&db, "Issue 1", None, "low", None, None).unwrap();
-            writer.create_issue(&db, "Issue 2", None, "low", None, None).unwrap();
+            writer
+                .create_issue(&db, "Issue 1", None, "low", None, None)
+                .unwrap();
+            writer
+                .create_issue(&db, "Issue 2", None, "low", None, None)
+                .unwrap();
         }
 
         // Second writer should continue from counter 3
         {
             let writer = SharedWriter::new(&crosslink_dir).unwrap().unwrap();
             let db = make_db(work_dir.path());
-            let id = writer.create_issue(&db, "Issue 3", None, "low", None, None).unwrap();
+            let id = writer
+                .create_issue(&db, "Issue 3", None, "low", None, None)
+                .unwrap();
             assert_eq!(id, 3, "Counter should persist: 3rd issue should get ID 3");
         }
 
@@ -2357,8 +2396,12 @@ mod integration {
         let db = make_db(work_dir.path());
 
         // Create issues normally (they get display IDs)
-        writer.create_issue(&db, "Normal 1", None, "low", None, None).unwrap();
-        writer.create_issue(&db, "Normal 2", None, "low", None, None).unwrap();
+        writer
+            .create_issue(&db, "Normal 1", None, "low", None, None)
+            .unwrap();
+        writer
+            .create_issue(&db, "Normal 2", None, "low", None, None)
+            .unwrap();
 
         // find_offline_issues should return empty since all have display_id
         let offline = writer.find_offline_issues().unwrap();
@@ -2945,7 +2988,14 @@ mod integration {
 
         // Create an issue with a description referencing L1
         let id = writer
-            .create_issue(&db, "Rewrite test", Some("See L1 for details"), "medium", None, None)
+            .create_issue(
+                &db,
+                "Rewrite test",
+                Some("See L1 for details"),
+                "medium",
+                None,
+                None,
+            )
             .unwrap();
 
         // Mapping: neg_id=-1 -> new_id=id, simulate promotion
@@ -2993,7 +3043,14 @@ mod integration {
         let db = make_db(work_dir.path());
 
         let id = writer
-            .create_issue(&db, "No refs", Some("Plain description"), "medium", None, None)
+            .create_issue(
+                &db,
+                "No refs",
+                Some("Plain description"),
+                "medium",
+                None,
+                None,
+            )
             .unwrap();
 
         let mapping = vec![(-1i64, id, "No refs".to_string())];

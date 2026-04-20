@@ -46,6 +46,8 @@ pub fn issue_from_row(row: &rusqlite::Row) -> rusqlite::Result<Issue> {
         updated_at: parse_datetime(&row.get::<_, String>(7)?),
         closed_at: row.get::<_, Option<String>>(8)?.map(|s| parse_datetime(&s)),
         scheduled_at: row.get::<_, Option<String>>(9)?.map(|s| parse_datetime(&s)),
-        due_at: row.get::<_, Option<String>>(10)?.map(|s| parse_datetime(&s)),
+        due_at: row
+            .get::<_, Option<String>>(10)?
+            .map(|s| parse_datetime(&s)),
     })
 }

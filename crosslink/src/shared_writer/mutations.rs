@@ -35,6 +35,7 @@ impl<'a> From<Option<Option<&'a str>>> for DescriptionUpdate<'a> {
 /// Generic three-valued update for optional fields (GH #361). Use for any
 /// setter that needs to distinguish "leave alone" from "set to `None`" from
 /// "set to `Some(value)`".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FieldUpdate<T> {
     /// Do not modify the field.
     Unchanged,
@@ -71,6 +72,7 @@ impl SharedWriter {
     /// Shared by `create_issue` and `create_subissue` to avoid duplicating
     /// the UUID generation, ID claiming, V2 directory setup, offline
     /// rewrite, and hydration logic.
+    #[allow(clippy::too_many_arguments)]
     fn create_issue_inner(
         &self,
         db: &Database,
@@ -208,12 +210,13 @@ impl SharedWriter {
         )
     }
 
-    /// Update an issue's title, description, status, or priority.
+    /// Update an issue's title, description, status, priority, or scheduling.
     ///
     /// # Errors
     ///
     /// Returns an error if the issue cannot be loaded, status/priority parsing
     /// fails, or git operations fail.
+    #[allow(clippy::too_many_arguments)]
     pub fn update_issue(
         &self,
         db: &Database,
@@ -251,15 +254,15 @@ impl SharedWriter {
                 if let Some(p) = priority_parsed {
                     issue.priority = p;
                 }
-                match &scheduled_at {
+                match scheduled_at {
                     FieldUpdate::Unchanged => {}
                     FieldUpdate::Clear => issue.scheduled_at = None,
-                    FieldUpdate::Set(dt) => issue.scheduled_at = Some(*dt),
+                    FieldUpdate::Set(dt) => issue.scheduled_at = Some(dt),
                 }
-                match &due_at {
+                match due_at {
                     FieldUpdate::Unchanged => {}
                     FieldUpdate::Clear => issue.due_at = None,
-                    FieldUpdate::Set(dt) => issue.due_at = Some(*dt),
+                    FieldUpdate::Set(dt) => issue.due_at = Some(dt),
                 }
                 issue.updated_at = Utc::now();
                 let json = serde_json::to_vec_pretty(&issue)?;
