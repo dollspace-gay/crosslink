@@ -82,6 +82,22 @@ pub struct IssueUpdate<'a> {
     pub due_at: FieldUpdate<chrono::DateTime<chrono::Utc>>,
 }
 
+/// Internal shape of a new-issue creation request, used to keep
+/// `create_issue_inner`'s signature narrow. The public `create_issue` /
+/// `create_subissue` entry points keep their positional-argument shape
+/// for backward compatibility with callers throughout the crate; this
+/// struct exists purely so the shared inner helper doesn't have to
+/// carry 8 positional parameters.
+#[derive(Debug, Clone, Copy)]
+struct IssueCreate<'a> {
+    title: &'a str,
+    description: Option<&'a str>,
+    priority: &'a str,
+    parent_uuid: Option<Uuid>,
+    scheduled_at: Option<chrono::DateTime<chrono::Utc>>,
+    due_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
 /// Internal parameters for creating a comment (shared by `add_comment`
 /// and `add_intervention_comment` to avoid duplicating V1/V2 dispatch).
 #[derive(Clone)]
@@ -99,25 +115,22 @@ impl SharedWriter {
     /// Shared by `create_issue` and `create_subissue` to avoid duplicating
     /// the UUID generation, ID claiming, V2 directory setup, offline
     /// rewrite, and hydration logic.
-    #[allow(clippy::too_many_arguments)]
     fn create_issue_inner(
         &self,
         db: &Database,
-        title: &str,
-        description: Option<&str>,
-        priority: &str,
-        parent_uuid: Option<Uuid>,
-        scheduled_at: Option<DateTime<Utc>>,
-        due_at: Option<DateTime<Utc>>,
+        create: IssueCreate<'_>,
         commit_msg: &str,
     ) -> Result<i64> {
         let uuid = Uuid::new_v4();
         let now = Utc::now();
-        let title_owned = title.to_string();
-        let desc_owned = description.map(std::string::ToString::to_string);
-        let priority_parsed: crate::models::Priority = priority.parse()?;
+        let title_owned = create.title.to_string();
+        let desc_owned = create.description.map(std::string::ToString::to_string);
+        let priority_parsed: crate::models::Priority = create.priority.parse()?;
         let agent_id = self.agent.agent_id.clone();
         let display_id = Cell::new(0i64);
+        let parent_uuid = create.parent_uuid;
+        let scheduled_at = create.scheduled_at;
+        let due_at = create.due_at;
 
         let outcome = self.write_commit_push(
             |writer| {
@@ -196,12 +209,14 @@ impl SharedWriter {
     ) -> Result<i64> {
         self.create_issue_inner(
             db,
-            title,
-            description,
-            priority,
-            None,
-            scheduled_at,
-            due_at,
+            IssueCreate {
+                title,
+                description,
+                priority,
+                parent_uuid: None,
+                scheduled_at,
+                due_at,
+            },
             &format!("create issue: {title}"),
         )
     }
@@ -227,12 +242,14 @@ impl SharedWriter {
         let parent_uuid = self.resolve_uuid(parent_id, db)?;
         self.create_issue_inner(
             db,
-            title,
-            description,
-            priority,
-            Some(parent_uuid),
-            None,
-            None,
+            IssueCreate {
+                title,
+                description,
+                priority,
+                parent_uuid: Some(parent_uuid),
+                scheduled_at: None,
+                due_at: None,
+            },
             &format!("create subissue under #{parent_id}: {title}"),
         )
     }
