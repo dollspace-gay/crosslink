@@ -17,11 +17,12 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
+use super::actions;
 use super::db::DashboardDb;
 use super::projects::Project;
 use super::reader;
@@ -35,10 +36,18 @@ use crate::server::state::AppState;
 /// match. Clients can hit `/projects/forecast-bio/crosslink` directly;
 /// no URL-encoding required.
 pub fn build_router() -> Router<AppState> {
+    // Write endpoints split by slug *and* issue id. Axum picks the
+    // most-specific route that matches, so `/issues/{id}/close` wins
+    // over `/projects/{*slug}` as long as we nest the writes beneath
+    // a distinct prefix. Using `/w/` (for "write") keeps the path
+    // pattern unambiguous without making URLs ugly.
     Router::new()
         .route("/projects", get(list_projects))
         .route("/projects/{*slug}", get(get_project_detail))
         .route("/alerts", get(list_alerts))
+        .route("/w/{owner}/{repo}/issues/{id}/close", post(close_issue))
+        .route("/w/{owner}/{repo}/issues/{id}/reopen", post(reopen_issue))
+        .route("/w/{owner}/{repo}/issues/{id}/comment", post(comment_issue))
 }
 
 /// Wire-format representation of a tracked project on the list endpoint.
@@ -357,6 +366,121 @@ fn load_open_alerts(db_path: &std::path::Path) -> Result<Vec<AlertItem>, ApiErro
     Ok(rows)
 }
 
+/// Wire-format response for a completed write action.
+#[derive(Debug, Serialize)]
+struct ActionResponse {
+    stdout: String,
+    stderr: String,
+}
+
+/// Body for `POST /w/{owner}/{repo}/issues/{id}/comment`.
+#[derive(Debug, Deserialize)]
+struct CommentBody {
+    content: String,
+}
+
+/// Shared setup: find the project by `{owner}/{repo}`, return a 404
+/// if it isn't tracked.
+async fn resolve_project(
+    state: &AppState,
+    owner: &str,
+    repo: &str,
+) -> Result<(std::path::PathBuf, Project), ApiError> {
+    let slug = format!("{owner}/{repo}");
+    let db_path = state
+        .dashboard_db_path
+        .as_ref()
+        .ok_or_else(|| ApiError::bad_request("dashboard DB not configured for this server"))?
+        .clone();
+
+    let lookup_slug = slug.clone();
+    let db_path_clone = db_path.clone();
+    let project = tokio::task::spawn_blocking(move || -> Result<Option<Project>, ApiError> {
+        let db = DashboardDb::open(&db_path_clone)
+            .map_err(|e| ApiError::internal(format!("open db: {e}")))?;
+        actions::find_project_by_slug(&db, &lookup_slug)
+            .map_err(|e| ApiError::internal(format!("lookup: {e}")))
+    })
+    .await
+    .map_err(|e| ApiError::internal(format!("lookup task panicked: {e}")))??;
+
+    let project =
+        project.ok_or_else(|| ApiError::not_found(format!("project '{slug}' not tracked")))?;
+    Ok((db_path, project))
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/issues/{id}/close`
+async fn close_issue(
+    State(state): State<AppState>,
+    Path((owner, repo, id)): Path<(String, String, i64)>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let id_str = id.to_string();
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "close_issue",
+        Some(&format!("issue:{id}")),
+        &["issue", "close", &id_str],
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
+    }))
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/issues/{id}/reopen`
+async fn reopen_issue(
+    State(state): State<AppState>,
+    Path((owner, repo, id)): Path<(String, String, i64)>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let id_str = id.to_string();
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "reopen_issue",
+        Some(&format!("issue:{id}")),
+        &["issue", "reopen", &id_str],
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
+    }))
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/issues/{id}/comment`
+///
+/// Body: `{ "content": "..." }`.
+async fn comment_issue(
+    State(state): State<AppState>,
+    Path((owner, repo, id)): Path<(String, String, i64)>,
+    Json(body): Json<CommentBody>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    if body.content.trim().is_empty() {
+        return Err(ApiError::bad_request("comment content cannot be empty"));
+    }
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let id_str = id.to_string();
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "comment_issue",
+        Some(&format!("issue:{id}")),
+        &["issue", "comment", &id_str, &body.content],
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
+    }))
+}
+
 /// Minimal typed error with status-code mapping. Patterned after axum
 /// idioms — manual `IntoResponse` implementation maps to the right
 /// status without pulling in a full error-handling crate.
@@ -404,7 +528,7 @@ mod tests {
     use axum::http::Request;
     use tower::ServiceExt; // .oneshot(...)
 
-    /// Build a minimal AppState wired to a temp DB.
+    /// Build a minimal `AppState` wired to a temp DB.
     fn test_state(dashboard_db: Option<std::path::PathBuf>) -> (AppState, tempfile::TempDir) {
         let dir = tempfile::tempdir().unwrap();
         let main_db_path = dir.path().join("crosslink.db");
@@ -623,6 +747,68 @@ mod tests {
         assert_eq!(arr[0]["project_slug"], "owner/repo");
         assert_eq!(arr[0]["kind"], "stale_lock");
         assert_eq!(arr[0]["subject_ref"], "lock:42");
+    }
+
+    #[tokio::test]
+    async fn test_close_issue_returns_404_for_untracked_slug() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dashboard_db_path = tmp.path().join("dashboard.db");
+        DashboardDb::open(&dashboard_db_path).unwrap();
+
+        let (state, _tmp2) = test_state(Some(dashboard_db_path));
+        let app = Router::new()
+            .nest("/api/v1/dashboard", build_router())
+            .with_state(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/dashboard/w/owner/repo/issues/42/close")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_comment_issue_rejects_empty_content() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dashboard_db_path = tmp.path().join("dashboard.db");
+        let db = DashboardDb::open(&dashboard_db_path).unwrap();
+        let repo = tmp.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(&repo)
+            .args(["init", "-q"])
+            .status()
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO projects (slug, clone_path, default_branch, status, added_at)
+                 VALUES ('owner/repo', ?1, 'main', 'active', '2026-04-20T00:00:00Z')",
+                [repo.to_string_lossy().as_ref()],
+            )
+            .unwrap();
+
+        let (state, _tmp2) = test_state(Some(dashboard_db_path));
+        let app = Router::new()
+            .nest("/api/v1/dashboard", build_router())
+            .with_state(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/dashboard/w/owner/repo/issues/1/comment")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"content":"   "}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]

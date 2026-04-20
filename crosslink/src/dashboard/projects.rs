@@ -75,10 +75,8 @@ fn slug_from_remote_url(url: &str) -> Option<String> {
         if !path_part.is_empty() && !path_part.starts_with("//") {
             // Reject scheme:// URLs that happened to split on the
             // protocol colon (http:, https:, ssh:, git:).
-            let looks_like_scheme = matches!(
-                host_part,
-                "http" | "https" | "ssh" | "git" | "ftp" | "file"
-            );
+            let looks_like_scheme =
+                matches!(host_part, "http" | "https" | "ssh" | "git" | "ftp" | "file");
             if !looks_like_scheme {
                 return extract_owner_repo(path_part);
             }

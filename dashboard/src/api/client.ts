@@ -4,7 +4,7 @@
 // React mounts (it wraps `globalThis.fetch`), so these helpers can use
 // the bare `fetch` API without re-plumbing headers.
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { AlertItem, ProjectDetail, ProjectListItem } from "./types";
 
@@ -41,6 +41,32 @@ async function apiFetch<T>(path: string): Promise<T> {
   return (await resp.json()) as T;
 }
 
+async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  const resp = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    let message = `HTTP ${resp.status}`;
+    try {
+      const parsed = (await resp.json()) as { error?: string };
+      if (parsed.error) message = parsed.error;
+    } catch {
+      // Non-JSON error body.
+    }
+    throw new ApiRequestError(resp.status, message);
+  }
+  // Responses may be empty; guard against that.
+  const text = await resp.text();
+  return (text ? JSON.parse(text) : ({} as T)) as T;
+}
+
+export interface ActionResponse {
+  stdout: string;
+  stderr: string;
+}
+
 /// `useQuery` hook for the project-list endpoint. Polls every 5s so
 /// tiles stay current without requiring the WebSocket upgrade
 /// (which lands in P1.5).
@@ -75,5 +101,60 @@ export function useAlerts() {
     queryFn: () => apiFetch<AlertItem[]>("/alerts"),
     refetchInterval: REFETCH_MS,
     refetchIntervalInBackground: false,
+  });
+}
+
+/// Shared post-mutation invalidator. Both the project detail query
+/// and the global projects query get invalidated so the tile grid
+/// and drill-down page catch up to the new state. The next polling
+/// tick would do this anyway, but optimistic invalidation makes the
+/// click-to-visible latency feel snappy.
+function useProjectMutations(slug: string) {
+  const client = useQueryClient();
+  return (after: () => void = () => undefined) => {
+    client.invalidateQueries({ queryKey: ["dashboard", "projects"] });
+    client.invalidateQueries({ queryKey: ["dashboard", "project", slug] });
+    after();
+  };
+}
+
+/// Close an issue via the dashboard's write surface. Under the hood
+/// this shells out to `crosslink issue close <id>` in the tracked
+/// project's workspace — identity, signing, and hub push all handled
+/// by the user's normal crosslink setup.
+export function useCloseIssue(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<ActionResponse, ApiRequestError, number>({
+    mutationFn: (issueId: number) =>
+      apiPost<ActionResponse>(`/w/${slug}/issues/${issueId}/close`),
+    onSuccess: () => invalidate(),
+  });
+}
+
+/// Reopen a closed issue.
+export function useReopenIssue(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<ActionResponse, ApiRequestError, number>({
+    mutationFn: (issueId: number) =>
+      apiPost<ActionResponse>(`/w/${slug}/issues/${issueId}/reopen`),
+    onSuccess: () => invalidate(),
+  });
+}
+
+/// Post a comment on an issue. `content` goes through to the CLI's
+/// `crosslink issue comment <id> "<content>"` — whitespace-only
+/// content is rejected server-side with a 400.
+export function useCommentIssue(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<
+    ActionResponse,
+    ApiRequestError,
+    { issueId: number; content: string }
+  >({
+    mutationFn: ({ issueId, content }) =>
+      apiPost<ActionResponse>(`/w/${slug}/issues/${issueId}/comment`, {
+        content,
+      }),
+    onSuccess: () => invalidate(),
   });
 }

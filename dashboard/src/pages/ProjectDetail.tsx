@@ -1,11 +1,18 @@
 // Drill-down view for a single tracked project. Pulls the full
 // `ProjectDetail` payload from `/api/v1/dashboard/projects/{*slug}` and
-// renders sections for issues, agents, and locks. Intentionally
-// minimal — real IA lands with write surfaces (P1.8+).
+// renders sections for issues, agents, and locks. Includes the
+// first slice of the write surface (close / reopen / comment on issues).
 
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { useProject } from "@/api/client";
+import {
+  useCloseIssue,
+  useCommentIssue,
+  useProject,
+  useReopenIssue,
+} from "@/api/client";
+import type { IssueFile } from "@/api/types";
 
 export function ProjectDetail() {
   // React Router wildcards ({*slug}) are surfaced via the `"*"` param key.
@@ -108,21 +115,138 @@ export function ProjectDetail() {
         ) : (
           <ul className="divide-y divide-border rounded border bg-card">
             {openIssues.map((i) => (
-              <li key={i.uuid} className="px-3 py-2 text-sm">
-                <span className="text-muted-foreground tabular-nums">
-                  {i.display_id != null ? `#${i.display_id}` : "—"}
-                </span>{" "}
-                <span className="font-medium">{i.title}</span>{" "}
-                <span className="text-xs text-muted-foreground">[{i.priority}]</span>
-                {i.due_at && (
-                  <span className="ml-2 text-xs text-muted-foreground">due {i.due_at}</span>
-                )}
-              </li>
+              <OpenIssueRow key={i.uuid} slug={data.slug} issue={i} />
             ))}
           </ul>
         )}
+        {closedIssues.length > 0 && (
+          <details className="mt-4">
+            <summary className="cursor-pointer text-xs uppercase tracking-wide text-muted-foreground">
+              Closed issues ({closedIssues.length})
+            </summary>
+            <ul className="mt-2 divide-y divide-border rounded border bg-card">
+              {closedIssues.map((i) => (
+                <ClosedIssueRow key={i.uuid} slug={data.slug} issue={i} />
+              ))}
+            </ul>
+          </details>
+        )}
       </section>
     </main>
+  );
+}
+
+function OpenIssueRow({ slug, issue }: { slug: string; issue: IssueFile }) {
+  const [commentOpen, setCommentOpen] = useState(false);
+  const [commentText, setCommentText] = useState("");
+
+  const close = useCloseIssue(slug);
+  const comment = useCommentIssue(slug);
+
+  const id = issue.display_id;
+  const canAct = id != null;
+
+  return (
+    <li className="px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-baseline gap-2">
+        <span className="text-muted-foreground tabular-nums">
+          {id != null ? `#${id}` : "—"}
+        </span>
+        <span className="font-medium">{issue.title}</span>
+        <span className="text-xs text-muted-foreground">[{issue.priority}]</span>
+        {issue.due_at && (
+          <span className="text-xs text-muted-foreground">due {issue.due_at}</span>
+        )}
+        <span className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            disabled={!canAct || close.isPending}
+            onClick={() => (id != null ? close.mutate(id) : undefined)}
+            className="rounded border px-2 py-0.5 text-xs hover:bg-accent/10 disabled:opacity-50"
+          >
+            {close.isPending ? "Closing…" : "Close"}
+          </button>
+          <button
+            type="button"
+            disabled={!canAct}
+            onClick={() => setCommentOpen((v) => !v)}
+            className="rounded border px-2 py-0.5 text-xs hover:bg-accent/10 disabled:opacity-50"
+          >
+            {commentOpen ? "Cancel" : "Comment"}
+          </button>
+        </span>
+      </div>
+      {close.error && (
+        <p className="mt-1 text-xs text-rose-500">{close.error.message}</p>
+      )}
+      {commentOpen && canAct && id != null && (
+        <form
+          className="mt-2 flex flex-col gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!commentText.trim()) return;
+            comment.mutate(
+              { issueId: id, content: commentText },
+              {
+                onSuccess: () => {
+                  setCommentText("");
+                  setCommentOpen(false);
+                },
+              },
+            );
+          }}
+        >
+          <textarea
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            placeholder="Comment text"
+            rows={3}
+            className="w-full rounded border bg-background p-2 text-sm"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              type="submit"
+              disabled={!commentText.trim() || comment.isPending}
+              className="rounded border px-2 py-0.5 text-xs hover:bg-accent/10 disabled:opacity-50"
+            >
+              {comment.isPending ? "Posting…" : "Post comment"}
+            </button>
+            {comment.error && (
+              <span className="text-xs text-rose-500">{comment.error.message}</span>
+            )}
+          </div>
+        </form>
+      )}
+    </li>
+  );
+}
+
+function ClosedIssueRow({ slug, issue }: { slug: string; issue: IssueFile }) {
+  const reopen = useReopenIssue(slug);
+  const id = issue.display_id;
+  const canAct = id != null;
+  return (
+    <li className="px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-baseline gap-2">
+        <span className="text-muted-foreground tabular-nums">
+          {id != null ? `#${id}` : "—"}
+        </span>
+        <span className="font-medium opacity-70 line-through">{issue.title}</span>
+        <span className="ml-auto">
+          <button
+            type="button"
+            disabled={!canAct || reopen.isPending}
+            onClick={() => (id != null ? reopen.mutate(id) : undefined)}
+            className="rounded border px-2 py-0.5 text-xs hover:bg-accent/10 disabled:opacity-50"
+          >
+            {reopen.isPending ? "Reopening…" : "Reopen"}
+          </button>
+        </span>
+      </div>
+      {reopen.error && (
+        <p className="mt-1 text-xs text-rose-500">{reopen.error.message}</p>
+      )}
+    </li>
   );
 }
 
