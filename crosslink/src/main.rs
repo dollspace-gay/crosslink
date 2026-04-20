@@ -347,19 +347,14 @@ enum Commands {
         #[arg(long, default_value = "tiled")]
         layout: String,
     },
-    /// Start the crosslink multi-project dashboard (GH #429).
+    /// Multi-project SCADA-style control panel (GH #429).
     ///
-    /// Serves the bundled React dashboard and the control API. Defaults
-    /// to binding 127.0.0.1:3100; override with --port and/or --bind.
-    /// Pass --dashboard-dir to override the bundled assets (development only).
+    /// Group command: `crosslink dashboard serve` runs the local server,
+    /// `track`/`untrack`/`list` manage the tracked-project set. See
+    /// DESIGN-CROSSLINK-DASHBOARD.md for the architecture.
     Dashboard {
-        /// Port to listen on
-        #[arg(long, default_value = "3100")]
-        port: u16,
-        /// Override bundled dashboard assets with a local build output
-        /// (development only — bundled assets are preferred otherwise)
-        #[arg(long)]
-        dashboard_dir: Option<PathBuf>,
+        #[command(subcommand)]
+        action: DashboardCommands,
     },
     /// Deprecated: alias for `crosslink dashboard`.
     ///
@@ -868,6 +863,39 @@ enum MigrateCommands {
     FromShared,
     /// Rename coordination branch from crosslink/locks to crosslink/hub
     RenameBranch,
+}
+
+/// Subcommands for `crosslink dashboard` (GH #429).
+#[derive(Subcommand)]
+enum DashboardCommands {
+    /// Start the dashboard server (binds 127.0.0.1:3100 by default).
+    Serve {
+        /// Port to listen on
+        #[arg(long, default_value = "3100")]
+        port: u16,
+        /// Override bundled dashboard assets with a local build output
+        /// (development only — bundled assets are preferred otherwise)
+        #[arg(long)]
+        dashboard_dir: Option<PathBuf>,
+    },
+    /// Track a repository (adds it to the panel and clones it locally).
+    Track {
+        /// Repository slug, e.g. `forecast-bio/crosslink`
+        slug: String,
+        /// Git URL to clone from (defaults to `https://github.com/<slug>.git`)
+        #[arg(long)]
+        clone_url: Option<String>,
+    },
+    /// Stop tracking a repository.
+    Untrack {
+        /// Repository slug to stop tracking
+        slug: String,
+        /// Keep the local cache clone on disk (default: delete it)
+        #[arg(long)]
+        keep_clone: bool,
+    },
+    /// List tracked repositories.
+    List,
 }
 
 /// Helper enum for `crosslink issues <subcommand>` alias
@@ -2394,7 +2422,14 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let log_format = match &cli.command {
-        Commands::Dashboard { .. } | Commands::Serve { .. } if cli.log_format == "text" => "json",
+        Commands::Dashboard {
+            action: DashboardCommands::Serve { .. },
+        }
+        | Commands::Serve { .. }
+            if cli.log_format == "text" =>
+        {
+            "json"
+        }
         _ => cli.log_format.as_str(),
     };
     init_tracing(&cli.log_level, log_format);
@@ -3050,25 +3085,34 @@ fn main() -> Result<()> {
             let crosslink_dir = find_crosslink_dir()?;
             commands::mission_control::run(&crosslink_dir, &layout)
         }
-        Commands::Dashboard {
-            port,
-            dashboard_dir,
-        } => {
-            let crosslink_dir = find_crosslink_dir()?;
-            let db = get_db()?;
-            // Bootstrap (or open) the per-user dashboard index at
-            // ~/.crosslink/dashboard.db. Schema is applied idempotently.
-            // The handle isn't wired into server::run yet — that comes in
-            // P1.2 when the poll loop starts populating the index.
-            let dashboard_db_path = dashboard::db::DashboardDb::default_path()?;
-            let _dashboard_db = dashboard::db::DashboardDb::open(&dashboard_db_path)?;
-            tokio::runtime::Runtime::new()?.block_on(server::run(
+        Commands::Dashboard { action } => match action {
+            DashboardCommands::Serve {
                 port,
                 dashboard_dir,
-                db,
-                crosslink_dir,
-            ))
-        }
+            } => {
+                let crosslink_dir = find_crosslink_dir()?;
+                let db = get_db()?;
+                // Bootstrap (or open) the per-user dashboard index at
+                // ~/.crosslink/dashboard.db. Schema is applied idempotently.
+                // The handle isn't wired into server::run yet — that comes
+                // in P1.2 when the poll loop starts populating the index.
+                let dashboard_db_path = dashboard::db::DashboardDb::default_path()?;
+                let _dashboard_db = dashboard::db::DashboardDb::open(&dashboard_db_path)?;
+                tokio::runtime::Runtime::new()?.block_on(server::run(
+                    port,
+                    dashboard_dir,
+                    db,
+                    crosslink_dir,
+                ))
+            }
+            DashboardCommands::Track { slug, clone_url } => {
+                dashboard::projects::track(&slug, clone_url.as_deref())
+            }
+            DashboardCommands::Untrack { slug, keep_clone } => {
+                dashboard::projects::untrack(&slug, keep_clone)
+            }
+            DashboardCommands::List => dashboard::projects::list(),
+        },
         Commands::Serve {
             port,
             dashboard_dir,
