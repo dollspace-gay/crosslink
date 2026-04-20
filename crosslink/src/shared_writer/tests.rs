@@ -6,7 +6,7 @@ use crate::shared_writer::core::{
     PushOutcome, SharedWriter, LOCK_CONFIRM_TIMEOUT_SECS, MAX_RETRIES,
 };
 use crate::shared_writer::locks::LockClaimResult;
-use crate::shared_writer::mutations::{DescriptionUpdate, FieldUpdate};
+use crate::shared_writer::mutations::{DescriptionUpdate, IssueUpdate};
 use crate::shared_writer::offline::{replace_local_refs, RewriteStats};
 use anyhow::{bail, Result};
 use chrono::Utc;
@@ -1120,12 +1120,10 @@ mod integration {
             .update_issue(
                 &db,
                 id,
-                Some("New title"),
-                DescriptionUpdate::Unchanged,
-                None,
-                None,
-                FieldUpdate::Unchanged,
-                FieldUpdate::Unchanged,
+                IssueUpdate {
+                    title: Some("New title"),
+                    ..Default::default()
+                },
             )
             .unwrap();
 
@@ -1147,12 +1145,10 @@ mod integration {
             .update_issue(
                 &db,
                 id,
-                None,
-                DescriptionUpdate::Unchanged,
-                None,
-                Some("high"),
-                FieldUpdate::Unchanged,
-                FieldUpdate::Unchanged,
+                IssueUpdate {
+                    priority: Some("high"),
+                    ..Default::default()
+                },
             )
             .unwrap();
 
@@ -1174,12 +1170,10 @@ mod integration {
             .update_issue(
                 &db,
                 id,
-                None,
-                DescriptionUpdate::Set("Updated desc"),
-                None,
-                None,
-                FieldUpdate::Unchanged,
-                FieldUpdate::Unchanged,
+                IssueUpdate {
+                    description: DescriptionUpdate::Set("Updated desc"),
+                    ..Default::default()
+                },
             )
             .unwrap();
 
@@ -1201,12 +1195,10 @@ mod integration {
             .update_issue(
                 &db,
                 id,
-                None,
-                DescriptionUpdate::Clear,
-                None,
-                None,
-                FieldUpdate::Unchanged,
-                FieldUpdate::Unchanged,
+                IssueUpdate {
+                    description: DescriptionUpdate::Clear,
+                    ..Default::default()
+                },
             )
             .unwrap();
 
@@ -2096,12 +2088,11 @@ mod integration {
             .update_issue(
                 &db,
                 id,
-                Some("Updated lifecycle"),
-                DescriptionUpdate::Unchanged,
-                None,
-                Some("high"),
-                FieldUpdate::Unchanged,
-                FieldUpdate::Unchanged,
+                IssueUpdate {
+                    title: Some("Updated lifecycle"),
+                    priority: Some("high"),
+                    ..Default::default()
+                },
             )
             .unwrap();
 

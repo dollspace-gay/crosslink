@@ -13,8 +13,10 @@ use super::core::{PushOutcome, SharedWriter, WriteSet};
 
 /// Represents an update to a description field with three possible states:
 /// unchanged, cleared, or set to a new value.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum DescriptionUpdate<'a> {
     /// Do not modify the description.
+    #[default]
     Unchanged,
     /// Clear the description (set to `None`).
     Clear,
@@ -35,9 +37,10 @@ impl<'a> From<Option<Option<&'a str>>> for DescriptionUpdate<'a> {
 /// Generic three-valued update for optional fields (GH #361). Use for any
 /// setter that needs to distinguish "leave alone" from "set to `None`" from
 /// "set to `Some(value)`".
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum FieldUpdate<T> {
     /// Do not modify the field.
+    #[default]
     Unchanged,
     /// Clear the field (set to `None`).
     Clear,
@@ -53,6 +56,30 @@ impl<T> From<Option<Option<T>>> for FieldUpdate<T> {
             Some(Some(v)) => Self::Set(v),
         }
     }
+}
+
+/// Field-level update for an existing issue. Every field defaults to
+/// "leave unchanged," so callers touch only what they want to change:
+///
+/// ```ignore
+/// writer.update_issue(&db, id, IssueUpdate {
+///     title: Some("renamed"),
+///     scheduled_at: FieldUpdate::Clear,
+///     ..Default::default()
+/// })?;
+/// ```
+///
+/// Replaces the previous 8-argument positional signature that was
+/// trivial to misuse at the call site (two adjacent `Option<&str>`
+/// parameters for status and priority were indistinguishable).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct IssueUpdate<'a> {
+    pub title: Option<&'a str>,
+    pub description: DescriptionUpdate<'a>,
+    pub status: Option<&'a str>,
+    pub priority: Option<&'a str>,
+    pub scheduled_at: FieldUpdate<chrono::DateTime<chrono::Utc>>,
+    pub due_at: FieldUpdate<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Internal parameters for creating a comment (shared by `add_comment`
@@ -212,30 +239,31 @@ impl SharedWriter {
 
     /// Update an issue's title, description, status, priority, or scheduling.
     ///
+    /// Unspecified fields of `update` are left unchanged. See [`IssueUpdate`]
+    /// for the field-level semantics (Unchanged / Clear / Set).
+    ///
     /// # Errors
     ///
     /// Returns an error if the issue cannot be loaded, status/priority parsing
     /// fails, or git operations fail.
-    #[allow(clippy::too_many_arguments)]
     pub fn update_issue(
         &self,
         db: &Database,
         display_id: i64,
-        title: Option<&str>,
-        description: DescriptionUpdate<'_>,
-        status: Option<&str>,
-        priority: Option<&str>,
-        scheduled_at: FieldUpdate<DateTime<Utc>>,
-        due_at: FieldUpdate<DateTime<Utc>>,
+        update: IssueUpdate<'_>,
     ) -> Result<()> {
-        let title_owned = title.map(std::string::ToString::to_string);
-        let desc_update = description;
-        let status_parsed = status
+        let title_owned = update.title.map(std::string::ToString::to_string);
+        let desc_update = update.description;
+        let status_parsed = update
+            .status
             .map(str::parse::<crate::models::IssueStatus>)
             .transpose()?;
-        let priority_parsed = priority
+        let priority_parsed = update
+            .priority
             .map(str::parse::<crate::models::Priority>)
             .transpose()?;
+        let scheduled_at = update.scheduled_at;
+        let due_at = update.due_at;
 
         let _ = self.write_commit_push(
             |writer| {

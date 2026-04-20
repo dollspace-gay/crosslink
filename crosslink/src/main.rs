@@ -2205,16 +2205,19 @@ fn dispatch_issue(action: IssueCommands, quiet: bool, json: bool) -> Result<()> 
             let db = get_db()?;
             let crosslink_dir = find_crosslink_dir()?;
             let writer = get_writer(&crosslink_dir);
-            commands::update::run(
-                &db,
-                writer.as_ref(),
-                id,
-                title.as_deref(),
-                description.as_deref(),
-                priority.as_deref(),
-                scheduled_update(scheduled, no_scheduled),
-                scheduled_update(due, no_due),
-            )
+            let update = shared_writer::IssueUpdate {
+                title: title.as_deref(),
+                description: description
+                    .as_deref()
+                    .map_or(shared_writer::DescriptionUpdate::Unchanged, |s| {
+                        shared_writer::DescriptionUpdate::Set(s)
+                    }),
+                status: None,
+                priority: priority.as_deref(),
+                scheduled_at: scheduled_update(scheduled, no_scheduled),
+                due_at: scheduled_update(due, no_due),
+            };
+            commands::update::run(&db, writer.as_ref(), id, update)
         }
 
         IssueCommands::Close { id, no_changelog } => {
