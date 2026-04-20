@@ -15,11 +15,13 @@ import {
   useLabelIssue,
   useProject,
   useRelateIssue,
+  useReleaseLock,
   useReopenIssue,
+  useStealLock,
   useUnblockIssue,
   useUnlabelIssue,
 } from "@/api/client";
-import type { IssueFile } from "@/api/types";
+import type { IssueFile, LockEntry } from "@/api/types";
 
 export function ProjectDetail() {
   // React Router wildcards ({*slug}) are surfaced via the `"*"` param key.
@@ -99,15 +101,7 @@ export function ProjectDetail() {
         ) : (
           <ul className="divide-y divide-border rounded border bg-card">
             {data.locks.map((l) => (
-              <li key={l.issue_id} className="flex items-baseline justify-between px-3 py-2 text-sm">
-                <span>
-                  #{l.issue_id} held by <span className="font-medium">{l.agent_id}</span>
-                  {l.branch && <span className="text-muted-foreground"> · {l.branch}</span>}
-                </span>
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  claimed {l.claimed_at}
-                </span>
-              </li>
+              <LockRow key={l.issue_id} slug={data.slug} lock={l} />
             ))}
           </ul>
         )}
@@ -518,6 +512,53 @@ function ClosedIssueRow({ slug, issue }: { slug: string; issue: IssueFile }) {
       </div>
       {reopen.error && (
         <p className="mt-1 text-xs text-rose-500">{reopen.error.message}</p>
+      )}
+    </li>
+  );
+}
+
+function LockRow({ slug, lock }: { slug: string; lock: LockEntry }) {
+  const release = useReleaseLock(slug);
+  const steal = useStealLock(slug);
+  const error = release.error?.message ?? steal.error?.message;
+
+  return (
+    <li className="flex flex-wrap items-baseline justify-between gap-2 px-3 py-2 text-sm">
+      <span>
+        #{lock.issue_id} held by <span className="font-medium">{lock.agent_id}</span>
+        {lock.branch && <span className="text-muted-foreground"> · {lock.branch}</span>}
+      </span>
+      <span className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground tabular-nums">
+          claimed {lock.claimed_at}
+        </span>
+        <button
+          type="button"
+          disabled={release.isPending}
+          onClick={() => release.mutate(lock.issue_id)}
+          className="rounded border px-2 py-0.5 text-xs hover:bg-accent/10 disabled:opacity-50"
+        >
+          {release.isPending ? "Releasing…" : "Release"}
+        </button>
+        <button
+          type="button"
+          disabled={steal.isPending}
+          onClick={() => {
+            if (
+              window.confirm(
+                `Steal lock on #${lock.issue_id} from ${lock.agent_id}? This overrides the other agent.`,
+              )
+            ) {
+              steal.mutate(lock.issue_id);
+            }
+          }}
+          className="rounded border border-amber-500/40 px-2 py-0.5 text-xs text-amber-500 hover:bg-amber-500/10 disabled:opacity-50"
+        >
+          {steal.isPending ? "Stealing…" : "Steal"}
+        </button>
+      </span>
+      {error && (
+        <p className="w-full text-xs text-rose-500">{error}</p>
       )}
     </li>
   );

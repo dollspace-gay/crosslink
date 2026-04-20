@@ -66,6 +66,9 @@ pub fn build_router() -> Router<AppState> {
             "/w/{owner}/{repo}/milestones/{id}/close",
             post(close_milestone),
         )
+        .route("/w/{owner}/{repo}/locks/{id}/claim", post(claim_lock))
+        .route("/w/{owner}/{repo}/locks/{id}/release", post(release_lock))
+        .route("/w/{owner}/{repo}/locks/{id}/steal", post(steal_lock))
 }
 
 /// Wire-format representation of a tracked project on the list endpoint.
@@ -741,6 +744,92 @@ async fn milestone_remove_issue(
     }))
 }
 
+#[derive(Debug, Default, Deserialize)]
+struct ClaimLockBody {
+    #[serde(default)]
+    branch: Option<String>,
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/locks/{id}/claim`
+///
+/// Body: optional `{ "branch": "..." }`. Claiming from the dashboard
+/// is uncommon (agents normally claim their own locks), but we expose
+/// it so operators can seed a lock during triage.
+async fn claim_lock(
+    State(state): State<AppState>,
+    Path((owner, repo, id)): Path<(String, String, i64)>,
+    body: Option<Json<ClaimLockBody>>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let id_str = id.to_string();
+    let branch = body.and_then(|b| b.0.branch).unwrap_or_default();
+    let mut args: Vec<&str> = vec!["locks", "claim", &id_str];
+    if !branch.trim().is_empty() {
+        args.push("-b");
+        args.push(branch.trim());
+    }
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "claim_lock",
+        Some(&format!("lock:{id}")),
+        &args,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
+    }))
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/locks/{id}/release`
+async fn release_lock(
+    State(state): State<AppState>,
+    Path((owner, repo, id)): Path<(String, String, i64)>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let id_str = id.to_string();
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "release_lock",
+        Some(&format!("lock:{id}")),
+        &["locks", "release", &id_str],
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
+    }))
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/locks/{id}/steal`
+///
+/// Hijacks a stale lock held by another agent. The CLI itself enforces
+/// the staleness threshold, so we just pass through.
+async fn steal_lock(
+    State(state): State<AppState>,
+    Path((owner, repo, id)): Path<(String, String, i64)>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let id_str = id.to_string();
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "steal_lock",
+        Some(&format!("lock:{id}")),
+        &["locks", "steal", &id_str],
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
+    }))
+}
+
 /// `POST /api/v1/dashboard/w/{owner}/{repo}/milestones/{id}/close`
 async fn close_milestone(
     State(state): State<AppState>,
@@ -1169,6 +1258,29 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_release_lock_returns_404_for_untracked_slug() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dashboard_db_path = tmp.path().join("dashboard.db");
+        DashboardDb::open(&dashboard_db_path).unwrap();
+
+        let (state, _tmp2) = test_state(Some(dashboard_db_path));
+        let app = Router::new()
+            .nest("/api/v1/dashboard", build_router())
+            .with_state(state);
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/dashboard/w/nobody/noop/locks/7/release")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

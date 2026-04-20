@@ -297,3 +297,41 @@ export function useCloseMilestone(slug: string) {
     onSuccess: () => invalidate(),
   });
 }
+
+/// Claim a lock on an issue. `branch` is optional context metadata.
+/// Operator-initiated claims are uncommon — normally agents claim
+/// their own locks — but exposing the control lets an operator seed
+/// a lock during triage.
+export function useClaimLock(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<
+    ActionResponse,
+    ApiRequestError,
+    { issueId: number; branch?: string }
+  >({
+    mutationFn: ({ issueId, branch }) =>
+      apiPost<ActionResponse>(`/w/${slug}/locks/${issueId}/claim`, { branch }),
+    onSuccess: () => invalidate(),
+  });
+}
+
+/// Release a lock held by the current driver.
+export function useReleaseLock(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<ActionResponse, ApiRequestError, number>({
+    mutationFn: (issueId: number) =>
+      apiPost<ActionResponse>(`/w/${slug}/locks/${issueId}/release`),
+    onSuccess: () => invalidate(),
+  });
+}
+
+/// Steal a stale lock from another agent. The CLI enforces the
+/// staleness threshold — this endpoint just passes through.
+export function useStealLock(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<ActionResponse, ApiRequestError, number>({
+    mutationFn: (issueId: number) =>
+      apiPost<ActionResponse>(`/w/${slug}/locks/${issueId}/steal`),
+    onSuccess: () => invalidate(),
+  });
+}
