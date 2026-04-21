@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- Dashboard: detect + remedy tracked clones without crosslink init / agent config (#710)
 - Dashboard: make alerts clickable to expand with actions (#708)
 - crosslink dashboard discover: filesystem autodiscovery of crosslink-enabled repos (GH #429 followup) (#705)
 - Write DESIGN-CROSSLINK-OPS.md (GH #429 followup) (#688)
@@ -128,6 +129,8 @@ new subcommand for log-scraping continuity.
 - Add `INTENTIONAL` comments to deliberate error suppression patterns ([CL-419])
 
 ### Changed
+- Configure GitHub rulesets for release/* branches and create RELEASING.md (#170)
+- Repo cleanup: migrate design docs to knowledge, move docs, remove root scripts (#171)
 - Configure GitHub rulesets for release/* branches and create RELEASING.md (#170)
 - Repo cleanup: migrate design docs to knowledge, move docs, remove root scripts (#171)
 - Configure GitHub rulesets for release/* branches and create RELEASING.md (#170)
