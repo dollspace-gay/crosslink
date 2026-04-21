@@ -380,8 +380,37 @@ pub fn init(
                 }
             }
             Err(e) => {
-                println!("  Warning: Could not generate SSH key: {e}");
-                println!("  Signing will be unavailable. Use --no-key to suppress this warning.");
+                // On --force re-runs, key-gen errors with "already exists".
+                // Reuse the on-disk key; otherwise agent.json loses
+                // ssh_key_path and shared_writer silently disables signing.
+                let rel_path = format!("keys/{agent_id}_ed25519");
+                let private_path = crosslink_dir.join(&rel_path);
+                let public_path = crosslink_dir.join(format!("keys/{agent_id}_ed25519.pub"));
+                if private_path.exists() && public_path.exists() {
+                    if let (Ok(fp), Ok(pub_key)) = (
+                        signing::get_key_fingerprint(&public_path),
+                        signing::read_public_key(&public_path),
+                    ) {
+                        config.ssh_key_path = Some(rel_path);
+                        config.ssh_fingerprint = Some(fp);
+                        config.ssh_public_key = Some(pub_key);
+                        let path = crosslink_dir.join("agent.json");
+                        if let Ok(json) = serde_json::to_string_pretty(&config) {
+                            let _ = std::fs::write(&path, json);
+                            println!(
+                                "  SSH key: reused existing key (commit signing enabled)"
+                            );
+                        }
+                    } else {
+                        println!("  Warning: Could not reuse existing SSH key: {e}");
+                        println!("  Signing will be unavailable. Use --no-key to suppress.");
+                    }
+                } else {
+                    println!("  Warning: Could not generate SSH key: {e}");
+                    println!(
+                        "  Signing will be unavailable. Use --no-key to suppress this warning."
+                    );
+                }
             }
         }
     }
