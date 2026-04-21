@@ -7,10 +7,6 @@
       "agent_id": "maxine--basel",
       "claimed_at": "2026-03-17T18:29:21.280473Z"
     },
-    "231": {
-      "agent_id": "dashboard-bootstrap",
-      "claimed_at": "2026-04-21T22:40:11.010563773Z"
-    },
     "252": {
       "agent_id": "maxine--basel--kickoff-graph-command-0fa7",
       "claimed_at": "2026-03-22T16:20:47.643373Z"
@@ -64,11 +60,16 @@
       "agent_id": "dashboard-bootstrap",
       "agent_seq": 5,
       "timestamp": "2026-04-21T22:40:11.010563773Z"
+    },
+    {
+      "agent_id": "dashboard-bootstrap",
+      "agent_seq": 6,
+      "timestamp": "2026-04-21T22:40:13.354192570Z"
     }
   ],
   "watermark": {
-    "timestamp": "2026-04-21T22:40:11.010563773Z",
+    "timestamp": "2026-04-21T22:40:13.354192570Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 5
+    "agent_seq": 6
   }
 }
