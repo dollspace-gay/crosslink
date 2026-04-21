@@ -892,12 +892,25 @@ enum DashboardCommands {
     /// `crosslink` CLI in this workspace for write operations — so no
     /// extra setup is needed beyond a normal `git clone` +
     /// `crosslink init` of the target project.
+    ///
+    /// Pass `--init --agent-id <ID>` to run `crosslink init` +
+    /// `crosslink agent init` in the workspace after tracking, so
+    /// dashboard write actions (close, release, etc.) work without
+    /// a manual bootstrap step.
     Track {
         /// Path to a locally-cloned crosslink-managed repository.
         path: PathBuf,
         /// Override the owner/repo slug (default: derived from origin URL).
         #[arg(long)]
         slug: Option<String>,
+        /// Run `crosslink init --defaults` + `crosslink agent init` in
+        /// the workspace after tracking. Requires `--agent-id`.
+        #[arg(long)]
+        init: bool,
+        /// Agent identifier for `crosslink agent init`. Required when
+        /// `--init` is passed.
+        #[arg(long)]
+        agent_id: Option<String>,
     },
     /// Stop tracking a repository. The user's working copy is left
     /// untouched — only the dashboard's DB row is removed.
@@ -3186,8 +3199,23 @@ fn main() -> Result<()> {
                     Some(dashboard_db_path),
                 ))
             }
-            DashboardCommands::Track { path, slug } => {
-                dashboard::projects::track(&path, slug.as_deref())
+            DashboardCommands::Track {
+                path,
+                slug,
+                init,
+                agent_id,
+            } => {
+                if init {
+                    let id = agent_id.ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "--init requires --agent-id <ID> \
+                             (alphanumeric, hyphens, underscores)"
+                        )
+                    })?;
+                    dashboard::projects::track_with_init(&path, slug.as_deref(), &id)
+                } else {
+                    dashboard::projects::track(&path, slug.as_deref())
+                }
             }
             DashboardCommands::Untrack { slug } => dashboard::projects::untrack(&slug),
             DashboardCommands::List => dashboard::projects::list(),

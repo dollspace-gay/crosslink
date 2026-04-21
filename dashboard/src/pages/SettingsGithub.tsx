@@ -25,6 +25,8 @@ export function SettingsGithub() {
   const [browseOrg, setBrowseOrg] = useState<string | null>(null);
   const [browseRequested, setBrowseRequested] = useState(false);
   const [cloneRoot, setCloneRoot] = useState("");
+  const [initOnTrack, setInitOnTrack] = useState(false);
+  const [agentIdInput, setAgentIdInput] = useState("");
   const [trackOutcome, setTrackOutcome] =
     useState<GithubTrackAllOutcome | null>(null);
 
@@ -67,12 +69,18 @@ export function SettingsGithub() {
       {
         org: browseOrg,
         cloneRoot: cloneRoot.trim() || undefined,
+        init: initOnTrack,
+        agentId: initOnTrack ? agentIdInput.trim() : undefined,
       },
       {
         onSuccess: (data) => setTrackOutcome(data),
       },
     );
   }
+
+  const trackAllDisabled =
+    trackAll.isPending ||
+    (initOnTrack && agentIdInput.trim() === "");
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-6">
@@ -227,28 +235,57 @@ export function SettingsGithub() {
                 </li>
               ))}
             </ul>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-col gap-2">
               <input
                 value={cloneRoot}
                 onChange={(e) => setCloneRoot(e.target.value)}
                 placeholder="clone root (defaults to ~/crosslink-tracked)"
-                className="flex-1 min-w-[20rem] rounded border bg-background px-2 py-1 text-sm"
+                className="w-full rounded border bg-background px-2 py-1 text-sm"
               />
-              <button
-                type="button"
-                onClick={onTrackAll}
-                disabled={trackAll.isPending}
-                className="rounded border px-2 py-1 text-xs hover:bg-accent/10 disabled:opacity-50"
-              >
-                {trackAll.isPending
-                  ? "Tracking…"
-                  : `Track all ${repos.data.length}`}
-              </button>
-              {trackAll.error && (
-                <span className="text-xs text-rose-400">
-                  {trackAll.error.message}
+              <label className="flex cursor-pointer items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={initOnTrack}
+                  onChange={(e) => setInitOnTrack(e.target.checked)}
+                />
+                <span>
+                  Initialize cloned repos (run{" "}
+                  <code className="font-mono">crosslink init</code> +{" "}
+                  <code className="font-mono">crosslink agent init</code> in each
+                  clone so dashboard write actions work)
                 </span>
+              </label>
+              {initOnTrack && (
+                <input
+                  value={agentIdInput}
+                  onChange={(e) => setAgentIdInput(e.target.value)}
+                  placeholder="agent id (alphanumeric, hyphens, underscores)"
+                  className="w-full rounded border bg-background px-2 py-1 font-mono text-sm"
+                  aria-label="Agent ID"
+                />
               )}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onTrackAll}
+                  disabled={trackAllDisabled}
+                  className="rounded border px-2 py-1 text-xs hover:bg-accent/10 disabled:opacity-50"
+                >
+                  {trackAll.isPending
+                    ? "Tracking…"
+                    : `Track all ${repos.data.length}`}
+                </button>
+                {initOnTrack && agentIdInput.trim() === "" && (
+                  <span className="text-xs text-amber-500">
+                    Agent id required when “Initialize” is on.
+                  </span>
+                )}
+                {trackAll.error && (
+                  <span className="text-xs text-rose-400">
+                    {trackAll.error.message}
+                  </span>
+                )}
+              </div>
             </div>
           </>
         )}

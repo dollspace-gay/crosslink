@@ -40,6 +40,58 @@ pub struct Project {
     pub pinned: bool,
 }
 
+/// Whether a tracked workspace can accept dashboard write actions.
+///
+/// Write actions shell out to the real `crosslink` CLI in that
+/// workspace — if the workspace is a bare `git clone` with no
+/// `crosslink init` + `crosslink agent init` run, those actions fail
+/// with "No agent configured" (and similar). This lets the frontend
+/// show a clear "not initialized" badge before the operator wastes a
+/// click.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WriteCapability {
+    /// Workspace has `.crosslink/issues.db` and `.crosslink/driver-key.pub`
+    /// — write actions should succeed.
+    Ready,
+    /// Workspace has `.crosslink/issues.db` but no `driver-key.pub`
+    /// — `crosslink init` ran but `crosslink agent init <id>` didn't.
+    /// Write actions that need an agent identity will fail.
+    AgentMissing,
+    /// Workspace has no `.crosslink/issues.db` — `crosslink init`
+    /// hasn't been run at all. Any write action will fail.
+    NotInitialized,
+}
+
+impl WriteCapability {
+    /// Stable machine-readable tag. Shipped on the API as
+    /// `write_capability` so frontend code can branch on it without
+    /// string-matching user-facing copy.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Ready => "ready",
+            Self::AgentMissing => "agent_missing",
+            Self::NotInitialized => "not_initialized",
+        }
+    }
+}
+
+/// Inspect a tracked workspace and return its write capability.
+///
+/// Pure filesystem check — no subprocess, no git touch. Safe to call
+/// on every API serialization.
+#[must_use]
+pub fn write_capability(clone_path: &Path) -> WriteCapability {
+    let cl = clone_path.join(".crosslink");
+    if !cl.join("issues.db").is_file() {
+        return WriteCapability::NotInitialized;
+    }
+    if !cl.join("driver-key.pub").is_file() {
+        return WriteCapability::AgentMissing;
+    }
+    WriteCapability::Ready
+}
+
 /// Validate an `owner/repo` slug. Returns `(owner, repo)` on success.
 fn parse_slug(slug: &str) -> Result<(&str, &str)> {
     let mut parts = slug.splitn(2, '/');
@@ -132,6 +184,71 @@ fn origin_url(clone_path: &Path) -> Result<String> {
 pub fn track(clone_path: &Path, slug_override: Option<&str>) -> Result<()> {
     let db_path = DashboardDb::default_path()?;
     track_at_path(clone_path, slug_override, &db_path)
+}
+
+/// Like [`track`], but also runs `crosslink init --defaults` +
+/// `crosslink agent init <agent_id>` in the workspace (unless it's
+/// already fully initialised — the helper is idempotent-on-Ready).
+///
+/// # Errors
+/// Returns an error if the init or agent-init step fails; the project
+/// is *not* registered in that case (the caller should fix the
+/// workspace and re-run).
+pub fn track_with_init(
+    clone_path: &Path,
+    slug_override: Option<&str>,
+    agent_id: &str,
+) -> Result<()> {
+    let db_path = DashboardDb::default_path()?;
+    if write_capability(clone_path) != WriteCapability::Ready {
+        run_init_and_agent_in(clone_path, agent_id)?;
+    }
+    track_at_path(clone_path, slug_override, &db_path)
+}
+
+/// Shell out to the running `crosslink` binary to initialise a
+/// workspace. Used by both the CLI (`crosslink dashboard track
+/// --init`) and the retrofit REST endpoint.
+///
+/// # Errors
+/// Returns an error describing which subprocess step failed and its
+/// stderr output.
+pub fn run_init_and_agent_in(workspace: &Path, agent_id: &str) -> Result<()> {
+    let self_exe = std::env::current_exe().ok();
+    let usable_self = self_exe.as_deref().filter(|p| {
+        !p.components()
+            .any(|c| c.as_os_str() == std::ffi::OsStr::new("deps"))
+    });
+    let cmd_name: std::ffi::OsString = usable_self
+        .map_or_else(|| "crosslink".into(), |p| p.as_os_str().to_os_string());
+
+    let init_out = Command::new(&cmd_name)
+        .current_dir(workspace)
+        .args(["init", "--defaults", "-q"])
+        .output()
+        .context("spawn `crosslink init`")?;
+    if !init_out.status.success() {
+        let stderr = String::from_utf8_lossy(&init_out.stderr);
+        bail!("crosslink init failed: {}", stderr.trim());
+    }
+
+    let agent_out = Command::new(&cmd_name)
+        .current_dir(workspace)
+        .args([
+            "agent",
+            "init",
+            agent_id,
+            "-q",
+            "--description",
+            "dashboard auto-bootstrap",
+        ])
+        .output()
+        .context("spawn `crosslink agent init`")?;
+    if !agent_out.status.success() {
+        let stderr = String::from_utf8_lossy(&agent_out.stderr);
+        bail!("crosslink agent init failed: {}", stderr.trim());
+    }
+    Ok(())
 }
 
 /// Add a repository to the tracked set.
@@ -336,6 +453,54 @@ mod tests {
         let db_path = dir.path().join("dashboard.db");
         DashboardDb::open(&db_path).unwrap();
         (dir, db_path)
+    }
+
+    #[test]
+    fn test_write_capability_not_initialized_when_crosslink_dir_missing() {
+        let dir = tempdir().unwrap();
+        assert_eq!(
+            write_capability(dir.path()),
+            WriteCapability::NotInitialized
+        );
+    }
+
+    #[test]
+    fn test_write_capability_not_initialized_when_issues_db_missing() {
+        let dir = tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".crosslink")).unwrap();
+        // Just .crosslink/ with no issues.db → still "not initialized"
+        // since init hasn't actually completed.
+        assert_eq!(
+            write_capability(dir.path()),
+            WriteCapability::NotInitialized
+        );
+    }
+
+    #[test]
+    fn test_write_capability_agent_missing_when_key_absent() {
+        let dir = tempdir().unwrap();
+        let cl = dir.path().join(".crosslink");
+        std::fs::create_dir_all(&cl).unwrap();
+        std::fs::write(cl.join("issues.db"), []).unwrap();
+        // No driver-key.pub → agent init never ran
+        assert_eq!(write_capability(dir.path()), WriteCapability::AgentMissing);
+    }
+
+    #[test]
+    fn test_write_capability_ready_when_both_present() {
+        let dir = tempdir().unwrap();
+        let cl = dir.path().join(".crosslink");
+        std::fs::create_dir_all(&cl).unwrap();
+        std::fs::write(cl.join("issues.db"), []).unwrap();
+        std::fs::write(cl.join("driver-key.pub"), b"ssh-ed25519 AAAA...").unwrap();
+        assert_eq!(write_capability(dir.path()), WriteCapability::Ready);
+    }
+
+    #[test]
+    fn test_write_capability_as_str_is_stable() {
+        assert_eq!(WriteCapability::Ready.as_str(), "ready");
+        assert_eq!(WriteCapability::AgentMissing.as_str(), "agent_missing");
+        assert_eq!(WriteCapability::NotInitialized.as_str(), "not_initialized");
     }
 
     /// Initialise a minimal git repo at the given path with a given

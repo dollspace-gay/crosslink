@@ -13,6 +13,7 @@ import {
   useCloseIssue,
   useCommentIssue,
   useCreateMilestone,
+  useInitProject,
   useLabelIssue,
   useProject,
   useRelateIssue,
@@ -68,6 +69,10 @@ export function ProjectDetail() {
           {data.hub_sha && ` · ${data.hub_sha.slice(0, 7)}`}
         </span>
       </header>
+
+      {data.write_capability !== "ready" && (
+        <InitBanner slug={data.slug} capability={data.write_capability} />
+      )}
 
       <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
         <Counter label="Open" value={data.counters.open_issues} />
@@ -148,6 +153,78 @@ export function ProjectDetail() {
         )}
       </section>
     </main>
+  );
+}
+
+/// Top-of-page banner shown when the tracked workspace isn't
+/// fully initialized — writes will fail otherwise. Surfaces an
+/// inline "Initialize" form with an agent-id input that shells the
+/// backend retrofit endpoint (`POST /w/{slug}/init`) and invalidates
+/// the project detail query on success so the banner disappears.
+function InitBanner({
+  slug,
+  capability,
+}: {
+  slug: string;
+  capability: "not_initialized" | "agent_missing";
+}) {
+  const [agentId, setAgentId] = useState("");
+  const init = useInitProject(slug);
+  const reason =
+    capability === "not_initialized"
+      ? "crosslink init hasn't been run in this workspace"
+      : "crosslink agent init hasn't been run in this workspace";
+
+  return (
+    <section
+      className="mb-6 rounded border border-amber-500/60 bg-amber-500/10 p-4 text-sm"
+      role="status"
+      aria-label="workspace initialization required"
+    >
+      <p className="mb-2 font-semibold text-amber-500">
+        ⚠ This workspace isn't initialized for dashboard writes.
+      </p>
+      <p className="mb-3 text-amber-500/80">
+        {reason}. Close / release / comment / lock-control actions will
+        fail until <code className="font-mono">crosslink init</code> and{" "}
+        <code className="font-mono">crosslink agent init &lt;id&gt;</code>{" "}
+        both run here. You can do that from a shell, or kick it off
+        below — the dashboard binary will run both commands in this
+        clone on your behalf.
+      </p>
+      <form
+        className="flex flex-wrap items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const id = agentId.trim();
+          if (!id) return;
+          init.mutate({ agentId: id });
+        }}
+      >
+        <input
+          value={agentId}
+          onChange={(e) => setAgentId(e.target.value)}
+          placeholder="agent id (alphanumeric, hyphens, underscores)"
+          className="flex-1 min-w-[16rem] rounded border bg-background px-2 py-1 font-mono text-xs"
+          aria-label="Agent ID"
+        />
+        <button
+          type="submit"
+          disabled={!agentId.trim() || init.isPending}
+          className="rounded border border-amber-500/70 bg-amber-500/20 px-2 py-1 text-xs font-medium text-amber-600 hover:bg-amber-500/30 disabled:opacity-50"
+        >
+          {init.isPending ? "Initializing…" : "Initialize"}
+        </button>
+        {init.error && (
+          <span className="text-xs text-rose-500">{init.error.message}</span>
+        )}
+        {init.isSuccess && (
+          <span className="text-xs text-emerald-500">
+            Initialized — banner clears on the next poll tick.
+          </span>
+        )}
+      </form>
+    </section>
   );
 }
 

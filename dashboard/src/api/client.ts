@@ -17,6 +17,7 @@ import type {
   PtySession,
   PtySpawnRequest,
   SetWebhooksBody,
+  TrackAllOrgArgs,
   WebhooksView,
 } from "./types";
 
@@ -449,28 +450,45 @@ export function useOrgRepos(org: string | null, enabled: boolean) {
 }
 
 /// Walk an org and clone+track every repo with a `crosslink/hub` branch.
-/// `clone_root` is optional; the server defaults to `~/crosslink-tracked`.
+///
+/// - `cloneRoot` is optional; server default is `~/crosslink-tracked`.
+/// - When `init` is true, the server also runs `crosslink init` +
+///   `crosslink agent init <agentId>` in each freshly-cloned repo so
+///   dashboard write actions work without manual bootstrap.
+///   `agentId` is required in that case (server 400s otherwise).
 export function useTrackAllOrg() {
   const client = useQueryClient();
-  return useMutation<
-    GithubTrackAllOutcome,
-    ApiRequestError,
-    { org: string; cloneRoot?: string }
-  >({
-    mutationFn: ({ org, cloneRoot }) =>
+  return useMutation<GithubTrackAllOutcome, ApiRequestError, TrackAllOrgArgs>({
+    mutationFn: ({ org, cloneRoot, init, agentId }) =>
       // Always send a JSON body — even an empty one. The backend uses
       // axum's `Json<TrackAllBody>` extractor which 400s on an absent
       // body (400 "Failed to parse the request body") even when every
       // field is Option-typed. JSON.stringify drops `undefined` values,
-      // so this serializes to `{}` when no clone root was supplied,
+      // so this serializes to `{}` when no flags are supplied,
       // which `#[serde(default)]` on the backend accepts.
       apiPost<GithubTrackAllOutcome>(
         `/github/orgs/${encodeURIComponent(org)}/track-all`,
-        { clone_root: cloneRoot || undefined },
+        {
+          clone_root: cloneRoot || undefined,
+          init: init || undefined,
+          agent_id: agentId?.trim() || undefined,
+        },
       ),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["dashboard", "projects"] });
     },
+  });
+}
+
+/// Retrofit an already-tracked project: run `crosslink init` +
+/// `crosslink agent init` in its workspace so write actions start
+/// working. Idempotent-on-ready at the server level.
+export function useInitProject(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<ActionResponse, ApiRequestError, { agentId: string }>({
+    mutationFn: ({ agentId }) =>
+      apiPost<ActionResponse>(`/w/${slug}/init`, { agent_id: agentId }),
+    onSuccess: () => invalidate(),
   });
 }
 

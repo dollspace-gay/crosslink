@@ -197,6 +197,16 @@ struct TrackAllBody {
     /// the repo's slug are adopted in-place.
     #[serde(default)]
     clone_root: Option<String>,
+    /// When `true`, run `crosslink init --defaults` and
+    /// `crosslink agent init <agent_id>` in each freshly-cloned repo
+    /// so dashboard write actions (close issue, release lock, etc.)
+    /// work without manual bootstrap. Default `false`.
+    #[serde(default)]
+    init: bool,
+    /// Agent identifier for `crosslink agent init`. Required when
+    /// `init == true` and a PAT-only track-all is running.
+    #[serde(default)]
+    agent_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -228,6 +238,25 @@ async fn track_all(
         format!("{home}/crosslink-tracked")
     });
 
+    // Up-front validation: if init was requested, we need an agent_id
+    // before we start any clones — rejecting here saves the user from
+    // partially-initialised state.
+    let init_config = if body.init {
+        let id = body
+            .agent_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| {
+                GitHubApiError::BadRequest(
+                    "init=true requires agent_id (alphanumeric + hyphens + underscores)".into(),
+                )
+            })?;
+        Some(id.to_string())
+    } else {
+        None
+    };
+
     let mut tracked = Vec::new();
     let mut skipped = Vec::new();
     for hit in hits {
@@ -239,7 +268,8 @@ async fn track_all(
             let ssh_url = hit.ssh_url.clone();
             let https_url = hit.https_url.clone();
             let slug = slug.clone();
-            move || ensure_clone_and_track(&db_path, &target, &ssh_url, &https_url, &slug)
+            let init = init_config.clone();
+            move || ensure_clone_and_track(&db_path, &target, &ssh_url, &https_url, &slug, init.as_deref())
         })
         .await
         .map_err(|e| GitHubApiError::Internal(format!("track task panicked: {e}")))?;
@@ -259,14 +289,23 @@ async fn track_all(
 /// dir doesn't already exist, then register it in the dashboard DB.
 /// Idempotent — already-tracked slugs are left alone and surface as
 /// "already tracked".
+///
+/// When `init_agent_id` is `Some`, also run `crosslink init --defaults`
+/// and `crosslink agent init <id>` in the freshly-cloned workspace so
+/// dashboard write actions work without a manual bootstrap step. If
+/// init fails, we still register the project — the tile just surfaces
+/// as `write_capability: "not_initialized"` / `"agent_missing"` and
+/// the operator can retry via the retrofit endpoint.
 fn ensure_clone_and_track(
     db_path: &std::path::Path,
     target: &std::path::Path,
     ssh_url: &str,
     https_url: &str,
     slug: &str,
+    init_agent_id: Option<&str>,
 ) -> Result<()> {
-    if !target.is_dir() {
+    let freshly_cloned = !target.is_dir();
+    if freshly_cloned {
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -287,6 +326,19 @@ fn ensure_clone_and_track(
             anyhow::ensure!(https.success(), "git clone failed for {slug}");
         }
     }
+
+    // Run init + agent init BEFORE track_at_path so the `write_capability`
+    // reflected in the very first tile render is correct. The helper
+    // is idempotent-on-Ready (skips if .crosslink/ + driver-key.pub
+    // are already in place).
+    if let Some(agent_id) = init_agent_id {
+        if super::projects::write_capability(target)
+            != super::projects::WriteCapability::Ready
+        {
+            super::projects::run_init_and_agent_in(target, agent_id)?;
+        }
+    }
+
     super::projects::track_at_path(target, Some(slug), db_path)?;
     Ok(())
 }

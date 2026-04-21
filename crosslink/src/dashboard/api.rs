@@ -73,6 +73,7 @@ pub fn build_router() -> Router<AppState> {
             "/w/{owner}/{repo}/agents/{agent_id}/request",
             post(agent_request),
         )
+        .route("/w/{owner}/{repo}/init", post(init_project))
 }
 
 /// Wire-format representation of a tracked project on the list endpoint.
@@ -88,6 +89,9 @@ struct ProjectListItem {
     last_activity_at: Option<String>,
     added_at: String,
     counters: ProjectCountersView,
+    /// Whether the local workspace is initialised enough for dashboard
+    /// write actions to succeed. See [`super::projects::WriteCapability`].
+    write_capability: &'static str,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -133,6 +137,9 @@ struct ProjectDetail {
     /// Coarse signature state of the hub-tip commit. One of `"valid"`,
     /// `"unsigned"`, `"invalid"`, or `"unknown"`.
     signature_state: &'static str,
+    /// Whether the local workspace is initialised enough for dashboard
+    /// write actions to succeed. Same shape as on the list endpoint.
+    write_capability: &'static str,
 }
 
 /// Flattened view of a target agent's request stream for JSON output.
@@ -236,7 +243,7 @@ fn load_project_list(db_path: &std::path::Path) -> Result<Vec<ProjectListItem>, 
         .conn
         .prepare(
             "SELECT p.slug, p.status, p.pinned, p.hub_sha, p.hub_fetched_at,
-                    p.last_activity_at, p.added_at,
+                    p.last_activity_at, p.added_at, p.clone_path,
                     COALESCE(s.open_issues, 0),
                     COALESCE(s.overdue_issues, 0),
                     COALESCE(s.due_soon_issues, 0),
@@ -253,6 +260,11 @@ fn load_project_list(db_path: &std::path::Path) -> Result<Vec<ProjectListItem>, 
 
     let rows = stmt
         .query_map([], |row| {
+            let clone_path: String = row.get(7)?;
+            let write_capability = super::projects::write_capability(
+                std::path::Path::new(&clone_path),
+            )
+            .as_str();
             Ok(ProjectListItem {
                 slug: row.get(0)?,
                 status: row.get(1)?,
@@ -262,15 +274,16 @@ fn load_project_list(db_path: &std::path::Path) -> Result<Vec<ProjectListItem>, 
                 last_activity_at: row.get(5)?,
                 added_at: row.get(6)?,
                 counters: ProjectCountersView {
-                    open_issues: row.get(7)?,
-                    overdue_issues: row.get(8)?,
-                    due_soon_issues: row.get(9)?,
-                    blocked_issues: row.get(10)?,
-                    active_agents: row.get(11)?,
-                    stale_locks: row.get(12)?,
-                    ci_status: row.get(13)?,
-                    updated_at: row.get(14)?,
+                    open_issues: row.get(8)?,
+                    overdue_issues: row.get(9)?,
+                    due_soon_issues: row.get(10)?,
+                    blocked_issues: row.get(11)?,
+                    active_agents: row.get(12)?,
+                    stale_locks: row.get(13)?,
+                    ci_status: row.get(14)?,
+                    updated_at: row.get(15)?,
                 },
+                write_capability,
             })
         })
         .map_err(|e| ApiError::internal(format!("query: {e}")))?
@@ -401,6 +414,8 @@ fn load_project_detail(db_path: &std::path::Path, slug: &str) -> Result<ProjectD
         }
     });
 
+    let write_capability = super::projects::write_capability(&project.clone_path).as_str();
+
     Ok(ProjectDetail {
         slug: project.slug,
         status: project.status,
@@ -421,6 +436,7 @@ fn load_project_detail(db_path: &std::path::Path, slug: &str) -> Result<ProjectD
             .collect(),
         ci_status: snapshot.ci_status,
         signature_state: snapshot.signature_state.as_str(),
+        write_capability,
     })
 }
 
@@ -501,6 +517,65 @@ struct ActionResponse {
 #[derive(Debug, Deserialize)]
 struct CommentBody {
     content: String,
+}
+
+/// Body for `POST /w/{owner}/{repo}/init`.
+#[derive(Debug, Deserialize)]
+struct InitProjectBody {
+    /// Agent identifier for `crosslink agent init`. Alphanumeric +
+    /// hyphens + underscores.
+    agent_id: String,
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/init`
+///
+/// Retrofit handler: runs `crosslink init --defaults` and
+/// `crosslink agent init <agent_id>` in the tracked workspace so a
+/// repo that was cloned without `--init` can be brought to
+/// `write_capability: "ready"` without dropping to a shell.
+///
+/// Idempotent-on-Ready: if the workspace is already fully initialised
+/// this is a no-op returning a success response.
+async fn init_project(
+    State(state): State<AppState>,
+    Path((owner, repo)): Path<(String, String)>,
+    Json(body): Json<InitProjectBody>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    let agent_id = body.agent_id.trim().to_string();
+    if agent_id.is_empty() {
+        return Err(ApiError::bad_request(
+            "agent_id cannot be empty".to_string(),
+        ));
+    }
+    let (_db_path, project) = resolve_project(&state, &owner, &repo).await?;
+
+    // Move into a blocking task — both shells do real FS work.
+    let clone_path = project.clone_path.clone();
+    let outcome = tokio::task::spawn_blocking(
+        move || -> Result<(String, String), anyhow::Error> {
+            if super::projects::write_capability(&clone_path)
+                == super::projects::WriteCapability::Ready
+            {
+                return Ok((
+                    format!("{} already initialised", project.slug),
+                    String::new(),
+                ));
+            }
+            super::projects::run_init_and_agent_in(&clone_path, &agent_id)?;
+            Ok((
+                format!("Initialised {} with agent {agent_id}", project.slug),
+                String::new(),
+            ))
+        },
+    )
+    .await
+    .map_err(|e| ApiError::internal(format!("init task panicked: {e}")))?
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    Ok(Json(ActionResponse {
+        stdout: outcome.0,
+        stderr: outcome.1,
+    }))
 }
 
 /// Shared setup: find the project by `{owner}/{repo}`, return a 404

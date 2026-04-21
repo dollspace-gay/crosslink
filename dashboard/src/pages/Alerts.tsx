@@ -22,10 +22,11 @@ import {
   useAlerts,
   useCloseIssue,
   useCommentIssue,
+  useProjects,
   useReleaseLock,
   useStealLock,
 } from "@/api/client";
-import type { AlertItem, AlertSeverity } from "@/api/types";
+import type { AlertItem, AlertSeverity, WriteCapability } from "@/api/types";
 import { ExportMenu } from "@/components/ExportMenu";
 import { groupBySeverity, SEVERITY_ORDER } from "@/lib/alerts";
 
@@ -126,6 +127,14 @@ function AlertCard({ alert }: { alert: AlertItem }) {
   const [expanded, setExpanded] = useState(false);
   const severity = alert.severity;
   const subject = parseSubjectRef(alert.subject_ref);
+  // Look up the parent project's write-capability from the shared
+  // projects cache. Defaults to `"ready"` when the cache hasn't
+  // populated yet (user opened /alerts as their first page) — the
+  // 5s poll will hydrate it shortly after.
+  const { data: projects } = useProjects();
+  const projectCap: WriteCapability =
+    projects?.find((p) => p.slug === alert.project_slug)?.write_capability ??
+    "ready";
 
   const toggle = useCallback(() => setExpanded((v) => !v), []);
   const onKeyDown = useCallback(
@@ -185,7 +194,7 @@ function AlertCard({ alert }: { alert: AlertItem }) {
         <p className="px-3 pb-3 text-sm text-muted-foreground">{alert.detail}</p>
       )}
       {expanded && (
-        <AlertExpanded alert={alert} subject={subject} />
+        <AlertExpanded alert={alert} subject={subject} projectCap={projectCap} />
       )}
     </li>
   );
@@ -194,9 +203,11 @@ function AlertCard({ alert }: { alert: AlertItem }) {
 function AlertExpanded({
   alert,
   subject,
+  projectCap,
 }: {
   alert: AlertItem;
   subject: SubjectRef | null;
+  projectCap: WriteCapability;
 }) {
   return (
     <div
@@ -232,11 +243,48 @@ function AlertExpanded({
         <dt className="text-muted-foreground">opened</dt>
         <dd className="font-mono">{alert.opened_at}</dd>
       </dl>
-      <AlertActions
-        slug={alert.project_slug}
-        kind={alert.kind}
-        subject={subject}
-      />
+      {projectCap === "ready" ? (
+        <AlertActions
+          slug={alert.project_slug}
+          kind={alert.kind}
+          subject={subject}
+        />
+      ) : (
+        <NotReadyNotice slug={alert.project_slug} capability={projectCap} />
+      )}
+    </div>
+  );
+}
+
+/// Shown in place of `AlertActions` when the project's workspace
+/// isn't ready for writes. Explains why the action buttons are
+/// hidden and links to the project-detail page where the operator
+/// can kick off the Initialize flow.
+function NotReadyNotice({
+  slug,
+  capability,
+}: {
+  slug: string;
+  capability: "not_initialized" | "agent_missing";
+}) {
+  const reason =
+    capability === "not_initialized"
+      ? "crosslink init hasn't been run"
+      : "crosslink agent init hasn't been run";
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-amber-500">
+        ⚠ Actions hidden: {reason} in this workspace. Write actions
+        will fail until the workspace is initialized.
+      </p>
+      <div className="flex items-center gap-2">
+        <Link
+          to={`/project/${slug}`}
+          className="rounded border border-amber-500/70 bg-amber-500/20 px-2 py-1 text-xs font-medium text-amber-600 hover:bg-amber-500/30"
+        >
+          Open project to initialize →
+        </Link>
+      </div>
     </div>
   );
 }

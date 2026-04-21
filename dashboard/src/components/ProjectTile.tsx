@@ -3,8 +3,13 @@
 
 import { Link } from "react-router-dom";
 
-import type { ProjectListItem } from "@/api/types";
+import type { ProjectListItem, WriteCapability } from "@/api/types";
 import { tileSeverity, type TileSeverity } from "@/lib/severity";
+
+const WRITE_CAP_LABEL: Record<Exclude<WriteCapability, "ready">, string> = {
+  not_initialized: "not initialized",
+  agent_missing: "agent missing",
+};
 
 const SEVERITY_BORDER: Record<TileSeverity, string> = {
   nominal: "border-emerald-500/50",
@@ -51,6 +56,14 @@ export function ProjectTile({ item }: { item: ProjectListItem }) {
         <span className={`h-2 w-2 shrink-0 rounded-full ${SEVERITY_DOT[severity]}`} aria-hidden />
         <span className="truncate text-sm font-medium">{item.slug}</span>
         {item.pinned && <span className="text-xs opacity-70" aria-label="pinned">📌</span>}
+        {item.write_capability !== "ready" && (
+          <span
+            title="Dashboard write actions will fail. Run `crosslink init` + `crosslink agent init` in this workspace, or click the Initialize button on the project detail page."
+            className="ml-auto shrink-0 rounded border border-amber-500/60 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-500"
+          >
+            ⚠ {WRITE_CAP_LABEL[item.write_capability]}
+          </span>
+        )}
       </div>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <div className="flex items-baseline justify-between">

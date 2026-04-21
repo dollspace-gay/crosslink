@@ -22,7 +22,17 @@ export interface ProjectListItem {
   last_activity_at: string | null;
   added_at: string;
   counters: ProjectCountersView;
+  /**
+   * Whether the tracked workspace is initialised enough for the
+   * dashboard's write actions (close issue, release lock, etc.) to
+   * succeed. `"ready"` → all clear. `"agent_missing"` →
+   * `crosslink init` ran but `crosslink agent init` didn't.
+   * `"not_initialized"` → neither ran; clone is bare.
+   */
+  write_capability: WriteCapability;
 }
+
+export type WriteCapability = "ready" | "agent_missing" | "not_initialized";
 
 export interface IssueFile {
   uuid: string;
@@ -113,6 +123,21 @@ export interface ProjectDetail {
   agent_requests: AgentRequestsForAgent[];
   ci_status: CiStatus | null;
   signature_state: SignatureState;
+  /** Same semantics as `ProjectListItem.write_capability`. */
+  write_capability: WriteCapability;
+}
+
+export interface TrackAllOrgArgs {
+  org: string;
+  cloneRoot?: string;
+  /** When true, server runs crosslink init + agent init in each freshly-cloned repo. */
+  init?: boolean;
+  /** Required when `init` is true. Alphanumeric + hyphens + underscores. */
+  agentId?: string;
+}
+
+export interface InitProjectBody {
+  agent_id: string;
 }
 
 export interface ApiError {

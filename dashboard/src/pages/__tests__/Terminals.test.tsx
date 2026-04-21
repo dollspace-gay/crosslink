@@ -66,6 +66,7 @@ const project: ProjectListItem = {
   hub_fetched_at: null,
   last_activity_at: null,
   added_at: "2026-04-20T00:00:00Z",
+  write_capability: "ready",
   counters: {
     open_issues: 0,
     overdue_issues: 0,

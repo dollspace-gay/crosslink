@@ -160,7 +160,12 @@ describe("SettingsGithub page", () => {
     fireEvent.click(screen.getByRole("button", { name: /track all 1/i }));
 
     expect(track.mutate).toHaveBeenCalledWith(
-      { org: "my-org", cloneRoot: "/tmp/clones" },
+      {
+        org: "my-org",
+        cloneRoot: "/tmp/clones",
+        init: false,
+        agentId: undefined,
+      },
       expect.any(Object),
     );
   });
@@ -193,5 +198,35 @@ describe("SettingsGithub page", () => {
     const { SettingsGithub } = await import("../SettingsGithub");
     render(withClient(<SettingsGithub />));
     expect(screen.getByRole("button", { name: /browse my-org/i })).toBeDisabled();
+  });
+
+  it("Initialize checkbox reveals agent-id field and gates Track All", async () => {
+    mocks.useGithubConfig.mockReturnValue(stubQuery(populatedConfig));
+    mocks.useOrgRepos.mockReturnValue(stubQuery([repoHit]));
+    const track = stubMutation<GithubTrackAllOutcome, { org: string; cloneRoot?: string; init?: boolean; agentId?: string }>();
+    mocks.useTrackAllOrg.mockReturnValue(track);
+    const { SettingsGithub } = await import("../SettingsGithub");
+    render(withClient(<SettingsGithub />));
+
+    fireEvent.click(screen.getByRole("button", { name: /browse my-org/i }));
+    // Check the Initialize checkbox — agent-id field appears, Track All is disabled.
+    fireEvent.click(screen.getByRole("checkbox", { name: /initialize cloned repos/i }));
+    const agentField = screen.getByLabelText(/agent id/i);
+    expect(agentField).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /track all 1/i })).toBeDisabled();
+    expect(screen.getByText(/agent id required/i)).toBeInTheDocument();
+
+    fireEvent.change(agentField, { target: { value: "dashboard-host" } });
+    expect(screen.getByRole("button", { name: /track all 1/i })).not.toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /track all 1/i }));
+    expect(track.mutate).toHaveBeenCalledWith(
+      {
+        org: "my-org",
+        cloneRoot: undefined,
+        init: true,
+        agentId: "dashboard-host",
+      },
+      expect.any(Object),
+    );
   });
 });
