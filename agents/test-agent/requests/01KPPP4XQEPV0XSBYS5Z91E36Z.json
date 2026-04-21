@@ -1,0 +1,7 @@
+{
+  "request_id": "01KPPP4XQEPV0XSBYS5Z91E36Z",
+  "kind": "pause",
+  "requested_by": "SHA256:6GbEO9gckWEeR3l6YB3LUaTe1Oc9qqn0WLtMVuu7a8A",
+  "requested_at": "2026-04-21T00:13:24.590976223+00:00",
+  "reason": "e2e smoke test"
+}
