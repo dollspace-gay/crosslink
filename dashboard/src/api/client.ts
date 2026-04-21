@@ -457,9 +457,15 @@ export function useTrackAllOrg() {
     { org: string; cloneRoot?: string }
   >({
     mutationFn: ({ org, cloneRoot }) =>
+      // Always send a JSON body — even an empty one. The backend uses
+      // axum's `Json<TrackAllBody>` extractor which 400s on an absent
+      // body (400 "Failed to parse the request body") even when every
+      // field is Option-typed. JSON.stringify drops `undefined` values,
+      // so this serializes to `{}` when no clone root was supplied,
+      // which `#[serde(default)]` on the backend accepts.
       apiPost<GithubTrackAllOutcome>(
         `/github/orgs/${encodeURIComponent(org)}/track-all`,
-        cloneRoot ? { clone_root: cloneRoot } : undefined,
+        { clone_root: cloneRoot || undefined },
       ),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["dashboard", "projects"] });
