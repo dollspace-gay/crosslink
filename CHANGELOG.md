@@ -96,6 +96,7 @@ new subcommand for log-scraping continuity.
 - Auto-discover rule files and command files from resources directories in `build.rs` ([CL-387])
 
 ### Fixed
+- Alert lock actions: surface holder + disambiguate Release vs Steal (#716)
 - Dashboard InitBanner doesn't refresh on init success + track-all init fails on subset of repos (#715)
 - Clone target should be $HOME/<repo>, not $HOME/<owner>/<repo> (#714)
 - Resolve crosslink binary via PATH first, not current_exe (#713)
