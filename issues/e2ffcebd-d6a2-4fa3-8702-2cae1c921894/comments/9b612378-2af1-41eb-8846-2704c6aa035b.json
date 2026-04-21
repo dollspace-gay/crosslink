@@ -1,0 +1,8 @@
+{
+  "uuid": "9b612378-2af1-41eb-8846-2704c6aa035b",
+  "issue_uuid": "e2ffcebd-d6a2-4fa3-8702-2cae1c921894",
+  "author": "anon-ab6221f8",
+  "content": "Shipped in 87a15e3f. Default clone_root changed from ~/crosslink-tracked to $HOME in both /clone and /github/orgs/<org>/track-all. Cloned repos now land at ~/<owner>/<repo> — same place discover walks, same place user's manual clones live. The 'crosslink-tracked' subdir was a scaffolding holdover with no upside. clone_root is still an optional override in the body for users who want a subdirectory. All doc comments + frontend placeholder + ops doc §3.3 updated to match. Verified end-to-end via /clone of rust-lang/mdBook.git → /home/doll/rust-lang/mdBook.",
+  "created_at": "2026-04-21T21:08:05.137998089Z",
+  "kind": "result"
+}
