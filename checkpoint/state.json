@@ -8,8 +8,8 @@
       "claimed_at": "2026-03-17T18:29:21.280473Z"
     },
     "252": {
-      "agent_id": "maxine--basel--kickoff-graph-command-0fa7",
-      "claimed_at": "2026-03-22T16:20:47.643373Z"
+      "agent_id": "dashboard-bootstrap",
+      "claimed_at": "2026-04-21T22:40:15.736682198Z"
     },
     "254": {
       "agent_id": "maxine--basel",
@@ -65,11 +65,16 @@
       "agent_id": "dashboard-bootstrap",
       "agent_seq": 6,
       "timestamp": "2026-04-21T22:40:13.354192570Z"
+    },
+    {
+      "agent_id": "dashboard-bootstrap",
+      "agent_seq": 7,
+      "timestamp": "2026-04-21T22:40:15.736682198Z"
     }
   ],
   "watermark": {
-    "timestamp": "2026-04-21T22:40:13.354192570Z",
+    "timestamp": "2026-04-21T22:40:15.736682198Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 6
+    "agent_seq": 7
   }
 }
