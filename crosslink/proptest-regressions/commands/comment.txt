@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 59f4bfb0c8d66c23d00e584e20e50d9924a537b3586a21163c767de79bb08766 # shrinks to count = 9
+cc ade5ce790756c45f6609cac553e50b123e15a4579489f268226f77bd010cd9da # shrinks to count = 3
