@@ -8,8 +8,8 @@
       "claimed_at": "2026-03-17T18:29:21.280473Z"
     },
     "231": {
-      "agent_id": "maxine--basel--config-system-overhaul-2e70",
-      "claimed_at": "2026-03-19T18:19:12.276803Z"
+      "agent_id": "dashboard-bootstrap",
+      "claimed_at": "2026-04-21T22:40:11.010563773Z"
     },
     "252": {
       "agent_id": "maxine--basel--kickoff-graph-command-0fa7",
@@ -59,11 +59,16 @@
       "agent_id": "dashboard-bootstrap",
       "agent_seq": 4,
       "timestamp": "2026-04-21T22:40:08.717204493Z"
+    },
+    {
+      "agent_id": "dashboard-bootstrap",
+      "agent_seq": 5,
+      "timestamp": "2026-04-21T22:40:11.010563773Z"
     }
   ],
   "watermark": {
-    "timestamp": "2026-04-21T22:40:08.717204493Z",
+    "timestamp": "2026-04-21T22:40:11.010563773Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 4
+    "agent_seq": 5
   }
 }
