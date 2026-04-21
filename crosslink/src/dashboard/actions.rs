@@ -194,6 +194,41 @@ pub async fn run_cli(
         }
     }
 
+    // Fast-forward the hub-cache worktree so the frontend's
+    // mutation-triggered refetch (which fires within milliseconds)
+    // reads the fresh hub tip, not the pre-mutation one. Without
+    // this, close/release/steal etc. all have a ≤5s latency until
+    // the poll loop's own `ensure_hub_cache_worktree` runs — and
+    // the user sees "nothing happened" in the meantime (#716).
+    //
+    // Skip the reset if the worktree has uncommitted state —
+    // something else (concurrent CLI call) is mid-write; don't
+    // wipe their progress. Same safety as poll::ensure_hub_cache_worktree.
+    let hub_cache = project
+        .clone_path
+        .join(".crosslink")
+        .join(".hub-cache");
+    if hub_cache.is_dir() {
+        let porcelain = Command::new("git")
+            .arg("-C")
+            .arg(&hub_cache)
+            .args(["status", "--porcelain"])
+            .output()
+            .await;
+        let is_dirty = matches!(
+            porcelain,
+            Ok(out) if out.status.success() && !out.stdout.is_empty()
+        );
+        if !is_dirty {
+            let _ = Command::new("git")
+                .arg("-C")
+                .arg(&hub_cache)
+                .args(["reset", "--hard", "--quiet", "crosslink/hub"])
+                .status()
+                .await;
+        }
+    }
+
     Ok(ActionResult { stdout, stderr })
 }
 

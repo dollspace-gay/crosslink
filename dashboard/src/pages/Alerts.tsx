@@ -22,11 +22,13 @@ import {
   useAlerts,
   useCloseIssue,
   useCommentIssue,
+  useProject,
   useProjects,
   useReleaseLock,
+  useSignBackfill,
   useStealLock,
 } from "@/api/client";
-import type { AlertItem, AlertSeverity, WriteCapability } from "@/api/types";
+import type { AlertItem, AlertSeverity, LockEntry, WriteCapability } from "@/api/types";
 import { ExportMenu } from "@/components/ExportMenu";
 import { groupBySeverity, SEVERITY_ORDER } from "@/lib/alerts";
 
@@ -136,6 +138,22 @@ function AlertCard({ alert }: { alert: AlertItem }) {
     projects?.find((p) => p.slug === alert.project_slug)?.write_capability ??
     "ready";
 
+  // For lock-subject alerts, we fetch the project detail on expand
+  // so we can show "held by <agent>" and let the user pick Release
+  // vs Steal with eyes open. React Query caches this — no duplicate
+  // fetch if another card on the same slug already opened it.
+  const needsLockHolder =
+    expanded && subject?.kind === "lock";
+  const { data: projectDetail } = useProject(
+    needsLockHolder ? alert.project_slug : null,
+  );
+  const lockEntry: LockEntry | undefined =
+    subject?.kind === "lock" && subject.id
+      ? projectDetail?.locks.find(
+          (l) => String(l.issue_id) === subject.id,
+        )
+      : undefined;
+
   const toggle = useCallback(() => setExpanded((v) => !v), []);
   const onKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
@@ -194,7 +212,12 @@ function AlertCard({ alert }: { alert: AlertItem }) {
         <p className="px-3 pb-3 text-sm text-muted-foreground">{alert.detail}</p>
       )}
       {expanded && (
-        <AlertExpanded alert={alert} subject={subject} projectCap={projectCap} />
+        <AlertExpanded
+          alert={alert}
+          subject={subject}
+          projectCap={projectCap}
+          lockEntry={lockEntry}
+        />
       )}
     </li>
   );
@@ -204,10 +227,12 @@ function AlertExpanded({
   alert,
   subject,
   projectCap,
+  lockEntry,
 }: {
   alert: AlertItem;
   subject: SubjectRef | null;
   projectCap: WriteCapability;
+  lockEntry: LockEntry | undefined;
 }) {
   return (
     <div
@@ -240,6 +265,14 @@ function AlertExpanded({
             <dd className="font-mono">{alert.subject_ref}</dd>
           </>
         )}
+        {lockEntry && (
+          <>
+            <dt className="text-muted-foreground">held by</dt>
+            <dd className="font-mono">{lockEntry.agent_id}</dd>
+            <dt className="text-muted-foreground">claimed</dt>
+            <dd className="font-mono">{lockEntry.claimed_at}</dd>
+          </>
+        )}
         <dt className="text-muted-foreground">opened</dt>
         <dd className="font-mono">{alert.opened_at}</dd>
       </dl>
@@ -248,6 +281,7 @@ function AlertExpanded({
           slug={alert.project_slug}
           kind={alert.kind}
           subject={subject}
+          lockEntry={lockEntry}
         />
       ) : (
         <NotReadyNotice slug={alert.project_slug} capability={projectCap} />
@@ -293,10 +327,12 @@ function AlertActions({
   slug,
   kind,
   subject,
+  lockEntry,
 }: {
   slug: string;
   kind: string;
   subject: SubjectRef | null;
+  lockEntry: LockEntry | undefined;
 }) {
   // Each hook is a React rule-of-hooks mandate — call them all here,
   // decide which buttons to render based on the parsed subject.
@@ -305,6 +341,7 @@ function AlertActions({
   const releaseLock = useReleaseLock(slug);
   const stealLock = useStealLock(slug);
   const agentRequest = useAgentRequest(slug);
+  const signBackfill = useSignBackfill(slug);
 
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
@@ -313,7 +350,8 @@ function AlertActions({
     commentIssue.error?.message ||
     releaseLock.error?.message ||
     stealLock.error?.message ||
-    agentRequest.error?.message;
+    agentRequest.error?.message ||
+    signBackfill.error?.message;
 
   // Confirmation banner: the alert row stays visible until the next
   // poll tick re-reads the hub (≤5s); without this the user can't
@@ -326,6 +364,7 @@ function AlertActions({
     (stealLock.isSuccess && "Lock stolen — alert clears on the next poll tick.") ||
     (commentIssue.isSuccess && "Comment posted.") ||
     (agentRequest.isSuccess && "Agent request sent — alert clears on the next poll tick.") ||
+    (signBackfill.isSuccess && "Sign-backfill complete — alert clears on the next poll tick.") ||
     null;
   // Note: `kind` is consumed implicitly via the useProjectMutations
   // invalidation chain; kept as a prop so future per-kind affordances
@@ -353,6 +392,25 @@ function AlertActions({
 
   return (
     <div className="flex flex-col gap-2">
+      {/* Lock-subject hint: `release` requires the caller to be the
+          holder; `steal` always works. We surface the holder (from
+          the project-detail cache) and a short semantics reminder
+          so the operator doesn't learn this via a 500-stderr dump. */}
+      {subject.kind === "lock" && (
+        <p className="text-xs text-muted-foreground">
+          {lockEntry ? (
+            <>
+              Held by <code className="font-mono">{lockEntry.agent_id}</code>.
+              {" "}
+            </>
+          ) : (
+            <>(loading lock holder…) </>
+          )}
+          Use <strong>Release</strong> only if you're the holder. Use{" "}
+          <strong>Steal</strong> to take over a stale lock held by another
+          agent.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         {/* Lock subject → release / steal */}
         {subject.kind === "lock" && issueId != null && (
@@ -374,6 +432,19 @@ function AlertActions({
               {stealLock.isPending ? "Stealing…" : "Steal lock"}
             </button>
           </>
+        )}
+
+        {/* Signature-invalid → sign-backfill */}
+        {kind === "signature_invalid" && (
+          <button
+            type="button"
+            onClick={() => signBackfill.mutate()}
+            disabled={signBackfill.isPending}
+            className="rounded border px-2 py-1 text-xs hover:bg-black/10 disabled:opacity-50"
+            title="Runs `crosslink integrity sign-backfill --confirm` in the workspace"
+          >
+            {signBackfill.isPending ? "Backfilling…" : "Run sign-backfill"}
+          </button>
         )}
 
         {/* Issue subject → close + comment */}

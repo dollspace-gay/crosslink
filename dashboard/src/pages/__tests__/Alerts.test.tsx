@@ -41,6 +41,9 @@ const mocks = {
   useReleaseLock: vi.fn(),
   useStealLock: vi.fn(),
   useAgentRequest: vi.fn(),
+  useSignBackfill: vi.fn(),
+  useProjects: vi.fn(),
+  useProject: vi.fn(),
 };
 
 vi.mock("@/api/client", async () => {
@@ -55,6 +58,9 @@ vi.mock("@/api/client", async () => {
     useReleaseLock: () => mocks.useReleaseLock(),
     useStealLock: () => mocks.useStealLock(),
     useAgentRequest: () => mocks.useAgentRequest(),
+    useSignBackfill: () => mocks.useSignBackfill(),
+    useProjects: () => mocks.useProjects(),
+    useProject: (slug: string | null) => mocks.useProject(slug),
   };
 });
 
@@ -111,6 +117,9 @@ describe("Alerts page", () => {
     mocks.useReleaseLock.mockReturnValue(stubMutation());
     mocks.useStealLock.mockReturnValue(stubMutation());
     mocks.useAgentRequest.mockReturnValue(stubMutation());
+    mocks.useSignBackfill.mockReturnValue(stubMutation());
+    mocks.useProjects.mockReturnValue(stubQuery([]));
+    mocks.useProject.mockReturnValue(stubQuery(undefined));
   });
 
   it("renders 'all clear' when no alerts", async () => {
@@ -383,5 +392,60 @@ describe("Alerts page", () => {
       { issueId: 17, content: "wrapping this up" },
       expect.any(Object),
     );
+  });
+
+  it("stale_lock shows holder + Release/Steal semantic hint when lockEntry resolves", async () => {
+    mocks.useAlerts.mockReturnValue(
+      stubQuery([mkAlert({ subject_ref: "lock:20" })]),
+    );
+    mocks.useProject.mockReturnValue(
+      stubQuery({
+        slug: "owner/repo",
+        locks: [
+          {
+            issue_id: 20,
+            agent_id: "maxine--basel",
+            branch: null,
+            claimed_at: "2026-04-21T00:00:00Z",
+            signed_by: "test",
+          },
+        ],
+      }),
+    );
+    const { Alerts } = await import("../Alerts");
+    render_(<Alerts />);
+
+    fireEvent.click(screen.getByRole("button", { name: /toggle stale_lock/i }));
+    // Holder visible — appears in both the detail grid and the helper
+    // sentence, so `getAllByText` and assert count > 0.
+    expect(screen.getAllByText("maxine--basel").length).toBeGreaterThan(0);
+    // Semantic hint present.
+    expect(
+      screen.getByText(/take over a stale lock held by another agent/i),
+    ).toBeInTheDocument();
+  });
+
+  it("signature_invalid exposes Run sign-backfill and fires useSignBackfill", async () => {
+    const backfill = stubMutation<unknown, void>();
+    mocks.useSignBackfill.mockReturnValue(backfill);
+    mocks.useAlerts.mockReturnValue(
+      stubQuery([
+        mkAlert({
+          kind: "signature_invalid",
+          subject_ref: "commit:abcdef0123",
+          severity: "critical",
+        }),
+      ]),
+    );
+    const { Alerts } = await import("../Alerts");
+    render_(<Alerts />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /toggle signature_invalid/i }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /run sign-backfill/i }),
+    );
+    expect(backfill.mutate).toHaveBeenCalled();
   });
 });

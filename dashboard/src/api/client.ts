@@ -483,6 +483,20 @@ export function useTrackAllOrg() {
   });
 }
 
+/// Run `crosslink integrity sign-backfill --confirm` in the
+/// project's workspace. Triggered from the `signature_invalid`
+/// alert's action panel — re-signs unsigned / invalidly-signed
+/// commits on the hub branch so the alert resolves on the next
+/// poll tick.
+export function useSignBackfill(slug: string) {
+  const invalidate = useProjectMutations(slug);
+  return useMutation<ActionResponse, ApiRequestError, void>({
+    mutationFn: () =>
+      apiPost<ActionResponse>(`/w/${slug}/integrity/sign-backfill`),
+    onSuccess: () => invalidate(),
+  });
+}
+
 /// Retrofit an already-tracked project: run `crosslink init` +
 /// `crosslink agent init` in its workspace so write actions start
 /// working. Idempotent-on-ready at the server level.

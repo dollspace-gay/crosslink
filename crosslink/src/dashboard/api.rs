@@ -75,6 +75,10 @@ pub fn build_router() -> Router<AppState> {
             post(agent_request),
         )
         .route("/w/{owner}/{repo}/init", post(init_project))
+        .route(
+            "/w/{owner}/{repo}/integrity/sign-backfill",
+            post(sign_backfill),
+        )
 }
 
 /// Wire-format representation of a tracked project on the list endpoint.
@@ -719,6 +723,32 @@ async fn init_project(
     Ok(Json(ActionResponse {
         stdout: outcome.0,
         stderr: outcome.1,
+    }))
+}
+
+/// `POST /api/v1/dashboard/w/{owner}/{repo}/integrity/sign-backfill`
+///
+/// Runs `crosslink integrity sign-backfill --confirm` in the
+/// tracked workspace. Used from `signature_invalid` alerts to let
+/// the operator re-sign unsigned / invalidly-signed commits on the
+/// hub branch without dropping to a shell.
+async fn sign_backfill(
+    State(state): State<AppState>,
+    Path((owner, repo)): Path<(String, String)>,
+) -> Result<Json<ActionResponse>, ApiError> {
+    let (db_path, project) = resolve_project(&state, &owner, &repo).await?;
+    let result = actions::run_cli(
+        &db_path,
+        &project,
+        "sign_backfill",
+        Some("integrity:sign-backfill"),
+        &["integrity", "sign-backfill", "--confirm"],
+    )
+    .await
+    .map_err(|e| ApiError::internal(format!("{e:#}")))?;
+    Ok(Json(ActionResponse {
+        stdout: result.stdout,
+        stderr: result.stderr,
     }))
 }
 
