@@ -941,6 +941,853 @@
     "agent_id": "dashboard-bootstrap",
     "event_description": "LockClaimed(#206)",
     "event_timestamp": "2026-04-21T22:40:01.733027952Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4389
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#206)",
+    "event_timestamp": "2026-04-21T22:40:04.076250134Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4386
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#213)",
+    "event_timestamp": "2026-04-21T22:40:06.460429439Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4384
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#213)",
+    "event_timestamp": "2026-04-21T22:40:08.717204493Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4382
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#231)",
+    "event_timestamp": "2026-04-21T22:40:11.010563773Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4379
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#231)",
+    "event_timestamp": "2026-04-21T22:40:13.354192570Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4377
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#252)",
+    "event_timestamp": "2026-04-21T22:40:15.736682198Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4375
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#252)",
+    "event_timestamp": "2026-04-21T22:40:18.115505741Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4372
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#634)",
+    "event_timestamp": "2026-04-21T22:40:20.523309955Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4370
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#634)",
+    "event_timestamp": "2026-04-21T22:40:22.841976299Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4368
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#254)",
+    "event_timestamp": "2026-04-21T22:40:25.290884252Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4365
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#254)",
+    "event_timestamp": "2026-04-21T22:40:27.639367435Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4363
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#203)",
+    "event_timestamp": "2026-04-21T22:40:29.962731256Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4361
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#203)",
+    "event_timestamp": "2026-04-21T22:40:32.206437539Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4358
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#258)",
+    "event_timestamp": "2026-04-21T22:40:34.390446653Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4356
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#258)",
+    "event_timestamp": "2026-04-21T22:40:36.619533517Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 4354
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#717)",
+    "event_timestamp": "2026-04-21T22:52:11.792891818Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 3659
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#718)",
+    "event_timestamp": "2026-04-21T23:06:26.976357252Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 2804
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#718)",
+    "event_timestamp": "2026-04-21T23:24:19.306491824Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 1731
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#717)",
+    "event_timestamp": "2026-04-21T23:29:28.229998167Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 1422
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#689)",
+    "event_timestamp": "2026-04-21T23:29:49.777716115Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 1401
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#717)",
+    "event_timestamp": "2026-04-21T23:30:14.825374825Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 1376
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#717)",
+    "event_timestamp": "2026-04-21T23:30:17.273171334Z",
+    "commit_timestamp": "2026-04-21T23:53:11Z",
+    "skew_seconds": 1373
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#711)",
+    "event_timestamp": "2026-04-21T23:35:54.045281962Z",
+    "commit_timestamp": "2026-04-21T23:42:37Z",
+    "skew_seconds": 402
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#711)",
+    "event_timestamp": "2026-04-21T23:40:57.602949939Z",
+    "commit_timestamp": "2026-04-21T23:42:37Z",
+    "skew_seconds": 99
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#711)",
+    "event_timestamp": "2026-04-21T23:41:19.077761834Z",
+    "commit_timestamp": "2026-04-21T23:42:37Z",
+    "skew_seconds": 77
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#206)",
+    "event_timestamp": "2026-04-21T22:40:01.733027952Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3744
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#206)",
+    "event_timestamp": "2026-04-21T22:40:04.076250134Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3741
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#213)",
+    "event_timestamp": "2026-04-21T22:40:06.460429439Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3739
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#213)",
+    "event_timestamp": "2026-04-21T22:40:08.717204493Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3737
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#231)",
+    "event_timestamp": "2026-04-21T22:40:11.010563773Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3734
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#231)",
+    "event_timestamp": "2026-04-21T22:40:13.354192570Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3732
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#252)",
+    "event_timestamp": "2026-04-21T22:40:15.736682198Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3730
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#252)",
+    "event_timestamp": "2026-04-21T22:40:18.115505741Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3727
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#634)",
+    "event_timestamp": "2026-04-21T22:40:20.523309955Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3725
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#634)",
+    "event_timestamp": "2026-04-21T22:40:22.841976299Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3723
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#254)",
+    "event_timestamp": "2026-04-21T22:40:25.290884252Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3720
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#254)",
+    "event_timestamp": "2026-04-21T22:40:27.639367435Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3718
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#203)",
+    "event_timestamp": "2026-04-21T22:40:29.962731256Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3716
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#203)",
+    "event_timestamp": "2026-04-21T22:40:32.206437539Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3713
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#258)",
+    "event_timestamp": "2026-04-21T22:40:34.390446653Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3711
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#258)",
+    "event_timestamp": "2026-04-21T22:40:36.619533517Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3709
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#717)",
+    "event_timestamp": "2026-04-21T22:52:11.792891818Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 3014
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#718)",
+    "event_timestamp": "2026-04-21T23:06:26.976357252Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 2159
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#718)",
+    "event_timestamp": "2026-04-21T23:24:19.306491824Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 1086
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#717)",
+    "event_timestamp": "2026-04-21T23:29:28.229998167Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 777
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#689)",
+    "event_timestamp": "2026-04-21T23:29:49.777716115Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 756
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#717)",
+    "event_timestamp": "2026-04-21T23:30:14.825374825Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 731
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#717)",
+    "event_timestamp": "2026-04-21T23:30:17.273171334Z",
+    "commit_timestamp": "2026-04-21T23:42:26Z",
+    "skew_seconds": 728
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#711)",
+    "event_timestamp": "2026-04-21T23:35:54.045281962Z",
+    "commit_timestamp": "2026-04-21T23:41:18Z",
+    "skew_seconds": 323
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#206)",
+    "event_timestamp": "2026-04-21T22:40:01.733027952Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3660
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#206)",
+    "event_timestamp": "2026-04-21T22:40:04.076250134Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3657
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#213)",
+    "event_timestamp": "2026-04-21T22:40:06.460429439Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3655
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#213)",
+    "event_timestamp": "2026-04-21T22:40:08.717204493Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3653
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#231)",
+    "event_timestamp": "2026-04-21T22:40:11.010563773Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3650
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#231)",
+    "event_timestamp": "2026-04-21T22:40:13.354192570Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3648
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#252)",
+    "event_timestamp": "2026-04-21T22:40:15.736682198Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3646
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#252)",
+    "event_timestamp": "2026-04-21T22:40:18.115505741Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3643
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#634)",
+    "event_timestamp": "2026-04-21T22:40:20.523309955Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3641
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#634)",
+    "event_timestamp": "2026-04-21T22:40:22.841976299Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3639
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#254)",
+    "event_timestamp": "2026-04-21T22:40:25.290884252Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3636
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#254)",
+    "event_timestamp": "2026-04-21T22:40:27.639367435Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3634
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#203)",
+    "event_timestamp": "2026-04-21T22:40:29.962731256Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3632
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#203)",
+    "event_timestamp": "2026-04-21T22:40:32.206437539Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3629
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#258)",
+    "event_timestamp": "2026-04-21T22:40:34.390446653Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3627
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#258)",
+    "event_timestamp": "2026-04-21T22:40:36.619533517Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 3625
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#717)",
+    "event_timestamp": "2026-04-21T22:52:11.792891818Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 2930
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#718)",
+    "event_timestamp": "2026-04-21T23:06:26.976357252Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 2075
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#718)",
+    "event_timestamp": "2026-04-21T23:24:19.306491824Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 1002
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#717)",
+    "event_timestamp": "2026-04-21T23:29:28.229998167Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 693
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#689)",
+    "event_timestamp": "2026-04-21T23:29:49.777716115Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 672
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#717)",
+    "event_timestamp": "2026-04-21T23:30:14.825374825Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 647
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#717)",
+    "event_timestamp": "2026-04-21T23:30:17.273171334Z",
+    "commit_timestamp": "2026-04-21T23:41:02Z",
+    "skew_seconds": 644
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#711)",
+    "event_timestamp": "2026-04-21T23:35:54.045281962Z",
+    "commit_timestamp": "2026-04-21T23:40:55Z",
+    "skew_seconds": 300
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#206)",
+    "event_timestamp": "2026-04-21T22:40:01.733027952Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3622
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#206)",
+    "event_timestamp": "2026-04-21T22:40:04.076250134Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3619
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#213)",
+    "event_timestamp": "2026-04-21T22:40:06.460429439Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3617
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#213)",
+    "event_timestamp": "2026-04-21T22:40:08.717204493Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3615
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#231)",
+    "event_timestamp": "2026-04-21T22:40:11.010563773Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3612
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#231)",
+    "event_timestamp": "2026-04-21T22:40:13.354192570Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3610
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#252)",
+    "event_timestamp": "2026-04-21T22:40:15.736682198Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3608
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#252)",
+    "event_timestamp": "2026-04-21T22:40:18.115505741Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3605
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#634)",
+    "event_timestamp": "2026-04-21T22:40:20.523309955Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3603
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#634)",
+    "event_timestamp": "2026-04-21T22:40:22.841976299Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3601
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#254)",
+    "event_timestamp": "2026-04-21T22:40:25.290884252Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3598
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#254)",
+    "event_timestamp": "2026-04-21T22:40:27.639367435Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3596
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#203)",
+    "event_timestamp": "2026-04-21T22:40:29.962731256Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3594
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#203)",
+    "event_timestamp": "2026-04-21T22:40:32.206437539Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3591
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#258)",
+    "event_timestamp": "2026-04-21T22:40:34.390446653Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3589
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#258)",
+    "event_timestamp": "2026-04-21T22:40:36.619533517Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 3587
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#717)",
+    "event_timestamp": "2026-04-21T22:52:11.792891818Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 2892
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#718)",
+    "event_timestamp": "2026-04-21T23:06:26.976357252Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 2037
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#718)",
+    "event_timestamp": "2026-04-21T23:24:19.306491824Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 964
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#717)",
+    "event_timestamp": "2026-04-21T23:29:28.229998167Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 655
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#689)",
+    "event_timestamp": "2026-04-21T23:29:49.777716115Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 634
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#717)",
+    "event_timestamp": "2026-04-21T23:30:14.825374825Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 609
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#717)",
+    "event_timestamp": "2026-04-21T23:30:17.273171334Z",
+    "commit_timestamp": "2026-04-21T23:40:24Z",
+    "skew_seconds": 606
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#711)",
+    "event_timestamp": "2026-04-21T23:35:54.045281962Z",
+    "commit_timestamp": "2026-04-21T23:37:19Z",
+    "skew_seconds": 84
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#206)",
+    "event_timestamp": "2026-04-21T22:40:01.733027952Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3381
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#206)",
+    "event_timestamp": "2026-04-21T22:40:04.076250134Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3378
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#213)",
+    "event_timestamp": "2026-04-21T22:40:06.460429439Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3376
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#213)",
+    "event_timestamp": "2026-04-21T22:40:08.717204493Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3374
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#231)",
+    "event_timestamp": "2026-04-21T22:40:11.010563773Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3371
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#231)",
+    "event_timestamp": "2026-04-21T22:40:13.354192570Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3369
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#252)",
+    "event_timestamp": "2026-04-21T22:40:15.736682198Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3367
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#252)",
+    "event_timestamp": "2026-04-21T22:40:18.115505741Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3364
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#634)",
+    "event_timestamp": "2026-04-21T22:40:20.523309955Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3362
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#634)",
+    "event_timestamp": "2026-04-21T22:40:22.841976299Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3360
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#254)",
+    "event_timestamp": "2026-04-21T22:40:25.290884252Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3357
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#254)",
+    "event_timestamp": "2026-04-21T22:40:27.639367435Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3355
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#203)",
+    "event_timestamp": "2026-04-21T22:40:29.962731256Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3353
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#203)",
+    "event_timestamp": "2026-04-21T22:40:32.206437539Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3350
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#258)",
+    "event_timestamp": "2026-04-21T22:40:34.390446653Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3348
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#258)",
+    "event_timestamp": "2026-04-21T22:40:36.619533517Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 3346
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#717)",
+    "event_timestamp": "2026-04-21T22:52:11.792891818Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 2651
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#718)",
+    "event_timestamp": "2026-04-21T23:06:26.976357252Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 1796
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#718)",
+    "event_timestamp": "2026-04-21T23:24:19.306491824Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 723
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#717)",
+    "event_timestamp": "2026-04-21T23:29:28.229998167Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 414
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#689)",
+    "event_timestamp": "2026-04-21T23:29:49.777716115Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 393
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#717)",
+    "event_timestamp": "2026-04-21T23:30:14.825374825Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 368
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockReleased(#717)",
+    "event_timestamp": "2026-04-21T23:30:17.273171334Z",
+    "commit_timestamp": "2026-04-21T23:36:23Z",
+    "skew_seconds": 365
+  },
+  {
+    "agent_id": "dashboard-bootstrap",
+    "event_description": "LockClaimed(#206)",
+    "event_timestamp": "2026-04-21T22:40:01.733027952Z",
     "commit_timestamp": "2026-04-21T23:17:49Z",
     "skew_seconds": 2267
   },
