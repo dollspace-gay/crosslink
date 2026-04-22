@@ -386,7 +386,16 @@ mod tests {
     #[tokio::test]
     async fn test_session_registry_insert_get_remove() {
         let reg = SessionRegistry::new();
-        let s = spawn_pty(&std::env::temp_dir(), "/bin/true", &[], 24, 80).expect("spawn");
+        // Use `sh -c :` instead of `/bin/true`: some macOS/CI runners
+        // reject direct `/bin/true` with ENOENT through portable-pty.
+        let s = spawn_pty(
+            &std::env::temp_dir(),
+            "/bin/sh",
+            &["-c".to_string(), ":".to_string()],
+            24,
+            80,
+        )
+        .expect("spawn");
         let id = s.id.clone();
         reg.insert(Arc::clone(&s)).await;
         assert!(reg.get(&id).await.is_some());
