@@ -1,0 +1,10 @@
+{
+  "uuid": "8a59e288-16d0-4650-a8b9-4f320eecc7be",
+  "issue_uuid": "cd68bf43-c841-4ec1-ae8f-37632d68765f",
+  "author": "dashboard-bootstrap",
+  "content": "Root cause: role-aware configure_signing went driver→disable when user.signingkey wasn't set in main repo. Test_configure_signing_with_key asserts gpg.format=ssh with only agent.json keys. Fix: after driver_signing_key() miss, fall back to agent.ssh_key_path if present. Semantics still role-aware — driver key wins when configured — but operators without user.signingkey don't get unsigned hub commits.",
+  "created_at": "2026-04-22T00:15:16.494987063Z",
+  "kind": "plan",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAVhGPF+F8byJGj02BYVkVtQwVLbft7yk4BKRFrnIUp2BsrYAlixASwDsDYvWHNBL6DIeDp+ZmpF5jO/CNKzn4AQ=="
+}
