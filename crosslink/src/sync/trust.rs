@@ -142,9 +142,26 @@ impl SyncManager {
                 return Ok(());
             }
             tracing::warn!(
-                "driver signing key configured but not found at {}; disabling signing",
+                "driver signing key configured but not found at {}; falling back to agent key",
                 driver_key.display()
             );
+        }
+
+        // Driver key unavailable — fall back to whatever key agent.json
+        // knows about, so hub commits still sign even when the operator
+        // hasn't set `user.signingkey` in the main repo.
+        if let Some(agent) = AgentConfig::load(crosslink_dir)? {
+            if let (Some(rel_key), Some(_)) = (&agent.ssh_key_path, &agent.ssh_fingerprint) {
+                let private_key = self.crosslink_dir.join(rel_key);
+                if private_key.exists() {
+                    signing::configure_git_ssh_signing(
+                        &self.cache_dir,
+                        &private_key,
+                        Some(&allowed_signers),
+                    )?;
+                    return Ok(());
+                }
+            }
         }
 
         // Nothing usable — disable signing so commits still land.
