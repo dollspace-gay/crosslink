@@ -1,0 +1,10 @@
+{
+  "uuid": "38e334a4-a080-407b-b5d4-f1ba118f5c6a",
+  "issue_uuid": "9448fd71-bc44-4152-8299-367abaca496f",
+  "author": "dashboard-bootstrap",
+  "content": "Also observed: 'claude.ai Open Targets' (https://mcp.platform.opentargets.org/mcp) times out on plain curl — DNS resolves but TCP/HTTPS hangs. Upstream outage, not a local config issue; nothing to fix on our end. Notion and Cloudflare show 'Needs authentication' — expected, just means the OAuth flow hasn't been run.",
+  "created_at": "2026-04-23T13:04:25.410409240Z",
+  "kind": "observation",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAzA8HuvB5jwFQ7LFoVWlLaNI/sL2qcR9xO4ctyaIB2qdTLsrsWaVAJNfLju6VwmxQ9NLGxuDDh0ZtibBWIM24BQ=="
+}
