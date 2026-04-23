@@ -1,0 +1,10 @@
+{
+  "uuid": "d065dffe-46ea-480e-94db-e998d725b2a2",
+  "issue_uuid": "9448fd71-bc44-4152-8299-367abaca496f",
+  "author": "dashboard-bootstrap",
+  "content": "Root cause: uv was not installed on this machine. Both .claude/mcp/*.py servers launch via 'uv run' (PEP-723 inline script metadata), so both failed with 'uv: command not found'. Installed uv 0.11.7 via https://astral.sh/uv/install.sh into ~/.local/bin (already on PATH). Verified both servers now respond to MCP initialize and 'claude mcp list' reports both as ✓ Connected.",
+  "created_at": "2026-04-23T13:04:18.955446188Z",
+  "kind": "resolution",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABASPSXlDm0Pm5z31+fPWKzGLJN7u/mUUoRgjk0+OirHxcnMKh3+/MTUHrLD7h6JIg/mBrKf2WP4g9cbaLIiwVTDA=="
+}
