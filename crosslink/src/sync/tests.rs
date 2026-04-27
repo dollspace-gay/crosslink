@@ -1074,6 +1074,181 @@ fn test_clean_dirty_state_with_dirty_file() {
     assert!(cleaned);
 }
 
+/// Regression test for #574: when the hub cache directory exists but lacks
+/// its own `.git` link, every git command run from inside it walks up to the
+/// parent repository's git directory. Before the fix, `clean_dirty_state`
+/// would happily run `git add -A` + `git commit` against the parent's index
+/// and HEAD, silently landing a `sync: auto-stage dirty hub state (recovery)`
+/// commit on whatever feature branch the user had checked out, replacing the
+/// branch's tree with hub-cache artifacts.
+///
+/// The fix adds a `verify_cache_worktree` preflight that:
+/// 1. Confirms `git rev-parse --show-toplevel` from cache_dir resolves to
+///    cache_dir (not a parent — catches the walk-up case).
+/// 2. Confirms HEAD is on the configured `HUB_BRANCH`.
+///
+/// This test simulates the broken-worktree state and asserts that
+/// `clean_dirty_state` refuses with an error and does not modify the parent
+/// repository's branch ref or commit log.
+#[test]
+fn test_clean_dirty_state_refuses_when_cache_dir_is_not_a_worktree() {
+    let dir = tempdir().unwrap();
+
+    // Init a parent repo on a feature-style branch.
+    Command::new("git")
+        .current_dir(dir.path())
+        .args(["init", "-q", "-b", "feat/foo"])
+        .output()
+        .unwrap();
+    for args in [
+        vec!["config", "user.email", "t@t.local"],
+        vec!["config", "user.name", "T"],
+        vec!["config", "commit.gpgsign", "false"],
+    ] {
+        Command::new("git")
+            .current_dir(dir.path())
+            .args(&args)
+            .output()
+            .unwrap();
+    }
+    std::fs::write(dir.path().join("README.md"), "feature\n").unwrap();
+    Command::new("git")
+        .current_dir(dir.path())
+        .args(["add", "."])
+        .output()
+        .unwrap();
+    Command::new("git")
+        .current_dir(dir.path())
+        .args(["commit", "-qm", "init"])
+        .output()
+        .unwrap();
+
+    let parent_head_before = String::from_utf8_lossy(
+        &Command::new("git")
+            .current_dir(dir.path())
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .trim()
+    .to_string();
+
+    // Create .crosslink/.hub-cache/ as a regular directory — NO `.git` link.
+    // This simulates the broken-worktree state described in the bug report.
+    let crosslink_dir = dir.path().join(".crosslink");
+    let cache_dir = crosslink_dir.join(HUB_CACHE_DIR);
+    std::fs::create_dir_all(&cache_dir).unwrap();
+    std::fs::write(
+        crosslink_dir.join("hook-config.json"),
+        r#"{"remote":"origin"}"#,
+    )
+    .unwrap();
+    // Add a file inside the broken cache so that an unguarded
+    // `git add -A` would have something to stage.
+    std::fs::write(cache_dir.join("locks.json"), r#"{"locks":[]}"#).unwrap();
+
+    // Make the parent repo also dirty — this is what an unguarded
+    // walked-up `git status --porcelain` would report, kicking off the
+    // recovery branch in `clean_dirty_state`.
+    std::fs::write(dir.path().join("oops.txt"), "dirty\n").unwrap();
+
+    let manager = SyncManager::new(&crosslink_dir).unwrap();
+
+    let result = manager.clean_dirty_state();
+    assert!(
+        result.is_err(),
+        "clean_dirty_state must refuse to operate on a broken hub cache; got {result:?}"
+    );
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("574") || err_msg.contains("walking up") || err_msg.contains("not bound"),
+        "error should reference the data-loss guard; got: {err_msg}"
+    );
+
+    // The parent repository's HEAD must be unchanged — no rogue recovery
+    // commit was created.
+    let parent_head_after = String::from_utf8_lossy(
+        &Command::new("git")
+            .current_dir(dir.path())
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .trim()
+    .to_string();
+    assert_eq!(
+        parent_head_before, parent_head_after,
+        "parent repo HEAD must not change when hub cache is broken"
+    );
+
+    // And no commit anywhere in the parent's history should mention the
+    // recovery message.
+    let log_out = Command::new("git")
+        .current_dir(dir.path())
+        .args(["log", "--all", "--format=%s"])
+        .output()
+        .unwrap();
+    let log_str = String::from_utf8_lossy(&log_out.stdout);
+    assert!(
+        !log_str.contains("auto-stage dirty hub state"),
+        "parent repo must not contain any hub-recovery commits; log was: {log_str}"
+    );
+}
+
+/// Regression test for #574: even if a caller manages to bypass
+/// `clean_dirty_state`'s preflight (e.g. through a future code path that
+/// calls `git_commit_in_cache` directly), the commit helper itself must
+/// refuse to write into a broken cache. This is the defense-in-depth layer.
+#[test]
+fn test_git_commit_in_cache_refuses_when_cache_is_broken() {
+    let dir = tempdir().unwrap();
+    Command::new("git")
+        .current_dir(dir.path())
+        .args(["init", "-q", "-b", "feat/foo"])
+        .output()
+        .unwrap();
+    for args in [
+        vec!["config", "user.email", "t@t.local"],
+        vec!["config", "user.name", "T"],
+        vec!["config", "commit.gpgsign", "false"],
+    ] {
+        Command::new("git")
+            .current_dir(dir.path())
+            .args(&args)
+            .output()
+            .unwrap();
+    }
+    std::fs::write(dir.path().join("README.md"), "x\n").unwrap();
+    Command::new("git")
+        .current_dir(dir.path())
+        .args(["add", "."])
+        .output()
+        .unwrap();
+    Command::new("git")
+        .current_dir(dir.path())
+        .args(["commit", "-qm", "init"])
+        .output()
+        .unwrap();
+
+    let crosslink_dir = dir.path().join(".crosslink");
+    let cache_dir = crosslink_dir.join(HUB_CACHE_DIR);
+    std::fs::create_dir_all(&cache_dir).unwrap();
+    std::fs::write(
+        crosslink_dir.join("hook-config.json"),
+        r#"{"remote":"origin"}"#,
+    )
+    .unwrap();
+
+    let manager = SyncManager::new(&crosslink_dir).unwrap();
+    let result = manager.git_commit_in_cache(&["-m", "should not land"]);
+    assert!(
+        result.is_err(),
+        "git_commit_in_cache must refuse on a broken cache; got {result:?}"
+    );
+}
+
 // ------------------------------------------------------------------
 // read_locks, read_keyring, read_allowed_signers
 // ------------------------------------------------------------------

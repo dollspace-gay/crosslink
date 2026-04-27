@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Hub-state recovery commit silently rewriting feature branch with hub-branch contents on pre-commit retry (GH #574). When the hub-cache `.git` link is missing or broken, every git command run with `current_dir(cache_dir)` was walking up to the parent repository and operating on whatever feature branch the user had checked out. `clean_dirty_state` would then run `git add -A` + `git commit -m "sync: auto-stage dirty hub state (recovery)"` against the parent's index and HEAD, replacing the feature branch's tree with hub artifacts. `SyncManager::verify_cache_worktree` is now a hard preflight on `clean_dirty_state` and `git_commit_in_cache`: it asserts `git rev-parse --show-toplevel` resolves to `cache_dir` and that HEAD is on `crosslink/hub`, refusing loudly otherwise.
+
 ### Added
 - Design doc for GH issue #367 (#203)
 - Integrate pre-flight check improvements for kickoff command: consolidate the inline prerequisite checks in run() and plan() with a unified preflight_check function that adds resolve_timeout_command() for macOS gtimeout support, PreflightResult struct that threads timeout_cmd through to launch_local() and plan(), and detailed platform-specific install instructions. Keep existing tests intact. Reference the worktree version at .worktrees/kickoff-pre-flight-check-for-required-external-commands-e-g/crosslink/src/commands/kickoff.rs for the target implementation. (#151)
@@ -100,6 +103,7 @@ new subcommand for log-scraping continuity.
 - Auto-discover rule files and command files from resources directories in `build.rs` ([CL-387])
 
 ### Fixed
+- investigate two mcp server failures reported by user (#722)
 - Signing: human key always signs hub commits; agent keys only for identity (#718)
 - Fix piped shell commands in skill templates that fail permission checks (#254)
 - Fix hub cache recovery loop caused by tracked .hub-write-lock file (#634)

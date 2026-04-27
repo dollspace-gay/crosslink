@@ -522,6 +522,21 @@ impl SyncManager {
     ///
     /// Returns an error if staging or committing dirty state fails.
     pub fn clean_dirty_state(&self) -> Result<bool> {
+        // Hard guard against the data-loss scenario described in #574: if the
+        // hub cache `.git` link is missing or broken, every git command run
+        // from cache_dir walks up to the parent repository and operates on
+        // whatever branch the user has checked out. Without this guard,
+        // `git add -A` + `git commit` below silently lands a recovery commit
+        // on the user's feature branch, replacing its tree with hub artifacts.
+        //
+        // Skip the guard only when the cache directory doesn't exist yet —
+        // that's a different failure mode handled by the existing `Err(_)`
+        // arm below (returns `Ok(false)` so callers can proceed with their
+        // own init paths).
+        if self.cache_dir.exists() {
+            self.verify_cache_worktree()?;
+        }
+
         let status = self.git_in_cache(&["status", "--porcelain"]);
         match status {
             Ok(output) => {

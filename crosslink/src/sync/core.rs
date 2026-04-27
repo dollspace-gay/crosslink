@@ -145,6 +145,12 @@ impl SyncManager {
     ///
     /// Returns an error if the git commit command fails.
     pub(super) fn git_commit_in_cache(&self, args: &[&str]) -> Result<std::process::Output> {
+        // Defense-in-depth: refuse to commit if the cache worktree is broken
+        // or pointed at a non-hub branch (#574). This stops every recovery /
+        // bootstrap / upgrade / sync commit path from accidentally writing
+        // into the parent repository if the hub-cache .git link ever breaks.
+        self.verify_cache_worktree()?;
+
         // Best-effort self-heal for stale signingkey configs (GH #565).
         // If this fails, let the commit proceed — it may still succeed, or
         // the real signing error will surface below with full context.
@@ -196,6 +202,94 @@ impl SyncManager {
             bail!("git {args:?} in cache failed: {stderr}");
         }
         Ok(output)
+    }
+
+    /// Verify that the hub cache directory is a working tree pointed at
+    /// `HUB_BRANCH`, refusing to operate otherwise.
+    ///
+    /// Guards against a class of data-loss bugs (#574) where a missing or
+    /// broken `.git` link in the hub cache causes git invoked with
+    /// `current_dir(cache_dir)` to walk up to the parent repository's git
+    /// directory. Without this guard, `clean_dirty_state` and other recovery
+    /// paths run `git add -A` + `git commit` against the parent repo's index
+    /// and HEAD — silently landing recovery commits on whatever feature branch
+    /// the user has checked out, replacing its tree with hub-branch artifacts.
+    ///
+    /// Two invariants are checked:
+    ///
+    /// 1. `git rev-parse --show-toplevel` from the cache dir resolves to the
+    ///    cache dir itself (catches the walk-up case).
+    /// 2. `git symbolic-ref --short HEAD` returns `HUB_BRANCH` (catches a
+    ///    detached HEAD or any accidental checkout of a non-hub branch).
+    ///
+    /// `symbolic-ref` is used rather than `rev-parse --abbrev-ref` because the
+    /// latter fails with "ambiguous argument 'HEAD'" on an unborn orphan
+    /// branch, which is the legitimate state during the very first
+    /// `init_cache()` commit.
+    pub(super) fn verify_cache_worktree(&self) -> Result<()> {
+        let toplevel_out = Command::new("git")
+            .current_dir(&self.cache_dir)
+            .args(["rev-parse", "--show-toplevel"])
+            .output()
+            .with_context(|| {
+                format!(
+                    "Failed to run git rev-parse in hub cache {}",
+                    self.cache_dir.display()
+                )
+            })?;
+        if !toplevel_out.status.success() {
+            bail!(
+                "hub cache at {} is not a git working tree \
+                 (git rev-parse --show-toplevel failed: {}). \
+                 Refusing to operate to avoid corrupting the parent repository (#574).",
+                self.cache_dir.display(),
+                String::from_utf8_lossy(&toplevel_out.stderr).trim(),
+            );
+        }
+        let resolved_raw = String::from_utf8_lossy(&toplevel_out.stdout)
+            .trim()
+            .to_string();
+        let resolved =
+            std::fs::canonicalize(&resolved_raw).unwrap_or_else(|_| PathBuf::from(&resolved_raw));
+        let expected =
+            std::fs::canonicalize(&self.cache_dir).unwrap_or_else(|_| self.cache_dir.clone());
+        if resolved != expected {
+            bail!(
+                "hub cache at {} is not bound to its own git directory — \
+                 git rev-parse --show-toplevel resolved to {}. This usually means \
+                 the worktree's .git link is missing or broken, so git is walking \
+                 up to the parent repository. Refusing to operate to avoid \
+                 corrupting the parent repository (#574).",
+                self.cache_dir.display(),
+                resolved_raw,
+            );
+        }
+
+        let head_out = Command::new("git")
+            .current_dir(&self.cache_dir)
+            .args(["symbolic-ref", "--short", "HEAD"])
+            .output()
+            .context("Failed to run git symbolic-ref --short HEAD in hub cache")?;
+        if !head_out.status.success() {
+            bail!(
+                "hub cache at {} has detached HEAD or no HEAD: {}. \
+                 Refusing to operate to avoid commits landing on the wrong ref (#574).",
+                self.cache_dir.display(),
+                String::from_utf8_lossy(&head_out.stderr).trim(),
+            );
+        }
+        let branch = String::from_utf8_lossy(&head_out.stdout).trim().to_string();
+        if branch != HUB_BRANCH {
+            bail!(
+                "hub cache at {} is on branch {} (expected {}). \
+                 Refusing to operate to avoid commits landing on the wrong branch (#574).",
+                self.cache_dir.display(),
+                branch,
+                HUB_BRANCH,
+            );
+        }
+
+        Ok(())
     }
 
     /// Copy `.claude/hooks/` from the repo root into the hub cache worktree.
