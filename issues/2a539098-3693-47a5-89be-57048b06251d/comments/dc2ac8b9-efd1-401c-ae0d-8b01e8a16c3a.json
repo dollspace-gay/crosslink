@@ -1,0 +1,10 @@
+{
+  "uuid": "dc2ac8b9-efd1-401c-ae0d-8b01e8a16c3a",
+  "issue_uuid": "2a539098-3693-47a5-89be-57048b06251d",
+  "author": "dashboard-bootstrap",
+  "content": "v0.8.0 GitHub release published at https://github.com/forecast-bio/crosslink/releases/tag/v0.8.0. Tag v0.8.0 already existed on remote pointing at merge commit 12eb7b91 (PR #567); only the Release was missing. Created release with title 'v0.8.0 — sentinel autonomous maintenance agent' and notes extracted from CHANGELOG.md v0.8.0 section. Marked Latest, replacing v0.7.0.",
+  "created_at": "2026-04-27T19:42:06.387798634Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAsrd6NnIrvQwxYkihZ5PfdpXzxUR88+2UE/mq+sF9OTDpl3g2eW0HdGxcRoKHQ+d2ZUzcZNfBmxw011QrCvhYBw=="
+}
