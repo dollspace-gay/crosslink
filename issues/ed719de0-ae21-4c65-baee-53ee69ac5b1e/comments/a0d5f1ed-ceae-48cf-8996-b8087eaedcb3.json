@@ -1,0 +1,10 @@
+{
+  "uuid": "a0d5f1ed-ceae-48cf-8996-b8087eaedcb3",
+  "issue_uuid": "ed719de0-ae21-4c65-baee-53ee69ac5b1e",
+  "author": "dashboard-bootstrap",
+  "content": "Plan: re-point crosslink container build (and start/snapshot/staleness check, since they share the same constants) to compose with kickoff. Concrete: change IMAGE_NAME from 'crosslink-agent' to 'ghcr.io/forecast-bio/crosslink-agent' so all container.rs subcommands look up + produce the same image name kickoff defaults to. Change build()'s default --tag from IMAGE_TAG ('latest') to a new BUILD_DEFAULT_TAG ('local') so a local rebuild doesn't accidentally clobber a pulled :latest. Update the stale-image warning text to reference docker pull / just build-image rather than just 'crosslink container build'. Update CLI help on the --tag flag. Add a unit test asserting the GHCR-namespaced image name is used. Single follow-up commit on the same feature branch.",
+  "created_at": "2026-05-04T20:19:48.723511792Z",
+  "kind": "plan",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABApoRYy1VxYnYzZi4r2BcMgrOBkIuIOFyNYLaWadCxOTbZnuXr4EQ7/VHiQf7xO8uJcOWR3YsoaQZA6anedYlFDw=="
+}
