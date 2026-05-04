@@ -1,0 +1,10 @@
+{
+  "uuid": "f1aad763-871a-458a-9c75-65561fb1b66f",
+  "issue_uuid": "ed719de0-ae21-4c65-baee-53ee69ac5b1e",
+  "author": "dashboard-bootstrap",
+  "content": "Result: committed 7dd76ed3 on feature/576-publish-agent-container-image. Single workflow file edit (+26 -9). arm64 leg switched to cross-rs (installed via taiki-e/install-action — prebuilt binary, fast); amd64 stays native musl-tools build. Matrix gains use_cross flag with inline comment explaining WHY arm64 needs cross (so a future reader doesn't 'simplify' back to the broken glibc-cross pattern). YAML validated. Ready for user push (fast-forward on top of 725e5542). PR #578 picks up automatically. Watch the next CI run — both arches should build cleanly this time.",
+  "created_at": "2026-05-04T20:33:00.506868076Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAtKOWd+0XPtgBScoxFCKjQR2zZibFZceCgpNyz37rE4KeY6F5qCoxvs3uTXC12ABJioD8+Zf/hKWH5Kd2xsUoBA=="
+}
