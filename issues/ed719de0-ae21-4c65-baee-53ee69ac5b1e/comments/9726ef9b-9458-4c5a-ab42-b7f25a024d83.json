@@ -1,0 +1,10 @@
+{
+  "uuid": "9726ef9b-9458-4c5a-ab42-b7f25a024d83",
+  "issue_uuid": "ed719de0-ae21-4c65-baee-53ee69ac5b1e",
+  "author": "dashboard-bootstrap",
+  "content": "Plan: arm64 musl cross-compile failed in CI as predicted in the audit. Concrete error: liblibsqlite3_sys (built from sqlite3.c via the build script) emits glibc-only symbols (open64/stat64/fstat64/ftruncate64/fcntl64/pread64/pwrite64/mmap64/lstat64 — Large File Support; __memcpy_chk/__memset_chk/__memmove_chk — _FORTIFY_SOURCE) because gcc-aarch64-linux-gnu is a glibc cross-compiler. The musl libc has none of those, so ld fails with 'undefined reference'. Fix: switch the arm64 leg to cross-rs/cross which runs cargo inside a docker image carrying a proper aarch64-musl toolchain. Keep amd64 native (musl-tools work fine — only the cross direction needs cross-rs). Install via taiki-e/install-action (fast — fetches prebuilt binary instead of cargo install). Single workflow file edit. Commit on the same branch.",
+  "created_at": "2026-05-04T20:31:43.218902662Z",
+  "kind": "plan",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAHhNpB4BEcdKdcllaVdJgcq0qh6T67nlpNVxesdq7D+M58+8KS6yfSNRDiu6Ft9VIqyD+oODeuyyFLArqPxrEDw=="
+}
