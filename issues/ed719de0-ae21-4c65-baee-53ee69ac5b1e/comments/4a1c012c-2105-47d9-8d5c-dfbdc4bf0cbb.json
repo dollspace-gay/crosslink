@@ -1,0 +1,10 @@
+{
+  "uuid": "4a1c012c-2105-47d9-8d5c-dfbdc4bf0cbb",
+  "issue_uuid": "ed719de0-ae21-4c65-baee-53ee69ac5b1e",
+  "author": "dashboard-bootstrap",
+  "content": "Result: committed 725e5542 on feature/576-publish-agent-container-image. 2 files / +59 -5. IMAGE_NAME repointed to ghcr.io-namespaced; BUILD_DEFAULT_TAG=local added; staleness warning + --help text updated; two regression tests pinning the invariants. Full suite 2766/2766 (was 2764, +2 new). cargo fmt clean, clippy clean. Commit signed. Ready for user to push (no force-push needed — fast-forward on top of 77ebd350). Same PR (#578) picks up both commits automatically.",
+  "created_at": "2026-05-04T20:24:17.373054936Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABACb2WdoIYlcqXtv/X/h9zSZ/koCdVgwtrrttyOqjBV+CwnL8jpepONn3AJt1NWD9TY0HjF3DSfKyhLrVfSXTPBg=="
+}
