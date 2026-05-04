@@ -2,11 +2,12 @@
   "uuid": "cf7d5711-1efa-4e37-af62-42f942fac39b",
   "display_id": 724,
   "title": "Bump rustls-webpki for RUSTSEC-2026-0104 (PR #575 CI)",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "dashboard-bootstrap",
   "created_at": "2026-04-27T17:38:54.135872753Z",
-  "updated_at": "2026-04-27T17:38:55.457302734Z",
+  "updated_at": "2026-05-04T14:27:45.862040753Z",
+  "closed_at": "2026-05-04T14:27:45.862040753Z",
   "labels": [
     "bug"
   ]
