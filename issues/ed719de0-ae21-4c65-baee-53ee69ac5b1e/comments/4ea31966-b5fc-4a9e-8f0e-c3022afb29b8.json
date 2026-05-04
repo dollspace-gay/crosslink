@@ -1,0 +1,10 @@
+{
+  "uuid": "4ea31966-b5fc-4a9e-8f0e-c3022afb29b8",
+  "issue_uuid": "ed719de0-ae21-4c65-baee-53ee69ac5b1e",
+  "author": "dashboard-bootstrap",
+  "content": "Result: committed 77ebd350 on feature/576-publish-agent-container-image (off develop). 7 files / +449 -11. Subagent's full test suite (2764 passed) and the 5 new launch tests verified on this side. Honest gaps remain: pre-flight evidence #1 (CI green link) and #2 (docker pull against published nightly) only materialize after the user pushes — the workflow's smoke-verify job is the in-pipeline proof for them. Highest-risk piece in CI: arm64 musl cross-link uses gcc-aarch64-linux-gnu (glibc cross). May or may not work cleanly with all crates; first develop push will reveal. Standard fix if it red-lines: switch to messense/rust-musl-cross or cross-rs. Follow-up issue to file after merge: deduplicate or repoint crosslink container build (currently produces image with wrong name, uses embedded Dockerfile instead of live file, doesn't compose with kickoff).",
+  "created_at": "2026-05-04T20:16:17.406880581Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAA7tB3DAJx5Oz0fvVO3IUvJbBuuN748OydSXSL/aDkKWSvHHoZItupWdHOeZgV/WtxQmdLzw6ui9RZQzIH75hCA=="
+}
