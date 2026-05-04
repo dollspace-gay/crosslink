@@ -1,0 +1,10 @@
+{
+  "uuid": "ed58961c-cf35-44dc-96b7-07c45daee1b7",
+  "issue_uuid": "fd51a35b-3ed1-4dd3-a59d-5bda2e0e95f9",
+  "author": "dashboard-bootstrap",
+  "content": "Result: committed a3582686 on fix/728-smoke-verify-auth-and-ghcr-public. Single workflow file edit (+13 lines). Adds docker/login-action@v3 step to smoke-verify before the docker pull, mirroring publish-image's login. Inline comment explains WHY (GHCR private-by-default) so it doesn't get deleted as 'redundant' once the package is public. Commit signed. Ready for user to push and PR to develop. IMPORTANT separate manual step: the package itself is still private (CI fix doesn't change that — only fixes the workflow's ability to verify itself). User-facing pull from outside the repo's auth scope still fails until an admin flips package visibility to public.",
+  "created_at": "2026-05-04T21:25:59.929614225Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA5eREG/t7ciqj7AlZRTJN4UZcm4M6uKbkfs3A3vaDrGwILzdgESqOL2hkPAr7LRevTNRD8+rCKUC+BleodIUwDg=="
+}
