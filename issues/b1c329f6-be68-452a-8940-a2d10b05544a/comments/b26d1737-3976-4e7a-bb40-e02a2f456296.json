@@ -1,0 +1,10 @@
+{
+  "uuid": "b26d1737-3976-4e7a-bb40-e02a2f456296",
+  "issue_uuid": "b1c329f6-be68-452a-8940-a2d10b05544a",
+  "author": "dashboard-bootstrap",
+  "content": "Two-bug fix landed in one commit. Issue 1: launch_container takes a new host_repo_root parameter and adds a bind mount '-v <host_repo>/.git:<host_repo>/.git:rw' so the worktree's '.git' file (containing absolute 'gitdir: <host>/.git/worktrees/<branch>/' pointer) resolves inside the container. rw chosen because the per-worktree subdir under .git/worktrees/<branch>/ legitimately needs writes for commits; hook policy still blocks destructive ops. Issue 2 (chose Recommended): (a) detect_conventions in helpers.rs gains a has_manifest helper that scans the repo_root and one directory level deep for build manifests, skipping SKIP_SCAN_DIRS (node_modules, target, vendor, all hidden dirs, etc.) — catches the monorepo layout where Cargo.toml/pyproject.toml lives one level deep. Removed the special-cased crosslink/Cargo.toml check (the generic scan subsumes it). Added Bash(pytest *) to the Python auto-detect since GH#584 explicitly named it. (b) new read_kickoff_allowed_tools helper reads kickoff.allowed_tools array from hook-config.json, called from run.rs and appended to conventions.allowed_tools — purely additive override knob. New config key registered in config_registry.rs (Agents group, hot-swappable, StringArray). Documented in hook-config.qmd. Tests: 9 new (rust-one-level, rust-two-levels-rejected, python-subdir-with-pytest, node_modules skip, hidden-dir skip, plus 4 for read_kickoff_allowed_tools covering missing/present/absent-key/malformed). Full suite: 2817 passed (was 2808 + 9 new). cargo fmt + clippy clean.",
+  "created_at": "2026-05-11T19:30:41.766318408Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAIAfs6ac3aqKVxeRIjy5grnIsy904nZ5oEEdo+jCU6cvARzfh7KEGzDq4bbVJdaOwGRRUm0fbHWm2VmOIIb9dDg=="
+}
