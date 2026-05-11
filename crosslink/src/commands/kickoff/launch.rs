@@ -433,10 +433,17 @@ pub(super) fn init_worktree_agent(
     crosslink_dir: &Path,
     compact_name: &str,
 ) -> Result<String> {
-    // Run crosslink init --force in the worktree
+    // Run `crosslink init` in the worktree. Plain init (no --force) is
+    // idempotent: it short-circuits when `.crosslink/` and `.claude/` already
+    // exist, which is the common case for a worktree freshly checked out
+    // from a branch that has both committed. We keep `--skip-signing` and
+    // `--defaults` to suppress the TUI walkthrough on the rare path where
+    // init actually has work to do. Dropping `--force` here prevents the
+    // worktree's `hook-config.json` from being re-templated and leaking a
+    // spurious diff into every agent-produced PR. See GH#583.
     let output = Command::new("crosslink")
         .current_dir(worktree_dir)
-        .args(["init", "--force", "--skip-signing", "--defaults"])
+        .args(["init", "--skip-signing", "--defaults"])
         .output()
         .context("Failed to run crosslink init in worktree")?;
 
