@@ -18,6 +18,10 @@
     "731": {
       "agent_id": "dashboard-bootstrap",
       "claimed_at": "2026-05-11T18:36:18.576932817Z"
+    },
+    "732": {
+      "agent_id": "dashboard-bootstrap",
+      "claimed_at": "2026-05-11T19:00:52.832586588Z"
     }
   },
   "issues": {},
@@ -149,8 +153,8 @@
     }
   ],
   "watermark": {
-    "timestamp": "2026-05-11T18:36:18.576932817Z",
+    "timestamp": "2026-05-11T19:00:52.832586588Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 48
+    "agent_seq": 49
   }
 }
