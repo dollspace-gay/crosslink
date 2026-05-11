@@ -4,7 +4,7 @@ title: "Hook configuration"
 
 Hooks run automatically during agent sessions and rarely need manual configuration. This reference documents the full configuration surface for fine-tuning enforcement behavior.
 
-Hook behavior is controlled by `.crosslink/hook-config.json`. This file is created by `crosslink init` and can be edited to customize enforcement.
+Hook behavior is controlled by `.crosslink/hook-config.json`. This file is created by `crosslink init` and can be edited to customize enforcement. For machine-specific overrides that should not be committed, use the [`hook-config.local.json` overlay](state-files.qmd#hook-config-local-json) -- same schema, shallow-merged on top.
 
 ## Configuration file
 
@@ -245,7 +245,7 @@ The `sentinel` block configures the autonomous sentinel daemon, which polls conf
 }
 ```
 
-### `sentinel.enabled`
+### `sentinel.enabled` {#sentinel-enabled}
 
 Master switch for the sentinel daemon. Bool. Default: `false`. When `false`, `crosslink daemon start` will run the heartbeat/coordination loop but skip sentinel polling entirely.
 
