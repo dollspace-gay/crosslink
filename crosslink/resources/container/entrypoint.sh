@@ -125,10 +125,15 @@ fi
 
 # --- Crosslink init ---
 # Set up hooks, skills, and policy in the workspace so container agents are
-# bound by the same rules as host agents.
+# bound by the same rules as host agents. Plain `init` (no --force) is
+# idempotent: it short-circuits when `.crosslink/` and `.claude/` already
+# exist in the worktree (the common case, since both are git-committed and
+# arrive with the worktree checkout). This is what prevents the entrypoint
+# from re-templating `hook-config.json` on every container start and leaking
+# spurious diffs into agent PRs. See GH#583.
 if [ -n "$WORKSPACE" ] && command -v crosslink &>/dev/null; then
     echo "[crosslink-entrypoint] Initializing crosslink hooks in workspace..."
-    gosu agent bash -c "cd '$WORKSPACE' && crosslink init --force" 2>&1 || true
+    gosu agent bash -c "cd '$WORKSPACE' && crosslink init" 2>&1 || true
 fi
 
 echo "[crosslink-entrypoint] Setup complete. Running command as agent..."
