@@ -1,0 +1,10 @@
+{
+  "uuid": "fcc337a7-e3e2-4340-ae31-3e13f2be00bc",
+  "issue_uuid": "02be3f85-6420-400f-812a-ecb62594d3ff",
+  "author": "dashboard-bootstrap",
+  "content": "Belt-and-suspenders for Bug 2: prompt instruction, chmod 0444, container :ro overlay, plus post-run sha256 check. Prompt is bypassable, chmod is reversible by the agent, ro mount is container-only — combining all four guarantees at least a loud signal in 'kickoff report'/'status' when drift happens. Tests: 5 new unit tests cover NotProtected/Match/Mismatch/Missing-deleted/Missing-malformed paths; existing exclude-pattern tests updated for the new .kickoff-doc.json entry. Full suite: 2808 passed.",
+  "created_at": "2026-05-11T17:25:48.273888828Z",
+  "kind": "decision",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAYsUSAVhgXbjZdWDCkNrr4OSWCSYuBb4qh2nQsyG/iZ9+PPrEkJzUH2hZm9refBWo1dCa9o2CSkZfF6b0zOJdBQ=="
+}
