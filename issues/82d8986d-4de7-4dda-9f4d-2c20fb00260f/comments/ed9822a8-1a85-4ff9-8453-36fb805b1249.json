@@ -1,0 +1,10 @@
+{
+  "uuid": "ed9822a8-1a85-4ff9-8453-36fb805b1249",
+  "issue_uuid": "82d8986d-4de7-4dda-9f4d-2c20fb00260f",
+  "author": "dashboard-bootstrap",
+  "content": "Third commit: documented all remaining undocumented files in .crosslink/. New page docs_src/reference/state-files.qmd registered in navbar + sidebar via _quarto.yml. Covers: hook-config.local.json (overlay overflow file, same schema as hook-config.json, gitignored), agent.json (AgentConfig — agent_id/machine_id/description/role/ssh_*), locks.json (Lock + LockSettings — version/locks/settings.stale_lock_timeout_minutes), swarm.toml (TrustConfig — [trust]/[ignore]/[boundaries]), session.json (daemon-flushed session_id/started_at/active_issue_id). Plus a final 'Other files' table for 14 internal state items (issues.db, daemon.log/pid, sentinel.log/pid, driver-key.pub, heartbeats/, keys/, last_test_run, repo-id, promotion-log.json, .gitignore, hub-cache/external-cache/.style-cache/, rules/rules.local/, meta/orchestrator/locks/) noting they're managed internally. Schemas pulled from src/identity.rs (AgentConfig), src/locks.rs (LocksFile + LockSettings), src/trust_model.rs (TrustConfig), src/daemon.rs (session_data shape), src/commands/config.rs (overlay merge). Cross-link from hook-config.qmd to state-files.qmd#hook-config-local-json + explicit {#sentinel-enabled} and {#hook-config-local-json} anchors for the dotted-key cross-references.",
+  "created_at": "2026-05-11T18:48:39.083990038Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAMAVeSXAzowFWl1ASSMffpl2SUx5svRSeNO0lJ9AOEjk9DUX6+4XsBcldmJwUG0J3FSTIdZNXd9gU7+CHf29GCA=="
+}
