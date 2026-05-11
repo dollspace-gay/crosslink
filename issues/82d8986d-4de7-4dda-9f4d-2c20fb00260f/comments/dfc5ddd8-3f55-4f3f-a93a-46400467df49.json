@@ -1,0 +1,10 @@
+{
+  "uuid": "dfc5ddd8-3f55-4f3f-a93a-46400467df49",
+  "issue_uuid": "82d8986d-4de7-4dda-9f4d-2c20fb00260f",
+  "author": "dashboard-bootstrap",
+  "content": "Added 19 missing keys to docs_src/reference/hook-config.qmd: appended 5 to '## Fields' (tracker_remote, external-cache-ttl, external-url-ttl, repo-alias, sandbox.command), introduced '## Agent overrides' with 5 sub-keys, and '## Sentinel configuration' with 13 sub-keys grouped under sources/default_agent/escalation. Each entry follows the existing format (key, type, default, 1-3 sentences). sandbox.command also gets a 'Local sandbox alternative' subsection in docs_src/guides/container-agents.qmd cross-linked back via an explicit {#sandbox-command} anchor. Defaults sourced from resources/crosslink/hook-config.json + config_registry.rs. 2 files, +165 lines, no code surface touched.",
+  "created_at": "2026-05-11T18:39:00.608994709Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAwkB1MWrZA0WahnZcpRrHwj6io33o7O+THgN3DfVq1ytiR1Xg7tB2p3pjW/l2svZUDL0MV3gCE2QTrMoKwk8rBQ=="
+}
