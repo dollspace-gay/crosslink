@@ -1,0 +1,10 @@
+{
+  "uuid": "e35edae5-665a-4ea6-841e-e0fbcc6e4432",
+  "issue_uuid": "6a7c679b-60cd-4eba-9520-3acdb809ba67",
+  "author": "dashboard-bootstrap",
+  "content": "Two surfaces in one commit. (1) crosslink/resources/claude/commands/design.md — replaced fragile 'ls .design/*.md' and 'ls README.md CLAUDE.md ARCHITECTURE.md ADR.md' calls with find-based equivalents per GH#593's proposed fix; added Bash(find *) to allowed-tools. Smoke-tested in real zsh (installed via dnf) across all four GH#593 cases (empty repo, README-only, .design/ with md, vs old buggy command): all exit 0 cleanly with no stderr noise. (2) crosslink/resources/claude/skills/architect/SKILL.md — wholesale sync from local (193 -> 402 lines): adds Role-separation self-check, North Star section, Injected-context-is-binding, full 12-step workflow cycle, expanded verdict operational shapes, truncation recovery, probe-before-fix, in-loop failure-mode accretion, series-mode tally, parallel-dispatch rules, 'when closing tracked findings' section. Audit otherwise: no red-team skills present anywhere (clean), use-railway stays local-only as requested, rust-gpu-discipline.skill zip artifact left out of bundle (derived file). Existing ferrotorch-referencing files in rust-gpu-discipline and rust-fix-discipline preserved per user direction.",
+  "created_at": "2026-05-12T19:21:17.924681377Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAOamqylvpeE5gA0Q+3WK5FiM8YWuyoggEv1bxL9keVPb38oLrufB/F/GKvpk+B1Qq4fMDWnBYYmSvOxbNFSjoAA=="
+}
