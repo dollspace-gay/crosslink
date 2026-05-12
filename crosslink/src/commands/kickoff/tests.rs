@@ -1922,6 +1922,20 @@ fn write_claude_stub(dir: &std::path::Path) {
     std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).unwrap();
 }
 
+/// Find a timeout binary the test host actually has. macOS without
+/// `brew install coreutils` has neither `timeout` nor `gtimeout`; some
+/// minimal CI images strip them too. Returns `None` when no usable
+/// candidate exists so callers can skip cleanly instead of false-failing.
+#[cfg(unix)]
+fn resolve_test_timeout_cmd() -> Option<&'static str> {
+    ["timeout", "gtimeout"].into_iter().find(|cmd| {
+        std::process::Command::new(cmd)
+            .arg("--version")
+            .output()
+            .is_ok_and(|o| o.status.success())
+    })
+}
+
 #[cfg(unix)]
 fn run_built_command_in_bash(
     cmd: &str,
@@ -1951,12 +1965,17 @@ fn test_build_agent_command_env_var_actually_reaches_claude() {
     // assignment after `timeout` where shell grammar treats it as a
     // literal positional arg — `timeout` then tried to exec
     // `CLAUDE_CONFIG_DIR=...` as a binary and bailed with ENOENT.
+    let Some(timeout_cmd) = resolve_test_timeout_cmd() else {
+        eprintln!("skipping: neither `timeout` nor `gtimeout` available on test host");
+        return;
+    };
+
     let tmp = tempfile::tempdir().unwrap();
     write_claude_stub(tmp.path());
     std::fs::write(tmp.path().join("KICKOFF.md"), "noop").unwrap();
 
     let cmd = build_agent_command(
-        "timeout",
+        timeout_cmd,
         3600,
         "opus",
         "Read,Write",
@@ -1989,21 +2008,30 @@ fn test_build_agent_command_env_var_reaches_claude_through_sandbox() {
     // sits between `timeout` and the env+claude pair, so the env
     // assignment must still ride along on env(1)'s argv (not as a
     // shell prefix that would silently degenerate to a positional arg).
+    let Some(timeout_cmd) = resolve_test_timeout_cmd() else {
+        eprintln!("skipping: neither `timeout` nor `gtimeout` available on test host");
+        return;
+    };
+
     let tmp = tempfile::tempdir().unwrap();
     write_claude_stub(tmp.path());
     std::fs::write(tmp.path().join("KICKOFF.md"), "noop").unwrap();
 
-    // Trivial pass-through "sandbox" — just `env --` so it consumes its
-    // tail without altering behavior. Lets the assertion exercise the
-    // wrap-around-claude code path without needing bwrap/firejail
-    // installed on the test host.
+    // Trivial pass-through "sandbox" — a shell script that just execs its
+    // tail. Avoids depending on `env --` (which BSD env may reject) or on
+    // bwrap/firejail being installed on the test host.
+    use std::os::unix::fs::PermissionsExt;
+    let sandbox = tmp.path().join("noop-sandbox");
+    std::fs::write(&sandbox, "#!/bin/sh\nexec \"$@\"\n").unwrap();
+    std::fs::set_permissions(&sandbox, std::fs::Permissions::from_mode(0o755)).unwrap();
+
     let cmd = build_agent_command(
-        "timeout",
+        timeout_cmd,
         3600,
         "opus",
         "Read,Write",
         "KICKOFF.md",
-        Some("env --"),
+        Some(&sandbox.to_string_lossy()),
         tmp.path(),
         false,
         Some("/sandbox-passthrough/value"),
@@ -2030,12 +2058,17 @@ fn test_build_agent_command_omitted_env_var_does_not_break_launch() {
     // When CLAUDE_CONFIG_DIR isn't set on the host, the constructed command
     // must still execute cleanly — no stray empty assignment that confuses
     // env(1), and the stub claude reports an empty CCD value.
+    let Some(timeout_cmd) = resolve_test_timeout_cmd() else {
+        eprintln!("skipping: neither `timeout` nor `gtimeout` available on test host");
+        return;
+    };
+
     let tmp = tempfile::tempdir().unwrap();
     write_claude_stub(tmp.path());
     std::fs::write(tmp.path().join("KICKOFF.md"), "noop").unwrap();
 
     let cmd = build_agent_command(
-        "timeout",
+        timeout_cmd,
         3600,
         "opus",
         "Read,Write",
