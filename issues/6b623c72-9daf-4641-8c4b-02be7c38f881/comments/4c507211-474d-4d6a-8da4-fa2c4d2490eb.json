@@ -1,0 +1,10 @@
+{
+  "uuid": "4c507211-474d-4d6a-8da4-fa2c4d2490eb",
+  "issue_uuid": "6b623c72-9daf-4641-8c4b-02be7c38f881",
+  "author": "dashboard-bootstrap",
+  "content": "Applied Option A from GH#587: fold the CLAUDE_CONFIG_DIR=val assignment into env(1)'s argv between '-u CLAUDECODE' and 'claude', rather than emitting it as a shell prefix. The 0.8.0 build placed the assignment AFTER 'timeout' at column zero, where shell grammar treats VAR=val as a literal positional arg — timeout then tried to exec it as a binary path (ENOENT). Folding into env's argv is robust regardless of what wraps the line (timeout today, nice/chrt/bwrap tomorrow). Three new integration tests #[cfg(unix)] actually shell-execute the constructed command with a stub claude that prints CLAUDE_CONFIG_DIR — these are the 'real shell parses this' tests the issue called out as the missing regression-prevention shape: env-var actually reaches claude (without sandbox), through a sandbox wrapper, and omitted-env-var does not break launch. Updated docstring + the two existing string-shape tests for the new shape. Full suite: 2820 passed (2817 baseline + 3 new). cargo fmt clean, clippy clean.",
+  "created_at": "2026-05-12T19:36:11.154947815Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAFVe/RNgbHVYU3cHUhdzxiYnsG5DJc/MJILMoQBNLuwoc0mT+J0mN7iPxrxYxxmYWOQwIodIBeX9TLey0uBmlDw=="
+}
