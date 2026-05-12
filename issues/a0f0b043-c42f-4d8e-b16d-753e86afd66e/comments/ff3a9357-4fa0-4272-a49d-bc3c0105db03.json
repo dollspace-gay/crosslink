@@ -1,0 +1,10 @@
+{
+  "uuid": "ff3a9357-4fa0-4272-a49d-bc3c0105db03",
+  "issue_uuid": "a0f0b043-c42f-4d8e-b16d-753e86afd66e",
+  "author": "dashboard-bootstrap",
+  "content": "Implemented Option B (the author's recommendation) — self-healing invariant in configure_signing. New register_active_key_as_trusted() in sync/trust.rs reads the <key>.pub companion of whatever private key was just selected, checks allowed_signers via the new AllowedSigners::contains_key (dedupes by key body, ignoring trailing comments / different principals), appends an entry with principal '<agent_id>@crosslink' if absent, and commits unsigned (chicken-and-egg: the new key may not yet be visible in any earlier commit's allowed_signers view). Called after each of the three configure_signing branches (agent worktree, driver workspace, driver fallback) so the invariant 'the workspace's signer is always trusted' holds regardless of which path selected the key. Covers both the GH#585 fresh-bootstrap case AND the driver-key-rotation / re-init case the author flagged as Option B's advantage over Option A. 8 new tests: 5 for AllowedSigners::contains_key (exact match, trailing-comment-ignored, different body/type rejection, empty signers), 3 for configure_signing (driver-key registration with explicit user.signingkey override to avoid leaking the test host's real key, idempotency across 3 calls, graceful skip when .pub is missing). Full suite: 2850 passed (2842 baseline + 8 new). cargo fmt + clippy clean.",
+  "created_at": "2026-05-12T21:15:30.873108114Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAJqRmUbuNU0bO6ExA7VfpKs2HloH/OJ08sT5kSJPrp8ZywsYqnhMpnxdjl5UpwDtWyd86bZ7rMhQnTFm3mkaSDQ=="
+}
