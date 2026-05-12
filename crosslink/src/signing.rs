@@ -616,6 +616,29 @@ impl AllowedSigners {
     pub fn is_trusted(&self, principal: &str) -> bool {
         self.entries.iter().any(|e| e.principal == principal)
     }
+
+    /// Check if a public key is already trusted under any principal.
+    ///
+    /// Compares by the `<type> <base64>` body, ignoring trailing
+    /// comments. Used by signing self-registration (GH#585) to make
+    /// "ensure my key is trusted" idempotent regardless of what
+    /// principal it was previously registered under.
+    #[must_use]
+    pub fn contains_key(&self, public_key: &str) -> bool {
+        let target = key_body(public_key);
+        self.entries
+            .iter()
+            .any(|e| key_body(&e.public_key) == target)
+    }
+}
+
+/// Extract the `<type> <base64>` portion of an SSH public-key line,
+/// dropping any trailing comment / principal data.
+fn key_body(line: &str) -> String {
+    line.split_whitespace()
+        .take(2)
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 // ── SSH verify-commit output parsing ────────────────────────────────
@@ -2370,5 +2393,76 @@ f@host sk-ecdsa-sha2-nistp256 FFFF\n";
         )
         .unwrap();
         assert!(!invalid, "Tampered content should fail verification");
+    }
+
+    // ========================================================================
+    // GH#585: AllowedSigners::contains_key
+    // ========================================================================
+
+    fn signers_with(entries: &[(&str, &str, Option<&str>)]) -> AllowedSigners {
+        AllowedSigners {
+            entries: entries
+                .iter()
+                .map(|(p, k, m)| AllowedSignerEntry {
+                    principal: (*p).to_string(),
+                    public_key: (*k).to_string(),
+                    metadata_comment: m.map(str::to_string),
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn test_contains_key_exact_match() {
+        let signers = signers_with(&[(
+            "agent@crosslink",
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample agent@host",
+            None,
+        )]);
+        assert!(signers.contains_key("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample agent@host"));
+    }
+
+    #[test]
+    fn test_contains_key_matches_ignoring_trailing_comment() {
+        // The same key under different principals / with different trailing
+        // comments should still match — what matters is the cryptographic body.
+        let signers = signers_with(&[(
+            "agent@crosslink",
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample agent@host-A",
+            None,
+        )]);
+        assert!(signers.contains_key(
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample driver@completely-different-host"
+        ));
+        assert!(signers.contains_key("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample"));
+    }
+
+    #[test]
+    fn test_contains_key_rejects_different_key() {
+        let signers = signers_with(&[(
+            "agent@crosslink",
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample agent@host",
+            None,
+        )]);
+        // Same type, different base64 body — must NOT match.
+        assert!(!signers.contains_key("ssh-ed25519 AAAADifferent agent@host"));
+    }
+
+    #[test]
+    fn test_contains_key_rejects_different_key_type() {
+        let signers = signers_with(&[(
+            "agent@crosslink",
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample",
+            None,
+        )]);
+        // Same base64 body (highly unlikely in real keys, but) different type
+        // — different cryptographic key.
+        assert!(!signers.contains_key("ssh-rsa AAAAC3NzaC1lZDI1NTE5AAAAIExample"));
+    }
+
+    #[test]
+    fn test_contains_key_empty_signers() {
+        let signers = signers_with(&[]);
+        assert!(!signers.contains_key("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample"));
     }
 }

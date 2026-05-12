@@ -1,4 +1,5 @@
 use anyhow::{bail, Context, Result};
+use chrono::Utc;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -121,6 +122,12 @@ impl SyncManager {
                             &private_key,
                             Some(&allowed_signers),
                         )?;
+                        register_active_key_as_trusted(
+                            &self.cache_dir,
+                            crosslink_dir,
+                            &private_key,
+                            &allowed_signers,
+                        )?;
                         return Ok(());
                     }
                 }
@@ -138,6 +145,12 @@ impl SyncManager {
                     &self.cache_dir,
                     &driver_key,
                     Some(&allowed_signers),
+                )?;
+                register_active_key_as_trusted(
+                    &self.cache_dir,
+                    crosslink_dir,
+                    &driver_key,
+                    &allowed_signers,
                 )?;
                 return Ok(());
             }
@@ -158,6 +171,12 @@ impl SyncManager {
                         &self.cache_dir,
                         &private_key,
                         Some(&allowed_signers),
+                    )?;
+                    register_active_key_as_trusted(
+                        &self.cache_dir,
+                        crosslink_dir,
+                        &private_key,
+                        &allowed_signers,
                     )?;
                     return Ok(());
                 }
@@ -571,4 +590,118 @@ impl SyncManager {
 
         self.verify_commit_signature(&commit)
     }
+}
+
+/// Ensure the public key paired with `private_key_path` is registered in
+/// `allowed_signers`. Idempotent: a no-op when the key is already trusted.
+///
+/// When a new entry is appended, the file is saved and an **unsigned**
+/// commit is made in the cache worktree. The commit must be unsigned
+/// because the freshly-registered key may not yet be present in any
+/// pre-existing commit's view of `allowed_signers`, so signing this
+/// commit with it would fail `git verify-commit` (the chicken-and-egg
+/// `publish_agent_key` also navigates). Once this commit lands,
+/// subsequent commits signed with the same key verify cleanly.
+///
+/// GH#585: before this call existed, only `crosslink trust approve
+/// <agent>` ever wrote to `allowed_signers`. The driver's own signing
+/// key (selected by `configure_signing`) was never registered, so every
+/// signed hub commit out of a driver workspace failed verification.
+fn register_active_key_as_trusted(
+    cache_dir: &Path,
+    crosslink_dir: &Path,
+    private_key_path: &Path,
+    allowed_signers_path: &Path,
+) -> Result<()> {
+    use crate::signing::{AllowedSignerEntry, AllowedSigners};
+
+    // Resolve the public-key companion file (SSH convention: <key>.pub).
+    let public_key_path = with_pub_extension(private_key_path);
+    let public_key = match crate::signing::read_public_key(&public_key_path) {
+        Ok(k) => k,
+        Err(e) => {
+            tracing::debug!(
+                "skipping allowed_signers self-registration: cannot read pubkey at {}: {e}",
+                public_key_path.display()
+            );
+            return Ok(());
+        }
+    };
+
+    let mut signers = AllowedSigners::load(allowed_signers_path)?;
+    if signers.contains_key(&public_key) {
+        return Ok(()); // Already trusted under some principal — no-op.
+    }
+
+    // Pick a principal: prefer the agent.json identity for visibility,
+    // fall back to a generic role+host label when none is configured.
+    let principal = AgentConfig::load(crosslink_dir)?.map_or_else(
+        || "driver@crosslink".to_string(),
+        |c| format!("{}@crosslink", c.agent_id),
+    );
+
+    signers.add_entry(AllowedSignerEntry {
+        principal: principal.clone(),
+        public_key,
+        metadata_comment: Some(format!(
+            "self-registered as workspace signing key at {}",
+            Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
+        )),
+    });
+    signers.save(allowed_signers_path)?;
+
+    // Commit unsigned; best-effort. If the commit fails (e.g. nothing
+    // staged because of a race), the on-disk file is still correct for
+    // local verification, and the next push will pick up any residue.
+    if let Err(e) = commit_allowed_signers_unsigned(cache_dir, &principal) {
+        tracing::warn!(
+            "registered '{principal}' in allowed_signers on disk but commit failed: {e} \
+             (run `crosslink sync` to recover)"
+        );
+    }
+
+    Ok(())
+}
+
+/// Compute the conventional public-key path for an SSH private key
+/// (`<path>` → `<path>.pub`), preserving any unusual filename shape.
+fn with_pub_extension(private_key_path: &Path) -> PathBuf {
+    let mut s = private_key_path.as_os_str().to_owned();
+    s.push(".pub");
+    PathBuf::from(s)
+}
+
+/// Stage `trust/allowed_signers` and commit it without signing.
+///
+/// Used only by [`register_active_key_as_trusted`]. Unsigned commit is
+/// required because the just-added key isn't yet visible in any earlier
+/// commit's `allowed_signers` view — signing this commit would create
+/// the very verify-commit failure the parent function is meant to fix.
+fn commit_allowed_signers_unsigned(cache_dir: &Path, principal: &str) -> Result<()> {
+    let run = |args: &[&str]| -> Result<()> {
+        let output = Command::new("git")
+            .current_dir(cache_dir)
+            .args(args)
+            .output()
+            .with_context(|| format!("failed to spawn git {args:?}"))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            // `nothing to commit` is benign: the file content matched a
+            // previous staged state. Treat it as success.
+            if !stderr.contains("nothing to commit") {
+                bail!("git {args:?} failed: {}", stderr.trim());
+            }
+        }
+        Ok(())
+    };
+
+    run(&["add", "trust/allowed_signers"])?;
+    run(&[
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-m",
+        &format!("trust: register signing key for '{principal}'"),
+    ])?;
+    Ok(())
 }

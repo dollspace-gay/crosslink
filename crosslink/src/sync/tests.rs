@@ -2637,6 +2637,161 @@ fn test_configure_signing_with_key() {
     );
 }
 
+// ========================================================================
+// GH#585: configure_signing self-registers the active key in
+// allowed_signers so verify-commit can validate hub commits made by it.
+// ========================================================================
+
+/// Override the test repo's `user.signingkey` so `driver_signing_key()`
+/// returns the test's fake key rather than whatever the host machine has
+/// in its global git config (which would otherwise leak into these tests).
+fn set_repo_signing_key(repo_root: &Path, key_path: &Path) {
+    Command::new("git")
+        .current_dir(repo_root)
+        .args([
+            "config",
+            "--local",
+            "user.signingkey",
+            &key_path.to_string_lossy(),
+        ])
+        .status()
+        .expect("git config user.signingkey failed");
+}
+
+#[test]
+fn test_configure_signing_registers_active_key_in_allowed_signers() {
+    let (work_dir, _remote_dir) = setup_sync_env();
+    let crosslink_dir = work_dir.path().join(".crosslink");
+    let manager = SyncManager::new(&crosslink_dir).unwrap();
+    manager.init_cache().unwrap();
+
+    // Write a key pair: <key> + <key>.pub. The body of the pubkey is
+    // distinctive so we can assert it landed in allowed_signers.
+    let keys_dir = crosslink_dir.join("keys");
+    std::fs::create_dir_all(&keys_dir).unwrap();
+    let key_file = keys_dir.join("driver_ed25519");
+    std::fs::write(&key_file, "-----BEGIN OPENSSH PRIVATE KEY-----\nfake\n").unwrap();
+    let pubkey_line = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAGH585-self-register-test driver@host";
+    std::fs::write(format!("{}.pub", key_file.display()), pubkey_line).unwrap();
+
+    // Override the test repo's user.signingkey so driver_signing_key()
+    // returns OUR fake key, not the test host's global signingkey.
+    // This reproduces the GH#585 scenario: a driver workspace using
+    // its own SSH signing key, which configure_signing must register
+    // in allowed_signers.
+    set_repo_signing_key(work_dir.path(), &key_file);
+
+    let agent = AgentConfig {
+        agent_id: "self-register-driver".to_string(),
+        machine_id: "test-host".to_string(),
+        description: None,
+        role: AgentRole::Driver,
+        ssh_key_path: None,
+        ssh_fingerprint: None,
+        ssh_public_key: None,
+    };
+    let agent_json = serde_json::to_string_pretty(&agent).unwrap();
+    std::fs::write(crosslink_dir.join("agent.json"), agent_json).unwrap();
+
+    manager.configure_signing(&crosslink_dir).unwrap();
+
+    let allowed_signers = manager.cache_dir.join("trust").join("allowed_signers");
+    let content = std::fs::read_to_string(&allowed_signers)
+        .expect("allowed_signers should exist after configure_signing");
+    assert!(
+        content.contains("AAAAC3NzaC1lZDI1NTE5AAAAGH585-self-register-test"),
+        "driver signing key body should be registered in allowed_signers; got:\n{content}"
+    );
+    assert!(
+        content.contains("self-register-driver@crosslink"),
+        "entry should use the agent.json identity as principal; got:\n{content}"
+    );
+}
+
+#[test]
+fn test_configure_signing_self_registration_is_idempotent() {
+    // Calling configure_signing twice must not duplicate the entry.
+    // The contains_key check dedupes by key body across all principals,
+    // so the second call observes "already trusted" and no-ops.
+    let (work_dir, _remote_dir) = setup_sync_env();
+    let crosslink_dir = work_dir.path().join(".crosslink");
+    let manager = SyncManager::new(&crosslink_dir).unwrap();
+    manager.init_cache().unwrap();
+
+    let keys_dir = crosslink_dir.join("keys");
+    std::fs::create_dir_all(&keys_dir).unwrap();
+    let key_file = keys_dir.join("driver_ed25519");
+    std::fs::write(&key_file, "-----BEGIN OPENSSH PRIVATE KEY-----\nfake\n").unwrap();
+    let pubkey_line = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAGH585-idempotency-test driver@host";
+    std::fs::write(format!("{}.pub", key_file.display()), pubkey_line).unwrap();
+    set_repo_signing_key(work_dir.path(), &key_file);
+
+    let agent = AgentConfig {
+        agent_id: "idempotency-driver".to_string(),
+        machine_id: "test-host".to_string(),
+        description: None,
+        role: AgentRole::Driver,
+        ssh_key_path: None,
+        ssh_fingerprint: None,
+        ssh_public_key: None,
+    };
+    let agent_json = serde_json::to_string_pretty(&agent).unwrap();
+    std::fs::write(crosslink_dir.join("agent.json"), agent_json).unwrap();
+
+    manager.configure_signing(&crosslink_dir).unwrap();
+    manager.configure_signing(&crosslink_dir).unwrap();
+    manager.configure_signing(&crosslink_dir).unwrap();
+
+    let allowed_signers = manager.cache_dir.join("trust").join("allowed_signers");
+    let content = std::fs::read_to_string(&allowed_signers).unwrap();
+    let occurrences = content.matches("idempotency-driver@crosslink").count();
+    assert_eq!(
+        occurrences, 1,
+        "principal should appear exactly once across 3 configure_signing calls; got {occurrences} in:\n{content}"
+    );
+}
+
+#[test]
+fn test_configure_signing_skips_self_registration_when_pub_missing() {
+    // When the .pub companion isn't on disk, self-registration must
+    // gracefully no-op (log debug, return Ok) rather than failing the
+    // whole configure_signing call.
+    let (work_dir, _remote_dir) = setup_sync_env();
+    let crosslink_dir = work_dir.path().join(".crosslink");
+    let manager = SyncManager::new(&crosslink_dir).unwrap();
+    manager.init_cache().unwrap();
+
+    let keys_dir = crosslink_dir.join("keys");
+    std::fs::create_dir_all(&keys_dir).unwrap();
+    let key_file = keys_dir.join("driver_ed25519");
+    std::fs::write(&key_file, "-----BEGIN OPENSSH PRIVATE KEY-----\nfake\n").unwrap();
+    // No .pub companion written.
+    set_repo_signing_key(work_dir.path(), &key_file);
+
+    let agent = AgentConfig {
+        agent_id: "no-pub-driver".to_string(),
+        machine_id: "test-host".to_string(),
+        description: None,
+        role: AgentRole::Driver,
+        ssh_key_path: None,
+        ssh_fingerprint: None,
+        ssh_public_key: None,
+    };
+    let agent_json = serde_json::to_string_pretty(&agent).unwrap();
+    std::fs::write(crosslink_dir.join("agent.json"), agent_json).unwrap();
+
+    // Must succeed even though the .pub is missing.
+    manager.configure_signing(&crosslink_dir).unwrap();
+
+    let allowed_signers = manager.cache_dir.join("trust").join("allowed_signers");
+    assert!(allowed_signers.exists());
+    let content = std::fs::read_to_string(&allowed_signers).unwrap();
+    assert!(
+        !content.contains("no-pub-driver@crosslink"),
+        "should not register when .pub is missing; got:\n{content}"
+    );
+}
+
 #[test]
 fn test_configure_signing_key_file_missing() {
     let (work_dir, _remote_dir) = setup_sync_env();
