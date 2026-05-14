@@ -1,0 +1,10 @@
+{
+  "uuid": "8fc6be33-3c5a-4bed-ae08-d90b64adeda6",
+  "issue_uuid": "d39b301a-60f6-46c0-8b16-bf3809304fb6",
+  "author": "dashboard-bootstrap",
+  "content": "Root cause: PR #597 (GH#585) added register_active_key_as_trusted() in crosslink/src/sync/trust.rs:610, which runs every configure_signing() call and silently auto-adds the workspace signing key into allowed_signers as <agent_id>@crosslink. Because trust pending classifies a key as 'approved' if its principal is in allowed_signers, every published key shows as approved — yet complete_bootstrap() is only called from crosslink trust approve (commands/trust.rs:99). Result: meta/bootstrap.json stays 'pending' forever; with signing_enforcement='enforced' every sync bails with instructions that are impossible to follow (trust pending shows nothing, no agent-id to approve). Secondary: the new commit message 'trust: register signing key for ...' is NOT in BOOTSTRAP_MESSAGE_PREFIXES (sync/bootstrap.rs:29-34), so post-fix it would fail the enforcement audit.",
+  "created_at": "2026-05-14T04:31:46.744074887Z",
+  "kind": "observation",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABApXWijslx8qwCZELUBRBDcaJOiOCDYjYNLLQingNifWU6nWsNQulgDH5tlk/X3Mu3iisghub950ImVKs1q915BQ=="
+}
