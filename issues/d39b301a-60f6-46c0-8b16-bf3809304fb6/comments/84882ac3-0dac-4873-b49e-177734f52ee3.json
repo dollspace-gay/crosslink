@@ -1,0 +1,10 @@
+{
+  "uuid": "84882ac3-0dac-4873-b49e-177734f52ee3",
+  "issue_uuid": "d39b301a-60f6-46c0-8b16-bf3809304fb6",
+  "author": "dashboard-bootstrap",
+  "content": "Fix on branch fix/738-bootstrap-auto-complete-on-register (off develop). Changes:\n1. sync/trust.rs: register_active_key_as_trusted now returns Result<bool> and, when it adds a new entry while bootstrap.status=='pending', calls complete_bootstrap() and stages meta/bootstrap.json into the same unsigned commit.\n2. sync/bootstrap.rs: added 'trust: register signing key' to BOOTSTRAP_MESSAGE_PREFIXES so the unsigned self-trust commit is correctly filtered by signing audit.\n3. commands/locks_cmd.rs sync_cmd: snapshot bootstrap state before/after configure_signing and print 'Bootstrap complete — signing enforcement is now active.' (parity with trust approve).\n4. sync/tests.rs: two new unit tests prove (a) first configure_signing call flips bootstrap pending->complete and writes completed_at, (b) subsequent calls leave completed_at unchanged.\nVerification: cargo build clean; cargo fmt clean; cargo clippy clean; 145 sync:: tests pass.",
+  "created_at": "2026-05-14T04:36:22.751467015Z",
+  "kind": "resolution",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAyCg8pz4RY2KK6VEn5V90ox2QdwXNQUt0rCGwtnk5pcYPg6Jbgyk90nP7vstGkzhI88LE4FmBU0dklCzppalBCw=="
+}
