@@ -1,0 +1,10 @@
+{
+  "uuid": "08763e2d-b5ef-4b30-8b26-53b977e0279e",
+  "issue_uuid": "7c20fbd6-f2f6-4cd2-bc3a-9fe20872a20e",
+  "author": "dashboard-bootstrap",
+  "content": "Fix #601: capture both stdout AND stderr in error messages from git_{commit_in_cache_with_args,in_cache} (both shared_writer/core.rs and sync/core.rs — 4 sites total). New format: 'git ... in cache failed (<exit>):\\nstdout: <stdout>\\nstderr: <stderr>'. Side effect: the 4 existing 'nothing to commit' substring guards in core.rs (lines 318, 416, 506, 976) now actually fire — they were dead code because err_str came from empty stderr. Added 2 regression tests in shared_writer/tests.rs. Tests: 2866 pass (2 new). Clippy clean -D warnings.",
+  "created_at": "2026-05-15T13:31:34.378561329Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAOqfwHsUXepqRgbrWLWHPN86e6R1fny1Zg+beFpJPIHfUb1h4aKBX909986acQ44QJapcdIbBDSZSRfbOa2/mCg=="
+}
