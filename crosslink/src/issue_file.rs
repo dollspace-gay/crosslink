@@ -192,6 +192,24 @@ impl From<&IssueFile> for crate::checkpoint::CompactIssue {
             blockers: file.blockers.iter().copied().collect(),
             related: file.related.iter().copied().collect(),
             milestone_uuid: file.milestone_uuid,
+            comments: file
+                .comments
+                .iter()
+                .map(|c| crate::checkpoint::CompactComment {
+                    id: c.id,
+                    // V1 CommentEntry has no UUID — synthesize one. This
+                    // is the seed-from-disk path; once events are
+                    // canonical every comment carries its own UUID.
+                    uuid: uuid::Uuid::new_v4(),
+                    author: c.author.clone(),
+                    content: c.content.clone(),
+                    created_at: c.created_at,
+                    kind: c.kind.clone(),
+                    trigger_type: c.trigger_type.clone(),
+                    intervention_context: c.intervention_context.clone(),
+                    driver_key_fingerprint: c.driver_key_fingerprint.clone(),
+                })
+                .collect(),
         }
     }
 }
@@ -213,7 +231,22 @@ impl From<&crate::checkpoint::CompactIssue> for IssueFile {
             scheduled_at: compact.scheduled_at,
             due_at: compact.due_at,
             labels: compact.labels.iter().cloned().collect(),
-            comments: vec![],
+            comments: compact
+                .comments
+                .iter()
+                .map(|c| CommentEntry {
+                    id: c.id,
+                    author: c.author.clone(),
+                    content: c.content.clone(),
+                    created_at: c.created_at,
+                    kind: c.kind.clone(),
+                    trigger_type: c.trigger_type.clone(),
+                    intervention_context: c.intervention_context.clone(),
+                    driver_key_fingerprint: c.driver_key_fingerprint.clone(),
+                    signed_by: None,
+                    signature: None,
+                })
+                .collect(),
             blockers: compact.blockers.iter().copied().collect(),
             related: compact.related.iter().copied().collect(),
             milestone_uuid: compact.milestone_uuid,

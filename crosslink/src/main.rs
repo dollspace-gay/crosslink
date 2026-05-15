@@ -1545,6 +1545,13 @@ enum IntegrityCommands {
         /// `.crosslink/integrity/` regardless of this flag.
         #[arg(long)]
         accept_data_loss: bool,
+        /// Wipe the compaction checkpoint and recompute state by
+        /// replaying every event in every agent log from genesis.
+        /// Use after backfilling events from a legacy JSON-canonical
+        /// workspace, or when checkpoint state has gone corrupt and
+        /// the event log is still trustworthy (#604).
+        #[arg(long)]
+        replay_from_genesis: bool,
     },
     /// Check for stale or orphaned locks
     Locks {
@@ -1563,6 +1570,21 @@ enum IntegrityCommands {
         /// Migrate V1 files to V2 and remove stale duplicates
         #[arg(long)]
         repair: bool,
+    },
+    /// Backfill events from existing JSON state (#604 migration).
+    ///
+    /// Walks the on-disk `issues/*.json` view and synthesizes one event
+    /// envelope per logical mutation that produced the current state,
+    /// appending them to the local agent's event log. Idempotent:
+    /// issues already represented in any agent's event log are skipped.
+    /// Pair with `integrity hydration --replay-from-genesis` to rebuild
+    /// SQLite and the materialized JSON view entirely from events.
+    BackfillEvents {
+        /// Append events with `agent_seq` starting at this value
+        /// instead of `1`. Use when the agent's existing event log
+        /// already contains entries — pass the next free sequence.
+        #[arg(long, default_value = "1")]
+        start_seq: u64,
     },
     /// Retroactively sign unsigned hub entries with a human key (attestation)
     SignBackfill {

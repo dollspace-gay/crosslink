@@ -882,7 +882,12 @@ impl SharedWriter {
                 if let Some(parent) = full.parent() {
                     std::fs::create_dir_all(parent)?;
                 }
-                std::fs::write(&full, content)?;
+                // Atomic write: temp file + rename, so a crash mid-write
+                // can't truncate the target file (#604 failure mode #4).
+                // POSIX rename is atomic on the same filesystem; the
+                // temp file is in the destination's parent dir to keep
+                // both on the same fs.
+                crate::utils::atomic_write(&full, content)?;
 
                 // Clean up stale V1 flat file when writing V2 directory
                 // format (#428). The sync-level cleanup_stale_layout_files()
@@ -976,17 +981,20 @@ impl SharedWriter {
                 if err_str.contains("nothing to commit") || err_str.contains("no changes added") {
                     return Ok(PushOutcome::Pushed);
                 }
-                // Commit failed — if we were deleting files (git rm), restore
-                // Commit failed — reset index and working directory to HEAD
-                // to prevent split state (#427, #468). This is safe because
-                // the commit didn't succeed, so HEAD is the correct state.
-                if write_set.use_git_rm {
-                    if let Err(reset_err) = self.git_in_cache(&["reset", "--hard", "HEAD"]) {
-                        tracing::error!(
-                            "hub cache may be corrupt: commit failed and reset failed: {}",
-                            reset_err
-                        );
-                    }
+                // Commit failed — reset index AND working directory to
+                // HEAD so the JSON file write done by `apply_write_set`
+                // above doesn't leak through as JSON-only drift (#604
+                // failure mode #1). Previously this reset only ran for
+                // the `use_git_rm` path; the non-rm path (e.g.
+                // add_blocker before the event-sourcing migration) left
+                // the modified file on disk with no matching commit.
+                // The cache lock above guarantees we own the worktree,
+                // so resetting other state in it is safe.
+                if let Err(reset_err) = self.git_in_cache(&["reset", "--hard", "HEAD"]) {
+                    tracing::error!(
+                        "hub cache may be corrupt: commit failed and reset failed: {}",
+                        reset_err
+                    );
                 }
                 commit_result?;
             }

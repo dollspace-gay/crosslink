@@ -7,7 +7,7 @@ use std::cell::Cell;
 use uuid::Uuid;
 
 use crate::db::Database;
-use crate::issue_file::{CommentEntry, CommentFile, IssueFile};
+use crate::issue_file::{read_issue_file, IssueFile};
 
 use super::core::{PushOutcome, SharedWriter, WriteSet};
 
@@ -269,57 +269,63 @@ impl SharedWriter {
         display_id: i64,
         update: IssueUpdate<'_>,
     ) -> Result<()> {
-        let title_owned = update.title.map(std::string::ToString::to_string);
-        let desc_update = update.description;
-        let status_parsed = update
-            .status
-            .map(str::parse::<crate::models::IssueStatus>)
-            .transpose()?;
-        let priority_parsed = update
-            .priority
-            .map(str::parse::<crate::models::Priority>)
-            .transpose()?;
-        let scheduled_at = update.scheduled_at;
-        let due_at = update.due_at;
+        // Event-sourced (#604). Status changes get a separate
+        // StatusChanged event for audit clarity; other field changes go
+        // through IssueUpdated. Both events are appended in one
+        // emit_compact_push round if both are present.
+        let issue = self.load_issue_by_id(display_id, db)?;
+        let uuid = issue.uuid;
 
-        let _ = self.write_commit_push(
-            |writer| {
-                let mut issue = writer.load_issue_by_id(display_id, db)?;
-                if let Some(ref t) = title_owned {
-                    issue.title.clone_from(t);
-                }
-                match &desc_update {
-                    DescriptionUpdate::Unchanged => {}
-                    DescriptionUpdate::Clear => issue.description = None,
-                    DescriptionUpdate::Set(s) => issue.description = Some((*s).to_string()),
-                }
-                if let Some(s) = status_parsed {
-                    issue.status = s;
-                }
-                if let Some(p) = priority_parsed {
-                    issue.priority = p;
-                }
-                match scheduled_at {
-                    FieldUpdate::Unchanged => {}
-                    FieldUpdate::Clear => issue.scheduled_at = None,
-                    FieldUpdate::Set(dt) => issue.scheduled_at = Some(dt),
-                }
-                match due_at {
-                    FieldUpdate::Unchanged => {}
-                    FieldUpdate::Clear => issue.due_at = None,
-                    FieldUpdate::Set(dt) => issue.due_at = Some(dt),
-                }
-                issue.updated_at = Utc::now();
-                let json = serde_json::to_vec_pretty(&issue)?;
-                let rel_path = writer.issue_rel_path(&issue.uuid);
-                Ok(WriteSet {
-                    files: vec![(rel_path, json)],
-                    counters: None,
-                    use_git_rm: false,
-                })
-            },
-            &format!("update issue #{display_id}"),
-        )?;
+        // StatusChanged first (audit ordering matches user intent).
+        if let Some(s) = update.status {
+            let parsed: crate::models::IssueStatus = s.parse()?;
+            let event = crate::events::Event::StatusChanged {
+                uuid,
+                new_status: s.to_string(),
+                closed_at: if matches!(parsed, crate::models::IssueStatus::Closed) {
+                    Some(Utc::now())
+                } else {
+                    None
+                },
+            };
+            self.emit_compact_push(event, &format!("update status of #{display_id}"))?;
+        }
+
+        // IssueUpdated for any of {title, description, priority,
+        // scheduled_at, due_at}.
+        let has_field_update = update.title.is_some()
+            || !matches!(update.description, DescriptionUpdate::Unchanged)
+            || update.priority.is_some()
+            || !matches!(update.scheduled_at, FieldUpdate::Unchanged)
+            || !matches!(update.due_at, FieldUpdate::Unchanged);
+
+        if has_field_update {
+            let (description, clear_description) = match &update.description {
+                DescriptionUpdate::Unchanged => (None, None),
+                DescriptionUpdate::Clear => (None, Some(true)),
+                DescriptionUpdate::Set(s) => (Some((*s).to_string()), None),
+            };
+            let scheduled_at = match update.scheduled_at {
+                FieldUpdate::Unchanged => None,
+                FieldUpdate::Clear => Some(None),
+                FieldUpdate::Set(dt) => Some(Some(dt)),
+            };
+            let due_at = match update.due_at {
+                FieldUpdate::Unchanged => None,
+                FieldUpdate::Clear => Some(None),
+                FieldUpdate::Set(dt) => Some(Some(dt)),
+            };
+            let event = crate::events::Event::IssueUpdated {
+                uuid,
+                title: update.title.map(std::string::ToString::to_string),
+                description,
+                clear_description,
+                priority: update.priority.map(std::string::ToString::to_string),
+                scheduled_at,
+                due_at,
+            };
+            self.emit_compact_push(event, &format!("update issue #{display_id}"))?;
+        }
 
         self.hydrate_with_retry(db);
         Ok(())
@@ -331,24 +337,16 @@ impl SharedWriter {
     ///
     /// Returns an error if the issue cannot be loaded or git operations fail.
     pub fn close_issue(&self, db: &Database, display_id: i64) -> Result<()> {
-        let _ = self.write_commit_push(
-            |writer| {
-                let mut issue = writer.load_issue_by_id(display_id, db)?;
-                let now = Utc::now();
-                issue.status = crate::models::IssueStatus::Closed;
-                issue.closed_at = Some(now);
-                issue.updated_at = now;
-                let json = serde_json::to_vec_pretty(&issue)?;
-                let rel_path = writer.issue_rel_path(&issue.uuid);
-                Ok(WriteSet {
-                    files: vec![(rel_path, json)],
-                    counters: None,
-                    use_git_rm: false,
-                })
-            },
-            &format!("close issue #{display_id}"),
-        )?;
-
+        // Event-sourced (#604): emit StatusChanged with new_status="closed"
+        // and a fresh closed_at timestamp. The envelope timestamp drives
+        // the issue's `updated_at` during apply.
+        let issue = self.load_issue_by_id(display_id, db)?;
+        let event = crate::events::Event::StatusChanged {
+            uuid: issue.uuid,
+            new_status: "closed".to_string(),
+            closed_at: Some(Utc::now()),
+        };
+        self.emit_compact_push(event, &format!("close issue #{display_id}"))?;
         self.hydrate_with_retry(db);
         Ok(())
     }
@@ -359,23 +357,15 @@ impl SharedWriter {
     ///
     /// Returns an error if the issue cannot be loaded or git operations fail.
     pub fn reopen_issue(&self, db: &Database, display_id: i64) -> Result<()> {
-        let _ = self.write_commit_push(
-            |writer| {
-                let mut issue = writer.load_issue_by_id(display_id, db)?;
-                issue.status = crate::models::IssueStatus::Open;
-                issue.closed_at = None;
-                issue.updated_at = Utc::now();
-                let json = serde_json::to_vec_pretty(&issue)?;
-                let rel_path = writer.issue_rel_path(&issue.uuid);
-                Ok(WriteSet {
-                    files: vec![(rel_path, json)],
-                    counters: None,
-                    use_git_rm: false,
-                })
-            },
-            &format!("reopen issue #{display_id}"),
-        )?;
-
+        // Event-sourced (#604): StatusChanged with new_status="open" and
+        // closed_at=None to clear the prior closure timestamp.
+        let issue = self.load_issue_by_id(display_id, db)?;
+        let event = crate::events::Event::StatusChanged {
+            uuid: issue.uuid,
+            new_status: "open".to_string(),
+            closed_at: None,
+        };
+        self.emit_compact_push(event, &format!("reopen issue #{display_id}"))?;
         self.hydrate_with_retry(db);
         Ok(())
     }
@@ -386,54 +376,12 @@ impl SharedWriter {
     ///
     /// Returns an error if the issue cannot be found or git operations fail.
     pub fn delete_issue(&self, db: &Database, display_id: i64) -> Result<()> {
+        // Event-sourced (#604): emit IssueDeleted; compaction removes
+        // the issue from state and materialize deletes the JSON file
+        // (whole V2 directory or flat V1 file).
         let issue = self.load_issue_by_id(display_id, db)?;
-        let uuid = issue.uuid;
-
-        let _ = self.write_commit_push(
-            |writer| {
-                // Don't delete files here — let `git rm -r` in the staging
-                // loop handle both index and disk removal so the commit
-                // failure path can restore from HEAD (#427).
-                if writer.layout_version() >= 2 {
-                    // V2: pass the directory path so git rm -r removes
-                    // issue.json + comments/ recursively (#460)
-                    Ok(WriteSet {
-                        files: vec![(format!("issues/{uuid}"), vec![])],
-                        counters: None,
-                        use_git_rm: true,
-                    })
-                } else {
-                    // V1: pass the flat file path
-                    Ok(WriteSet {
-                        files: vec![(format!("issues/{uuid}.json"), vec![])],
-                        counters: None,
-                        use_git_rm: true,
-                    })
-                }
-            },
-            &format!("delete issue #{display_id}"),
-        )?;
-
-        // Post-commit cleanup: remove any untracked remnants (e.g. comment
-        // files created between commits that git rm didn't know about). Safe
-        // to do now because the commit already succeeded (#460).
-        let issue_dir = self.cache_dir.join("issues").join(uuid.to_string());
-        if issue_dir.exists() {
-            if let Err(e) = std::fs::remove_dir_all(&issue_dir) {
-                tracing::debug!(
-                    "post-delete cleanup of {} failed: {}",
-                    issue_dir.display(),
-                    e
-                );
-            }
-        }
-        let v1_path = self.cache_dir.join(format!("issues/{uuid}.json"));
-        if v1_path.exists() {
-            if let Err(e) = std::fs::remove_file(&v1_path) {
-                tracing::debug!("post-delete cleanup of {} failed: {}", v1_path.display(), e);
-            }
-        }
-
+        let event = crate::events::Event::IssueDeleted { uuid: issue.uuid };
+        self.emit_compact_push(event, &format!("delete issue #{display_id}"))?;
         self.hydrate_with_retry(db);
         Ok(())
     }
@@ -448,71 +396,72 @@ impl SharedWriter {
         params: &CommentParams,
         commit_msg: &str,
     ) -> Result<i64> {
+        // Event-sourced (#604): emit CommentAdded. The comment id is
+        // assigned during apply from CheckpointState.next_comment_id, so
+        // the caller reads it back from the materialized JSON after
+        // emit_compact_push returns.
+        let issue = self.load_issue_by_id(display_id, db)?;
+        let issue_uuid = issue.uuid;
+        let comment_uuid = Uuid::new_v4();
         let agent_id = self.agent.agent_id.clone();
-        let comment_id = Cell::new(0i64);
 
-        let _ = self.write_commit_push(
-            |writer| {
-                let mut counters = writer.read_counters()?;
-                let id = counters.next_comment_id;
-                counters.next_comment_id += 1;
-                comment_id.set(id);
-
-                let (signed_by, signature) = writer.sign_comment(&params.content, &agent_id, id);
-
-                if writer.layout_version() >= 2 {
-                    let issue = writer.load_issue_by_id(display_id, db)?;
-                    let comment_uuid = Uuid::new_v4();
-                    let comment_file = CommentFile {
-                        uuid: comment_uuid,
-                        issue_uuid: issue.uuid,
-                        author: agent_id.clone(),
-                        content: params.content.clone(),
-                        created_at: Utc::now(),
-                        kind: params.kind.clone(),
-                        trigger_type: params.trigger_type.clone(),
-                        intervention_context: params.intervention_context.clone(),
-                        driver_key_fingerprint: params.driver_key_fingerprint.clone(),
-                        signed_by,
-                        signature,
-                    };
-                    let json = serde_json::to_vec_pretty(&comment_file)?;
-                    let rel_path = Self::comment_rel_path(&issue.uuid, &comment_uuid);
-                    Ok(WriteSet {
-                        files: vec![(rel_path, json)],
-                        counters: Some(counters),
-                        use_git_rm: false,
-                    })
-                } else {
-                    let mut issue = writer.load_issue_by_id(display_id, db)?;
-                    issue.comments.push(CommentEntry {
-                        id,
-                        author: agent_id.clone(),
-                        content: params.content.clone(),
-                        created_at: Utc::now(),
-                        kind: params.kind.clone(),
-                        trigger_type: params.trigger_type.clone(),
-                        intervention_context: params.intervention_context.clone(),
-                        driver_key_fingerprint: params.driver_key_fingerprint.clone(),
-                        signed_by,
-                        signature,
-                    });
-                    issue.updated_at = Utc::now();
-
-                    let json = serde_json::to_vec_pretty(&issue)?;
-                    let rel_path = writer.issue_rel_path(&issue.uuid);
-                    Ok(WriteSet {
-                        files: vec![(rel_path, json)],
-                        counters: Some(counters),
-                        use_git_rm: false,
-                    })
-                }
-            },
-            commit_msg,
-        )?;
+        let event = crate::events::Event::CommentAdded {
+            comment_uuid,
+            issue_uuid,
+            author: agent_id,
+            content: params.content.clone(),
+            kind: params.kind.clone(),
+            trigger_type: params.trigger_type.clone(),
+            intervention_context: params.intervention_context.clone(),
+            driver_key_fingerprint: params.driver_key_fingerprint.clone(),
+        };
+        self.emit_compact_push(event, commit_msg)?;
 
         self.hydrate_with_retry(db);
-        Ok(comment_id.get())
+
+        // Read back the assigned comment id. The CommentAdded apply
+        // pushed the comment onto state.issues[uuid].comments with an
+        // id claimed from next_comment_id; materialize wrote it as a
+        // per-comment file (V2) or inlined into the issue JSON (V1).
+        // We look up by `comment_uuid` (stable across layouts) rather
+        // than by content (which can collide between comments).
+        let id = self.lookup_comment_id_by_uuid(issue_uuid, comment_uuid)?;
+        Ok(id)
+    }
+
+    /// Look up the materialized comment id for a comment with a known
+    /// UUID. Handles both V1 (inline) and V2 (per-comment file) layouts.
+    fn lookup_comment_id_by_uuid(&self, issue_uuid: Uuid, comment_uuid: Uuid) -> Result<i64> {
+        if self.layout_version() >= 2 {
+            let path = self
+                .cache_dir
+                .join(Self::comment_rel_path(&issue_uuid, &comment_uuid));
+            // V2 comment files don't carry the SQLite id directly — the
+            // id lives in CheckpointState.issues[issue_uuid].comments.
+            // Read the checkpoint to find the assigned id.
+            let _ = path; // path exists as evidence the file was written
+            let checkpoint = crate::checkpoint::read_checkpoint(&self.cache_dir)?;
+            let id = checkpoint
+                .issues
+                .get(&issue_uuid)
+                .and_then(|i| i.comments.iter().find(|c| c.uuid == comment_uuid))
+                .map(|c| c.id)
+                .context("comment not found in checkpoint state after emit")?;
+            Ok(id)
+        } else {
+            let issue = read_issue_file(&self.issue_path(&issue_uuid))?;
+            // V1 inline comments don't carry uuid in the file, fall back
+            // to the checkpoint state lookup.
+            let _ = issue;
+            let checkpoint = crate::checkpoint::read_checkpoint(&self.cache_dir)?;
+            let id = checkpoint
+                .issues
+                .get(&issue_uuid)
+                .and_then(|i| i.comments.iter().find(|c| c.uuid == comment_uuid))
+                .map(|c| c.id)
+                .context("comment not found in checkpoint state after emit")?;
+            Ok(id)
+        }
     }
 
     /// Add a comment to an issue.

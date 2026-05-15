@@ -18,9 +18,15 @@ use crate::events::OrderingKey;
 pub struct CheckpointState {
     pub next_display_id: i64,
     pub next_comment_id: i64,
+    #[serde(default = "default_next_milestone_id")]
+    pub next_milestone_id: i64,
     pub display_id_map: BTreeMap<Uuid, i64>,
     pub locks: BTreeMap<i64, LockEntry>,
     pub issues: BTreeMap<Uuid, CompactIssue>,
+    /// Milestones tracked in event-sourced state (#604). Materialized to
+    /// `meta/milestones/<uuid>.json` by compaction.
+    #[serde(default)]
+    pub milestones: BTreeMap<Uuid, CompactMilestone>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub skew_warnings: Vec<SkewWarning>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -33,20 +39,57 @@ pub struct CheckpointState {
     pub watermark: Option<OrderingKey>,
 }
 
+const fn default_next_milestone_id() -> i64 {
+    1
+}
+
 impl Default for CheckpointState {
     fn default() -> Self {
         Self {
             next_display_id: 1,
             next_comment_id: 1,
+            next_milestone_id: 1,
             display_id_map: BTreeMap::new(),
             locks: BTreeMap::new(),
             issues: BTreeMap::new(),
+            milestones: BTreeMap::new(),
             skew_warnings: Vec::new(),
             compaction_lease: None,
             unsigned_event_warnings: Vec::new(),
             watermark: None,
         }
     }
+}
+
+/// Materialized milestone state in the event-sourcing checkpoint (#604).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactMilestone {
+    pub uuid: Uuid,
+    pub display_id: i64,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub status: crate::models::IssueStatus,
+    pub created_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub closed_at: Option<DateTime<Utc>>,
+}
+
+/// Materialized comment state on a `CompactIssue` (#604).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompactComment {
+    pub id: i64,
+    pub uuid: Uuid,
+    pub author: String,
+    pub content: String,
+    pub created_at: DateTime<Utc>,
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trigger_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intervention_context: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub driver_key_fingerprint: Option<String>,
 }
 
 /// A lock entry in the checkpoint state.
@@ -90,6 +133,11 @@ pub struct CompactIssue {
     pub related: BTreeSet<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub milestone_uuid: Option<Uuid>,
+    /// Materialized comments (#604). Empty for compaction state that
+    /// predates the comment-event migration; populated by
+    /// `CommentAdded` apply.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub comments: Vec<CompactComment>,
 }
 
 /// Advisory compaction lease to prevent concurrent compaction.
@@ -247,6 +295,7 @@ mod tests {
                 blockers: BTreeSet::new(),
                 related: BTreeSet::new(),
                 milestone_uuid: None,
+                comments: Vec::new(),
             },
         );
         state.locks.insert(
@@ -345,6 +394,7 @@ mod tests {
             blockers: BTreeSet::from([Uuid::new_v4()]),
             related: BTreeSet::new(),
             milestone_uuid: None,
+            comments: Vec::new(),
         };
         let json = serde_json::to_string(&issue).unwrap();
         let parsed: CompactIssue = serde_json::from_str(&json).unwrap();

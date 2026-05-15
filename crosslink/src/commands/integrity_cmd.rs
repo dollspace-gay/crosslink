@@ -55,8 +55,15 @@ pub fn run(action: Option<&IntegrityCommands>, crosslink_dir: &Path, db: &Databa
         Some(IntegrityCommands::Hydration {
             repair,
             accept_data_loss,
+            replay_from_genesis,
         }) => {
-            let result = check_hydration(crosslink_dir, db, *repair, *accept_data_loss)?;
+            let result = check_hydration(
+                crosslink_dir,
+                db,
+                *repair,
+                *accept_data_loss,
+                *replay_from_genesis,
+            )?;
             print_result(&result);
             Ok(())
         }
@@ -70,6 +77,9 @@ pub fn run(action: Option<&IntegrityCommands>, crosslink_dir: &Path, db: &Databa
             print_result(&result);
             Ok(())
         }
+        Some(IntegrityCommands::BackfillEvents { start_seq }) => {
+            backfill_events(crosslink_dir, *start_seq)
+        }
         Some(IntegrityCommands::SignBackfill { confirm, key }) => {
             sign_backfill(crosslink_dir, *confirm, key.as_deref())
         }
@@ -82,7 +92,7 @@ fn run_all(crosslink_dir: &Path, db: &Database) -> Result<()> {
     let results = vec![
         check_schema(db, false)?,
         check_counters(crosslink_dir, db, false)?,
-        check_hydration(crosslink_dir, db, false, false)?,
+        check_hydration(crosslink_dir, db, false, false, false)?,
         check_locks(crosslink_dir, false)?,
         check_layout(crosslink_dir, false),
     ];
@@ -183,6 +193,7 @@ fn check_hydration(
     db: &Database,
     repair: bool,
     accept_data_loss: bool,
+    replay_from_genesis: bool,
 ) -> Result<CheckResult> {
     let cache_dir = crosslink_dir.join(HUB_CACHE_DIR);
     if !cache_dir.exists() {
@@ -190,6 +201,16 @@ fn check_hydration(
             name: "hydration".to_string(),
             status: CheckStatus::Skipped("sync not configured".to_string()),
         });
+    }
+
+    // --replay-from-genesis short-circuits the drift logic. It wipes
+    // the compaction checkpoint, recomputes state by replaying every
+    // event from every agent log, materializes JSON from the fresh
+    // state, then hydrates SQLite. This is the event-canonical repair
+    // path (#604): the event log is the source of truth, JSON and
+    // SQLite are caches rebuilt by replay.
+    if replay_from_genesis {
+        return run_replay_from_genesis(crosslink_dir, &cache_dir, db);
     }
 
     // ---- 1. Count check (cheap, surfaces JSON↔SQLite size differences) ----
@@ -301,6 +322,71 @@ fn check_hydration(
 /// Run the legacy count comparison: returns a list of "`JSON` has N,
 /// `SQLite` has M" detail strings for each category that mismatches.
 /// Empty `Vec` means counts agree (content drift may still exist).
+/// Wipe the compaction checkpoint and rebuild SQLite by replaying
+/// every event in every agent log from genesis (#604).
+///
+/// The event log is canonical; checkpoint state and the per-issue JSON
+/// view are caches that this function regenerates from scratch. After
+/// this returns, SQLite, the materialized JSON files, and the
+/// CheckpointState are mutually consistent and derived entirely from
+/// the event sequence on disk.
+fn run_replay_from_genesis(
+    crosslink_dir: &Path,
+    cache_dir: &Path,
+    db: &Database,
+) -> Result<CheckResult> {
+    // Snapshot SQLite before we touch anything, mirroring the safety
+    // net the drift-repair path provides (#602).
+    let snapshot_path = crate::db::snapshot::snapshot_to_integrity_dir(
+        db,
+        crosslink_dir,
+        crate::db::snapshot::HYDRATION_BACKUP_PREFIX,
+    )?;
+    let snapshot_rel = snapshot_path.strip_prefix(crosslink_dir).map_or_else(
+        |_| snapshot_path.to_string_lossy().into_owned(),
+        |p| p.to_string_lossy().into_owned(),
+    );
+
+    // 1. Delete the checkpoint state file. compact() with no watermark
+    //    treats this as "full compaction" and rebuilds state from every
+    //    event in every agent log.
+    let checkpoint_state = cache_dir.join("checkpoint").join("state.json");
+    if checkpoint_state.exists() {
+        std::fs::remove_file(&checkpoint_state)
+            .with_context(|| format!("remove checkpoint state {}", checkpoint_state.display()))?;
+    }
+    let watermark = cache_dir.join("checkpoint").join("watermark.json");
+    if watermark.exists() {
+        let _ = std::fs::remove_file(&watermark);
+    }
+
+    // 2. Recompact from scratch. The agent_id is the local writer's
+    //    identity, but compact() reads ALL agents' logs regardless.
+    let agent_id = crate::identity::AgentConfig::load(crosslink_dir)?
+        .map(|c| c.agent_id)
+        .unwrap_or_else(|| "replay".to_string());
+    let result = crate::compaction::compact(cache_dir, &agent_id, true)?;
+    let events_processed = result.as_ref().map_or(0, |r| r.events_processed);
+    let issues_materialized = result.as_ref().map_or(0, |r| r.issues_materialized);
+
+    // 3. Rebuild SQLite from the freshly-materialized JSON. clear is
+    //    safe now: the JSON view is canonical (just materialized from
+    //    events), and any SQLite-only state that would have been
+    //    destroyed is by definition something the event log doesn't
+    //    represent — the snapshot above preserves it for recovery.
+    db.clear_shared_data()?;
+    let stats = hydrate_to_sqlite(cache_dir, db)?;
+
+    Ok(CheckResult {
+        name: "hydration".to_string(),
+        status: CheckStatus::Repaired(format!(
+            "replayed {events_processed} event(s), materialized {issues_materialized} issue(s), \
+             hydrated {} SQLite issue(s); snapshot at {snapshot_rel}",
+            stats.issues
+        )),
+    })
+}
+
 fn collect_count_mismatch(cache_dir: &Path, db: &Database) -> Result<Vec<String>> {
     let issues_dir = cache_dir.join("issues");
     let json_issues = read_all_issue_files(&issues_dir)?;
@@ -627,6 +713,46 @@ const BACKFILL_SIGNING_NAMESPACE: &str = "crosslink-backfill";
 
 /// Principal used for human backfill attestation in `allowed_signers`.
 const BACKFILL_PRINCIPAL: &str = "backfill@crosslink";
+
+/// Synthesize events from existing JSON state and append them to the
+/// local agent's event log. CLI entry point for
+/// `events_backfill::backfill_events_from_json` (#604 migration).
+fn backfill_events(crosslink_dir: &Path, start_seq: u64) -> Result<()> {
+    let cache_dir = crosslink_dir.join(HUB_CACHE_DIR);
+    if !cache_dir.exists() {
+        bail!("hub cache not initialized — run `crosslink sync` first");
+    }
+    let agent_id = crate::identity::AgentConfig::load(crosslink_dir)?
+        .map(|c| c.agent_id)
+        .context(
+            "agent identity not configured; run `crosslink agent init` before backfilling events",
+        )?;
+
+    let stats =
+        crosslink::events_backfill::backfill_events_from_json(&cache_dir, &agent_id, start_seq)?;
+
+    println!(
+        "Backfilled {} event(s) from JSON view:\n  \
+         issues:               {}\n  \
+         dependencies:         {}\n  \
+         relations:            {}\n  \
+         comments:             {}\n  \
+         milestones:           {}\n  \
+         milestone assignments: {}",
+        stats.total(),
+        stats.issues,
+        stats.dependencies,
+        stats.relations,
+        stats.comments,
+        stats.milestones,
+        stats.milestone_assignments,
+    );
+    println!(
+        "\nRun `crosslink integrity hydration --replay-from-genesis` to rebuild \
+         SQLite and the materialized JSON from the now-canonical event log."
+    );
+    Ok(())
+}
 
 fn sign_backfill(crosslink_dir: &Path, confirm: bool, key_override: Option<&Path>) -> Result<()> {
     let cache_dir = crosslink_dir.join(HUB_CACHE_DIR);
@@ -987,7 +1113,7 @@ mod tests {
     fn test_check_hydration_skipped_no_cache() {
         let (db, dir) = test_db();
         let crosslink_dir = dir.path();
-        let result = check_hydration(crosslink_dir, &db, false, false).unwrap();
+        let result = check_hydration(crosslink_dir, &db, false, false, false).unwrap();
         assert_eq!(result.name, "hydration");
         assert!(matches!(result.status, CheckStatus::Skipped(_)));
     }

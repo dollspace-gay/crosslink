@@ -13,8 +13,8 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use crate::checkpoint::{
-    read_checkpoint, read_watermark, write_checkpoint, CheckpointState, CompactIssue, LockEntry,
-    SkewWarning, UnsignedEventWarning,
+    read_checkpoint, read_watermark, write_checkpoint, CheckpointState, CompactComment,
+    CompactIssue, CompactMilestone, LockEntry, SkewWarning, UnsignedEventWarning,
 };
 use crate::events::{Event, EventEnvelope, OrderingKey};
 use crate::issue_file::{IssueFile, LockFileV2};
@@ -276,6 +276,10 @@ pub fn compact(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<C
     // path.
     seed_issues_from_disk(&mut state, &all_events, cache_dir);
 
+    let mut changed_milestones: HashSet<Uuid> = HashSet::new();
+    let mut deleted_issues: HashSet<Uuid> = HashSet::new();
+    let mut deleted_milestones: HashSet<Uuid> = HashSet::new();
+
     // Apply each event
     for envelope in &all_events {
         detect_clock_skew(&mut state, envelope);
@@ -285,6 +289,9 @@ pub fn compact(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<C
             envelope,
             &mut changed_issues,
             &mut changed_locks,
+            &mut changed_milestones,
+            &mut deleted_issues,
+            &mut deleted_milestones,
         );
     }
 
@@ -294,7 +301,15 @@ pub fn compact(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<C
     }
 
     // Materialize changed entities to disk
-    materialize(cache_dir, &state, &changed_issues, &changed_locks)?;
+    materialize(
+        cache_dir,
+        &state,
+        &changed_issues,
+        &changed_locks,
+        &changed_milestones,
+        &deleted_issues,
+        &deleted_milestones,
+    )?;
 
     // Run git-based clock skew detection
     let git_violations =
@@ -411,7 +426,22 @@ fn event_references_issue_uuids(event: &Event) -> impl Iterator<Item = Uuid> + '
         | Event::ParentChanged { issue_uuid, .. } => {
             uuids.push(*issue_uuid);
         }
-        Event::LockClaimed { .. } | Event::LockReleased { .. } => {}
+        Event::IssueDeleted { uuid } => {
+            uuids.push(*uuid);
+        }
+        Event::CommentAdded { issue_uuid, .. } => {
+            uuids.push(*issue_uuid);
+        }
+        Event::OfflinePromoted { mappings } => {
+            for (u, _) in mappings {
+                uuids.push(*u);
+            }
+        }
+        Event::MilestoneCreated { .. }
+        | Event::MilestoneClosed { .. }
+        | Event::MilestoneDeleted { .. }
+        | Event::LockClaimed { .. }
+        | Event::LockReleased { .. } => {}
     }
     uuids.into_iter()
 }
@@ -464,6 +494,9 @@ fn apply(
     envelope: &EventEnvelope,
     changed_issues: &mut HashSet<Uuid>,
     changed_locks: &mut HashSet<i64>,
+    changed_milestones: &mut HashSet<Uuid>,
+    deleted_issues: &mut HashSet<Uuid>,
+    deleted_milestones: &mut HashSet<Uuid>,
 ) {
     match &envelope.event {
         Event::LockClaimed {
@@ -480,6 +513,100 @@ fn apply(
         }
         Event::LockReleased { issue_display_id } => {
             apply_lock_event(state, envelope, changed_locks, *issue_display_id, None);
+        }
+        Event::IssueDeleted { uuid } => {
+            if state.issues.remove(uuid).is_some() {
+                deleted_issues.insert(*uuid);
+                changed_issues.remove(uuid);
+            }
+        }
+        Event::CommentAdded {
+            comment_uuid,
+            issue_uuid,
+            author,
+            content,
+            kind,
+            trigger_type,
+            intervention_context,
+            driver_key_fingerprint,
+        } => {
+            // Assign a comment id from the checkpoint counter so SQLite
+            // hydration sees a stable, monotone identifier. Idempotent:
+            // if a comment with this UUID is already present (replay
+            // of an event we already applied), skip without re-claiming
+            // an id.
+            let already_present = state
+                .issues
+                .get(issue_uuid)
+                .is_some_and(|i| i.comments.iter().any(|c| c.uuid == *comment_uuid));
+            if already_present {
+                return;
+            }
+            let id = state.next_comment_id;
+            state.next_comment_id += 1;
+            apply_issue_field(state, envelope, changed_issues, *issue_uuid, |i| {
+                i.comments.push(CompactComment {
+                    id,
+                    uuid: *comment_uuid,
+                    author: author.clone(),
+                    content: content.clone(),
+                    created_at: envelope.timestamp,
+                    kind: kind.clone(),
+                    trigger_type: trigger_type.clone(),
+                    intervention_context: intervention_context.clone(),
+                    driver_key_fingerprint: driver_key_fingerprint.clone(),
+                });
+            });
+        }
+        Event::MilestoneCreated {
+            uuid,
+            name,
+            description,
+        } => {
+            if !state.milestones.contains_key(uuid) {
+                let display_id = state.next_milestone_id;
+                state.next_milestone_id += 1;
+                state.milestones.insert(
+                    *uuid,
+                    CompactMilestone {
+                        uuid: *uuid,
+                        display_id,
+                        name: name.clone(),
+                        description: description.clone(),
+                        status: crate::models::IssueStatus::Open,
+                        created_at: envelope.timestamp,
+                        closed_at: None,
+                    },
+                );
+                changed_milestones.insert(*uuid);
+            }
+        }
+        Event::MilestoneClosed { uuid } => {
+            if let Some(m) = state.milestones.get_mut(uuid) {
+                m.status = crate::models::IssueStatus::Closed;
+                m.closed_at = Some(envelope.timestamp);
+                changed_milestones.insert(*uuid);
+            }
+        }
+        Event::MilestoneDeleted { uuid } => {
+            if state.milestones.remove(uuid).is_some() {
+                deleted_milestones.insert(*uuid);
+                changed_milestones.remove(uuid);
+            }
+        }
+        Event::OfflinePromoted { mappings } => {
+            // Each entry assigns a real display id to an offline issue.
+            // Advance the counter past the last assigned id.
+            for (issue_uuid, display_id) in mappings {
+                if let Some(issue) = state.issues.get_mut(issue_uuid) {
+                    issue.display_id = Some(*display_id);
+                    state.display_id_map.insert(*issue_uuid, *display_id);
+                    if *display_id >= state.next_display_id {
+                        state.next_display_id = *display_id + 1;
+                    }
+                    changed_issues.insert(*issue_uuid);
+                }
+            }
         }
         _ => apply_issue_event(state, envelope, changed_issues),
     }
@@ -518,7 +645,10 @@ fn apply_issue_event(
             uuid,
             title,
             description,
+            clear_description,
             priority,
+            scheduled_at,
+            due_at,
         } => {
             apply_issue_field(state, envelope, changed_issues, *uuid, |issue| {
                 if let Some(t) = title {
@@ -526,11 +656,19 @@ fn apply_issue_event(
                 }
                 if let Some(d) = description {
                     issue.description = Some(d.clone());
+                } else if matches!(clear_description, Some(true)) {
+                    issue.description = None;
                 }
                 if let Some(p) = priority {
                     if let Ok(v) = p.parse() {
                         issue.priority = v;
                     }
+                }
+                if let Some(s) = scheduled_at {
+                    issue.scheduled_at = *s;
+                }
+                if let Some(d) = due_at {
+                    issue.due_at = *d;
                 }
             });
         }
@@ -655,6 +793,7 @@ fn apply_issue_created(
                 blockers: BTreeSet::new(),
                 related: BTreeSet::new(),
                 milestone_uuid: None,
+                comments: Vec::new(),
             },
         );
         changed_issues.insert(uuid);
@@ -719,14 +858,19 @@ fn apply_lock_event(
 /// Respects the hub layout version: writes V1 flat files or V2 directory
 /// files accordingly. Cleans up stale V1 flat files when writing V2 (#428).
 /// Writes `meta/version.json` if missing to prevent layout drift.
+#[allow(clippy::too_many_arguments)]
 fn materialize(
     cache_dir: &Path,
     state: &CheckpointState,
     changed_issues: &HashSet<Uuid>,
     changed_locks: &HashSet<i64>,
+    changed_milestones: &HashSet<Uuid>,
+    deleted_issues: &HashSet<Uuid>,
+    deleted_milestones: &HashSet<Uuid>,
 ) -> Result<()> {
     let issues_dir = cache_dir.join("issues");
     let locks_dir = cache_dir.join("locks");
+    let milestones_dir = cache_dir.join("meta").join("milestones");
     let meta_dir = cache_dir.join("meta");
 
     let layout_version = crate::issue_file::read_layout_version(&meta_dir)
@@ -735,31 +879,27 @@ fn materialize(
     // Materialize changed issues
     for uuid in changed_issues {
         if let Some(compact) = state.issues.get(uuid) {
-            // Preserve fields that CompactIssue doesn't track (comments,
-            // time_entries) by overlaying the compact state onto whatever
-            // is currently on disk. Without this, every event-driven
-            // materialize would silently nuke any comments or time
-            // entries the issue currently carries — those fields live on
-            // the IssueFile struct but not on CompactIssue.
-            //
-            // Discovered while wiring #604's mutation-as-events
-            // migration: locks-only events never materialized issues, so
-            // the wipe was latent. The merge here makes it safe to drive
-            // additional event variants through compaction.
+            // Build the IssueFile from CompactIssue. For V2 layout,
+            // comments live in per-comment files (not inline), so we
+            // strip them from the issue.json body. Time entries are
+            // not in CompactIssue (they're SQLite-only) — preserve
+            // them from the existing JSON on disk.
             let existing_path = if layout_version >= 2 {
                 issues_dir.join(uuid.to_string()).join("issue.json")
             } else {
                 issues_dir.join(format!("{uuid}.json"))
             };
-            let issue_file =
-                if let Ok(existing) = crate::issue_file::read_issue_file(&existing_path) {
-                    let mut merged = compact_to_issue_file(compact);
-                    merged.comments = existing.comments;
-                    merged.time_entries = existing.time_entries;
-                    merged
-                } else {
-                    compact_to_issue_file(compact)
-                };
+            let existing = crate::issue_file::read_issue_file(&existing_path).ok();
+
+            let mut issue_file = compact_to_issue_file(compact);
+            if let Some(ref e) = existing {
+                issue_file.time_entries = e.time_entries.clone();
+            }
+            if layout_version >= 2 {
+                // V2 puts comments in separate files — empty in body.
+                issue_file.comments.clear();
+            }
+
             let content = serde_json::to_string_pretty(&issue_file)?;
 
             if layout_version >= 2 {
@@ -769,6 +909,28 @@ fn materialize(
                 })?;
                 let path = single_issue_dir.join("issue.json");
                 crate::utils::atomic_write(&path, content.as_bytes())?;
+
+                // Write per-comment files for V2 layout.
+                let comments_dir = single_issue_dir.join("comments");
+                std::fs::create_dir_all(&comments_dir)?;
+                for c in &compact.comments {
+                    let cf = crate::issue_file::CommentFile {
+                        uuid: c.uuid,
+                        issue_uuid: *uuid,
+                        author: c.author.clone(),
+                        content: c.content.clone(),
+                        created_at: c.created_at,
+                        kind: c.kind.clone(),
+                        trigger_type: c.trigger_type.clone(),
+                        intervention_context: c.intervention_context.clone(),
+                        driver_key_fingerprint: c.driver_key_fingerprint.clone(),
+                        signed_by: None,
+                        signature: None,
+                    };
+                    let path = comments_dir.join(format!("{}.json", c.uuid));
+                    let body = serde_json::to_string_pretty(&cf)?;
+                    crate::utils::atomic_write(&path, body.as_bytes())?;
+                }
 
                 // Clean up stale V1 flat file if it exists (#428)
                 let v1_path = issues_dir.join(format!("{uuid}.json"));
@@ -810,6 +972,57 @@ fn materialize(
             }
         }
     }
+
+    // Materialize milestones (#604)
+    std::fs::create_dir_all(&milestones_dir)?;
+    for uuid in changed_milestones {
+        if let Some(m) = state.milestones.get(uuid) {
+            let entry = crate::issue_file::MilestoneEntry {
+                uuid: m.uuid,
+                display_id: m.display_id,
+                name: m.name.clone(),
+                description: m.description.clone(),
+                status: m.status,
+                created_at: m.created_at,
+                closed_at: m.closed_at,
+            };
+            let content = serde_json::to_string_pretty(&entry)?;
+            let path = milestones_dir.join(format!("{uuid}.json"));
+            crate::utils::atomic_write(&path, content.as_bytes())?;
+        }
+    }
+
+    // Delete issue files for issues removed via IssueDeleted (#604).
+    for uuid in deleted_issues {
+        if layout_version >= 2 {
+            let dir = issues_dir.join(uuid.to_string());
+            if dir.exists() {
+                let _ = std::fs::remove_dir_all(&dir);
+            }
+        } else {
+            let path = issues_dir.join(format!("{uuid}.json"));
+            if path.exists() {
+                let _ = std::fs::remove_file(&path);
+            }
+        }
+    }
+
+    // Delete milestone files for milestones removed via MilestoneDeleted.
+    for uuid in deleted_milestones {
+        let path = milestones_dir.join(format!("{uuid}.json"));
+        if path.exists() {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+
+    // Write counters.json from CheckpointState so the JSON view stays
+    // in lock-step with event-sourced counters (#604).
+    let counters = crate::issue_file::Counters {
+        next_display_id: state.next_display_id,
+        next_comment_id: state.next_comment_id,
+        next_milestone_id: state.next_milestone_id,
+    };
+    crate::issue_file::write_counters(&meta_dir.join("counters.json"), &counters)?;
 
     Ok(())
 }
@@ -1224,7 +1437,10 @@ mod tests {
                 uuid,
                 title: Some("Agent 1 title".to_string()),
                 description: None,
+                clear_description: None,
                 priority: None,
+                scheduled_at: None,
+                due_at: None,
             },
         );
         e_update1.timestamp = Utc::now() - Duration::seconds(5);
@@ -1236,7 +1452,10 @@ mod tests {
                 uuid,
                 title: Some("Agent 2 title".to_string()),
                 description: Some("Agent 2 desc".to_string()),
+                clear_description: None,
                 priority: None,
+                scheduled_at: None,
+                due_at: None,
             },
         );
         e_update2.timestamp = Utc::now() - Duration::seconds(3);
@@ -2696,10 +2915,21 @@ mod tests {
                 uuid: unknown,
                 title: Some("Ghost".to_string()),
                 description: None,
+                clear_description: None,
                 priority: None,
+                scheduled_at: None,
+                due_at: None,
             },
         );
-        apply(&mut state, &env, &mut changed_issues, &mut changed_locks);
+        apply(
+            &mut state,
+            &env,
+            &mut changed_issues,
+            &mut changed_locks,
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+        );
         assert!(state.issues.is_empty());
         assert!(changed_issues.is_empty());
 
@@ -2713,7 +2943,15 @@ mod tests {
                 closed_at: Some(Utc::now()),
             },
         );
-        apply(&mut state, &env, &mut changed_issues, &mut changed_locks);
+        apply(
+            &mut state,
+            &env,
+            &mut changed_issues,
+            &mut changed_locks,
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+        );
         assert!(state.issues.is_empty());
 
         // DependencyAdded on nonexistent
@@ -2725,7 +2963,15 @@ mod tests {
                 blocker_uuid: Uuid::new_v4(),
             },
         );
-        apply(&mut state, &env, &mut changed_issues, &mut changed_locks);
+        apply(
+            &mut state,
+            &env,
+            &mut changed_issues,
+            &mut changed_locks,
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+        );
         assert!(state.issues.is_empty());
 
         // DependencyRemoved on nonexistent
@@ -2737,7 +2983,15 @@ mod tests {
                 blocker_uuid: Uuid::new_v4(),
             },
         );
-        apply(&mut state, &env, &mut changed_issues, &mut changed_locks);
+        apply(
+            &mut state,
+            &env,
+            &mut changed_issues,
+            &mut changed_locks,
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+        );
         assert!(state.issues.is_empty());
 
         // RelationAdded on nonexistent (both sides)
@@ -2749,7 +3003,15 @@ mod tests {
                 uuid_b: Uuid::new_v4(),
             },
         );
-        apply(&mut state, &env, &mut changed_issues, &mut changed_locks);
+        apply(
+            &mut state,
+            &env,
+            &mut changed_issues,
+            &mut changed_locks,
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+        );
         assert!(state.issues.is_empty());
 
         // RelationRemoved on nonexistent
@@ -2761,7 +3023,15 @@ mod tests {
                 uuid_b: Uuid::new_v4(),
             },
         );
-        apply(&mut state, &env, &mut changed_issues, &mut changed_locks);
+        apply(
+            &mut state,
+            &env,
+            &mut changed_issues,
+            &mut changed_locks,
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+        );
         assert!(state.issues.is_empty());
 
         // MilestoneAssigned on nonexistent
@@ -2773,7 +3043,15 @@ mod tests {
                 milestone_uuid: Some(Uuid::new_v4()),
             },
         );
-        apply(&mut state, &env, &mut changed_issues, &mut changed_locks);
+        apply(
+            &mut state,
+            &env,
+            &mut changed_issues,
+            &mut changed_locks,
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+        );
         assert!(state.issues.is_empty());
 
         // LabelAdded on nonexistent
@@ -2785,7 +3063,15 @@ mod tests {
                 label: "ghost-label".to_string(),
             },
         );
-        apply(&mut state, &env, &mut changed_issues, &mut changed_locks);
+        apply(
+            &mut state,
+            &env,
+            &mut changed_issues,
+            &mut changed_locks,
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+        );
         assert!(state.issues.is_empty());
 
         // LabelRemoved on nonexistent
@@ -2797,7 +3083,15 @@ mod tests {
                 label: "ghost-label".to_string(),
             },
         );
-        apply(&mut state, &env, &mut changed_issues, &mut changed_locks);
+        apply(
+            &mut state,
+            &env,
+            &mut changed_issues,
+            &mut changed_locks,
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+        );
         assert!(state.issues.is_empty());
 
         // ParentChanged on nonexistent
@@ -2809,7 +3103,15 @@ mod tests {
                 new_parent_uuid: Some(Uuid::new_v4()),
             },
         );
-        apply(&mut state, &env, &mut changed_issues, &mut changed_locks);
+        apply(
+            &mut state,
+            &env,
+            &mut changed_issues,
+            &mut changed_locks,
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+        );
         assert!(state.issues.is_empty());
 
         // No issues or locks should have been marked as changed
@@ -2973,7 +3275,10 @@ mod tests {
                 uuid,
                 title: None,
                 description: Some("New description".to_string()),
+                clear_description: None,
                 priority: Some("critical".to_string()),
+                scheduled_at: None,
+                due_at: None,
             },
         );
 
@@ -3201,6 +3506,7 @@ mod tests {
                 s
             },
             milestone_uuid: Some(Uuid::new_v4()),
+            comments: Vec::new(),
         };
 
         let issue_file = compact_to_issue_file(&compact);
@@ -3273,7 +3579,15 @@ mod tests {
                 issue_display_id: 999,
             },
         );
-        apply(&mut state, &env, &mut changed_issues, &mut changed_locks);
+        apply(
+            &mut state,
+            &env,
+            &mut changed_issues,
+            &mut changed_locks,
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+            &mut HashSet::new(),
+        );
         assert!(state.locks.is_empty());
         assert!(changed_locks.is_empty());
     }

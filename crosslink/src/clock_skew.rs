@@ -225,6 +225,20 @@ fn describe_event(event: &Event) -> String {
         Event::LabelRemoved {
             issue_uuid, label, ..
         } => format!("LabelRemoved({issue_uuid}, {label})"),
+        Event::IssueDeleted { uuid } => format!("IssueDeleted({uuid})"),
+        Event::CommentAdded {
+            comment_uuid,
+            issue_uuid,
+            ..
+        } => format!("CommentAdded({comment_uuid} on {issue_uuid})"),
+        Event::MilestoneCreated { uuid, name, .. } => {
+            format!("MilestoneCreated({uuid}, {name})")
+        }
+        Event::MilestoneClosed { uuid } => format!("MilestoneClosed({uuid})"),
+        Event::MilestoneDeleted { uuid } => format!("MilestoneDeleted({uuid})"),
+        Event::OfflinePromoted { mappings } => {
+            format!("OfflinePromoted({} issues)", mappings.len())
+        }
         Event::ParentChanged { issue_uuid, .. } => {
             format!("ParentChanged({issue_uuid})")
         }
@@ -577,7 +591,10 @@ mod tests {
                     uuid: uuid_a,
                     title: Some("New".to_string()),
                     description: None,
+                    clear_description: None,
                     priority: None,
+                    scheduled_at: None,
+                    due_at: None,
                 },
                 "IssueUpdated(",
             ),
@@ -667,7 +684,10 @@ mod tests {
             uuid,
             title: None,
             description: None,
+            clear_description: None,
             priority: None,
+            scheduled_at: None,
+            due_at: None,
         });
         assert_eq!(desc, format!("IssueUpdated({uuid})"));
     }

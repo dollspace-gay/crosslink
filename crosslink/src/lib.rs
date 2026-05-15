@@ -10,6 +10,7 @@ pub mod compaction;
 pub mod dashboard;
 pub mod db;
 pub mod events;
+pub mod events_backfill;
 pub mod external;
 pub mod findings;
 pub mod hydration;

@@ -82,8 +82,17 @@ pub enum Event {
         title: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         description: Option<String>,
+        /// When `Some(false)`, clear the description (#604 update_issue migration).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        clear_description: Option<bool>,
         #[serde(skip_serializing_if = "Option::is_none")]
         priority: Option<String>,
+        /// New scheduled-at timestamp, or `Some(None)` to clear (GH#604).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        scheduled_at: Option<Option<DateTime<Utc>>>,
+        /// New due-at timestamp, or `Some(None)` to clear (GH#604).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        due_at: Option<Option<DateTime<Utc>>>,
     },
     StatusChanged {
         uuid: Uuid,
@@ -124,6 +133,52 @@ pub enum Event {
         issue_uuid: Uuid,
         #[serde(skip_serializing_if = "Option::is_none")]
         new_parent_uuid: Option<Uuid>,
+    },
+
+    // ── New T2 variants for #604 full mutation migration ────────
+    /// An issue was hard-deleted from the system.
+    IssueDeleted {
+        uuid: Uuid,
+    },
+
+    /// A comment was attached to an issue.
+    CommentAdded {
+        comment_uuid: Uuid,
+        issue_uuid: Uuid,
+        author: String,
+        content: String,
+        kind: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        trigger_type: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        intervention_context: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        driver_key_fingerprint: Option<String>,
+    },
+
+    /// A milestone was created.
+    MilestoneCreated {
+        uuid: Uuid,
+        name: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+    },
+
+    /// A milestone was closed.
+    MilestoneClosed {
+        uuid: Uuid,
+    },
+
+    /// A milestone was hard-deleted.
+    MilestoneDeleted {
+        uuid: Uuid,
+    },
+
+    /// Offline issues were promoted: their stable display IDs are
+    /// assigned in a batch. The mapping is from issue UUID to the
+    /// newly-claimed display ID.
+    OfflinePromoted {
+        mappings: Vec<(Uuid, i64)>,
     },
 }
 
@@ -509,7 +564,10 @@ mod tests {
                 uuid: Uuid::new_v4(),
                 title: Some("new title".to_string()),
                 description: None,
+                clear_description: None,
                 priority: None,
+                scheduled_at: None,
+                due_at: None,
             },
             Event::StatusChanged {
                 uuid: Uuid::new_v4(),
