@@ -1,0 +1,10 @@
+{
+  "uuid": "2f86a66d-4784-4b05-867d-f8be7872e340",
+  "issue_uuid": "1bda14a8-f01d-4f40-bca5-351b6faa80b9",
+  "author": "dashboard-bootstrap",
+  "content": "Fix #603: add --permission-mode <mode> CLI flag to kickoff run/launch.\n\nCLI: new flag on KickoffCommands::{Run,Launch} with PossibleValuesParser limiting to claude's set (acceptEdits/auto/bypassPermissions/default/dontAsk/plan), conflicts_with skip_permissions.\n\nPlumbing: types.rs KickoffOpts.permission_mode, threaded through mod.rs (Run/Launch destructure + dispatch_launch + 3 KickoffOpts construction sites), run.rs to launch_local, and launch.rs build_agent_command resolution. Also updated swarm/lifecycle.rs and sentinel/engine.rs KickoffOpts builders.\n\nResolution in build_agent_command: permission_mode (when non-empty) wins over skip_permissions; empty string falls back to skip_permissions resolution; neither = no flag.\n\nTests: 2878 pass (+3 new: with_permission_mode_auto, permission_mode_wins_over_skip_permissions, empty_permission_mode_treated_as_none). Clippy strict clean, fmt clean.",
+  "created_at": "2026-05-15T15:36:07.374318642Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAaLc+rGwE6jpA0UXA///Gm3C6Mywhm3aZMv3hnfkEEgo7Pit5gYzRmE6txhM6yGm5pWoKvUeyeGQy8m0EXbjKBQ=="
+}
