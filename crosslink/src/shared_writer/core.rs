@@ -867,10 +867,10 @@ impl SharedWriter {
 
     /// Write files from a `WriteSet` to the cache directory and update counters.
     ///
-    /// Uses [`crate::utils::atomic_write`] for the JSON writes (#604).
+    /// Uses [`crate::utils::atomic_write`] for the `JSON` writes (#604).
     /// `std::fs::write` is open-truncate-write — if the process dies
     /// mid-write the target file is left half-populated and subsequent
-    /// reads fail with a JSON parse error until the user runs
+    /// reads fail with a `JSON` parse error until the user runs
     /// `git checkout HEAD -- <path>`. The temp-file + atomic-rename
     /// approach makes the write all-or-nothing relative to process
     /// crashes, which is the only #604 failure mode that doesn't
