@@ -1,0 +1,10 @@
+{
+  "uuid": "d04c48b3-a7d3-434d-bfcb-47d0de8cb318",
+  "issue_uuid": "7c20fbd6-f2f6-4cd2-bc3a-9fe20872a20e",
+  "author": "dashboard-bootstrap",
+  "content": "Fix #601 by capturing both stdout and stderr in the error bail messages of git_commit_in_cache_with_args / git_in_cache (both in shared_writer/core.rs and sync/core.rs — same shape, same bug in both modules). New format: 'git ... in cache failed (<exit>):\\nstdout: <stdout>\\nstderr: <stderr>'. Side effect: the existing 'nothing to commit' substring guards in write_commit_push / emit_compact_push now actually fire (they were dead code because err_str came from empty stderr). Skipping the optional 'git diff --cached --quiet' defense-in-depth — the issue marks it optional and the substring guards now do their job.",
+  "created_at": "2026-05-15T13:28:49.456993894Z",
+  "kind": "plan",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAbqJ9mgPOalbKFmHpH/vGnlbFIVPR7zPJCjNizNx0F7TDEiLwPOulO0xvPIYn3A9nRZG3M6zTlUnPLLSAk052BQ=="
+}
