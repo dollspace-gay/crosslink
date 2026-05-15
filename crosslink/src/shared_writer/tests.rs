@@ -1719,6 +1719,63 @@ mod integration {
     }
 
     #[test]
+    fn test_add_blocker_writes_dependency_event_to_log() {
+        // #604: add_blocker now emits an event through the
+        // event-sourced path (emit_compact_push) rather than directly
+        // mutating the JSON via write_commit_push. This test asserts
+        // that the per-agent event log contains a `DependencyAdded`
+        // envelope after add_blocker returns — confirming the new
+        // architecture wired up end-to-end.
+        let (work_dir, _remote, crosslink_dir) = setup_shared_writer_env();
+        let writer = SharedWriter::new(&crosslink_dir).unwrap().unwrap();
+        let db = make_db(work_dir.path());
+
+        let blocked = writer
+            .create_issue(&db, "Blocked", None, "medium", None, None)
+            .unwrap();
+        let blocker = writer
+            .create_issue(&db, "Blocker", None, "high", None, None)
+            .unwrap();
+
+        writer.add_blocker(&db, blocked, blocker).unwrap();
+
+        // Read the event log: the agent's per-agent log on the hub
+        // cache should now contain a DependencyAdded envelope.
+        let log_path = crosslink_dir
+            .join(".hub-cache")
+            .join("agents")
+            .join(writer.agent_id())
+            .join("events.log");
+        assert!(
+            log_path.exists(),
+            "event log must exist after event-sourced mutation: {}",
+            log_path.display()
+        );
+
+        let events = crate::events::read_events(&log_path).unwrap();
+        let dep_events: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e.event, crate::events::Event::DependencyAdded { .. }))
+            .collect();
+        assert_eq!(
+            dep_events.len(),
+            1,
+            "exactly one DependencyAdded event should be in the log; got: {events:?}"
+        );
+
+        // Materialized JSON must still reflect the blocker — the
+        // event-sourcing migration is invisible to readers of the JSON
+        // view.
+        let file = writer.load_issue_by_id(blocked, &db).unwrap();
+        assert_eq!(
+            file.blockers.len(),
+            1,
+            "materialized issue file must carry the blocker (event materialization wired correctly)"
+        );
+        drop(work_dir);
+    }
+
+    #[test]
     fn test_remove_blocker_idempotent() {
         // Removing a blocker that isn't present must return Ok(false), not
         // fail on the empty git commit (#600).

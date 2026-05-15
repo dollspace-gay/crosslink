@@ -261,6 +261,21 @@ pub fn compact(cache_dir: &Path, agent_id: &str, force: bool) -> Result<Option<C
 
     let allowed_signers_path = cache_dir.join("trust").join("allowed_signers");
 
+    // Bootstrap: pre-seed `state.issues` from on-disk JSON for any UUID
+    // that an incoming event references but the checkpoint doesn't yet
+    // track (#604). This bridges the migration window from JSON-canonical
+    // to event-canonical: legacy issues created via the old
+    // `write_commit_push` path live only in JSON files; their first
+    // event-driven mutation arrives without a matching CompactIssue in
+    // state, and apply_issue_field would otherwise silently no-op.
+    //
+    // Once every mutation goes through emit_compact_push and migration
+    // has synthesized IssueCreated events for legacy issues, this seed
+    // becomes unreachable. Keeping it costs one O(events × cache hit)
+    // scan and protects against drift if any caller bypasses the event
+    // path.
+    seed_issues_from_disk(&mut state, &all_events, cache_dir);
+
     // Apply each event
     for envelope in &all_events {
         detect_clock_skew(&mut state, envelope);
@@ -349,6 +364,99 @@ pub fn prune_events(cache_dir: &Path, agent_id: &str) -> Result<usize> {
 }
 
 // ── Internal functions ───────────────────────────────────────────────
+
+/// Return every issue UUID that this event payload references. Used by
+/// the seed-from-disk migration helper to know which JSON files to
+/// load before applying events.
+fn event_references_issue_uuids(event: &Event) -> impl Iterator<Item = Uuid> + '_ {
+    let mut uuids: Vec<Uuid> = Vec::new();
+    match event {
+        Event::IssueCreated {
+            uuid, parent_uuid, ..
+        } => {
+            uuids.push(*uuid);
+            if let Some(p) = parent_uuid {
+                uuids.push(*p);
+            }
+        }
+        Event::IssueUpdated { uuid, .. } | Event::StatusChanged { uuid, .. } => {
+            uuids.push(*uuid);
+        }
+        Event::DependencyAdded {
+            blocked_uuid,
+            blocker_uuid,
+        }
+        | Event::DependencyRemoved {
+            blocked_uuid,
+            blocker_uuid,
+        } => {
+            uuids.push(*blocked_uuid);
+            uuids.push(*blocker_uuid);
+        }
+        Event::RelationAdded { uuid_a, uuid_b } | Event::RelationRemoved { uuid_a, uuid_b } => {
+            uuids.push(*uuid_a);
+            uuids.push(*uuid_b);
+        }
+        Event::MilestoneAssigned {
+            issue_uuid,
+            milestone_uuid,
+        } => {
+            uuids.push(*issue_uuid);
+            if let Some(m) = milestone_uuid {
+                uuids.push(*m);
+            }
+        }
+        Event::LabelAdded { issue_uuid, .. }
+        | Event::LabelRemoved { issue_uuid, .. }
+        | Event::ParentChanged { issue_uuid, .. } => {
+            uuids.push(*issue_uuid);
+        }
+        Event::LockClaimed { .. } | Event::LockReleased { .. } => {}
+    }
+    uuids.into_iter()
+}
+
+/// Pre-seed `state.issues` from the on-disk JSON view for any UUID that
+/// an event references but that the checkpoint state does not yet
+/// track. See the call site in [`compact`] for rationale (#604).
+fn seed_issues_from_disk(state: &mut CheckpointState, events: &[EventEnvelope], cache_dir: &Path) {
+    let issues_dir = cache_dir.join("issues");
+    if !issues_dir.exists() {
+        return;
+    }
+    let layout_version = crate::issue_file::read_layout_version(&cache_dir.join("meta"))
+        .unwrap_or(crate::issue_file::CURRENT_LAYOUT_VERSION);
+
+    let mut wanted: HashSet<Uuid> = HashSet::new();
+    for env in events {
+        for uuid in event_references_issue_uuids(&env.event) {
+            if !state.issues.contains_key(&uuid) {
+                wanted.insert(uuid);
+            }
+        }
+    }
+
+    for uuid in wanted {
+        let path = if layout_version >= 2 {
+            issues_dir.join(uuid.to_string()).join("issue.json")
+        } else {
+            issues_dir.join(format!("{uuid}.json"))
+        };
+        match crate::issue_file::read_issue_file(&path) {
+            Ok(file) => {
+                state.issues.insert(uuid, CompactIssue::from(&file));
+            }
+            Err(e) => {
+                // Not on disk yet — either the event creates the issue
+                // (IssueCreated) so the apply will insert it, or this is
+                // an orphan reference. Either way, the apply step
+                // handles the missing-state case safely (no-op for
+                // unknown UUIDs).
+                tracing::debug!("seed_issues_from_disk: {uuid} not loadable from JSON: {e}",);
+            }
+        }
+    }
+}
 
 /// Deterministic reduction: apply a single event to checkpoint state.
 fn apply(
@@ -627,7 +735,31 @@ fn materialize(
     // Materialize changed issues
     for uuid in changed_issues {
         if let Some(compact) = state.issues.get(uuid) {
-            let issue_file = compact_to_issue_file(compact);
+            // Preserve fields that CompactIssue doesn't track (comments,
+            // time_entries) by overlaying the compact state onto whatever
+            // is currently on disk. Without this, every event-driven
+            // materialize would silently nuke any comments or time
+            // entries the issue currently carries — those fields live on
+            // the IssueFile struct but not on CompactIssue.
+            //
+            // Discovered while wiring #604's mutation-as-events
+            // migration: locks-only events never materialized issues, so
+            // the wipe was latent. The merge here makes it safe to drive
+            // additional event variants through compaction.
+            let existing_path = if layout_version >= 2 {
+                issues_dir.join(uuid.to_string()).join("issue.json")
+            } else {
+                issues_dir.join(format!("{uuid}.json"))
+            };
+            let issue_file =
+                if let Ok(existing) = crate::issue_file::read_issue_file(&existing_path) {
+                    let mut merged = compact_to_issue_file(compact);
+                    merged.comments = existing.comments;
+                    merged.time_entries = existing.time_entries;
+                    merged
+                } else {
+                    compact_to_issue_file(compact)
+                };
             let content = serde_json::to_string_pretty(&issue_file)?;
 
             if layout_version >= 2 {

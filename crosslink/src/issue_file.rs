@@ -164,6 +164,38 @@ pub struct MilestoneEntry {
     pub closed_at: Option<DateTime<Utc>>,
 }
 
+impl From<&IssueFile> for crate::checkpoint::CompactIssue {
+    /// Convert a materialized `IssueFile` back into the compact
+    /// reduction form used by the event-sourcing checkpoint state.
+    ///
+    /// Lossy by design: comments and time entries are dropped because
+    /// `CompactIssue` only tracks the mutable shared fields that events
+    /// can update. The `materialize` step in `compaction` preserves
+    /// those dropped fields by re-reading the existing JSON before
+    /// writing the new one (#604).
+    fn from(file: &IssueFile) -> Self {
+        Self {
+            uuid: file.uuid,
+            display_id: file.display_id,
+            title: file.title.clone(),
+            description: file.description.clone(),
+            status: file.status,
+            priority: file.priority,
+            parent_uuid: file.parent_uuid,
+            created_by: file.created_by.clone(),
+            created_at: file.created_at,
+            updated_at: file.updated_at,
+            closed_at: file.closed_at,
+            scheduled_at: file.scheduled_at,
+            due_at: file.due_at,
+            labels: file.labels.iter().cloned().collect(),
+            blockers: file.blockers.iter().copied().collect(),
+            related: file.related.iter().copied().collect(),
+            milestone_uuid: file.milestone_uuid,
+        }
+    }
+}
+
 impl From<&crate::checkpoint::CompactIssue> for IssueFile {
     fn from(compact: &crate::checkpoint::CompactIssue) -> Self {
         Self {

@@ -583,32 +583,20 @@ impl SharedWriter {
     pub fn add_label(&self, db: &Database, display_id: i64, label: &str) -> Result<bool> {
         let label_owned = label.to_string();
 
-        // Idempotency short-circuit (#600): if the label is already present,
-        // serializing the unchanged issue would hand `write_commit_push` an
-        // identical file, which git rejects with "nothing to commit". Skip
-        // git entirely and report no-op via the boolean return.
         let current = self.load_issue_by_id(display_id, db)?;
         if current.labels.contains(&label_owned) {
             return Ok(false);
         }
+        let issue_uuid = current.uuid;
 
-        let _ = self.write_commit_push(
-            |writer| {
-                let mut issue = writer.load_issue_by_id(display_id, db)?;
-                if !issue.labels.contains(&label_owned) {
-                    issue.labels.push(label_owned.clone());
-                    issue.updated_at = Utc::now();
-                }
-                let json = serde_json::to_vec_pretty(&issue)?;
-                let rel_path = writer.issue_rel_path(&issue.uuid);
-                Ok(WriteSet {
-                    files: vec![(rel_path, json)],
-                    counters: None,
-                    use_git_rm: false,
-                })
-            },
-            &format!("label issue #{display_id} with {label}"),
-        )?;
+        // Event-sourced (#604): emit `LabelAdded`; compaction's
+        // apply_graph_event inserts into the BTreeSet, materialize
+        // writes the updated issue JSON.
+        let event = crate::events::Event::LabelAdded {
+            issue_uuid,
+            label: label_owned,
+        };
+        self.emit_compact_push(event, &format!("label issue #{display_id} with {label}"))?;
 
         self.hydrate_with_retry(db);
         Ok(true)
@@ -625,30 +613,19 @@ impl SharedWriter {
     pub fn remove_label(&self, db: &Database, display_id: i64, label: &str) -> Result<bool> {
         let label_owned = label.to_string();
 
-        // Idempotency short-circuit (#600): if the label is absent, skip the
-        // write entirely to avoid an empty git commit.
         let current = self.load_issue_by_id(display_id, db)?;
         if !current.labels.contains(&label_owned) {
             return Ok(false);
         }
+        let issue_uuid = current.uuid;
 
-        let _ = self.write_commit_push(
-            |writer| {
-                let mut issue = writer.load_issue_by_id(display_id, db)?;
-                if let Some(pos) = issue.labels.iter().position(|l| l == &label_owned) {
-                    issue.labels.remove(pos);
-                    issue.updated_at = Utc::now();
-                }
-                let json = serde_json::to_vec_pretty(&issue)?;
-                let rel_path = writer.issue_rel_path(&issue.uuid);
-                Ok(WriteSet {
-                    files: vec![(rel_path, json)],
-                    counters: None,
-                    use_git_rm: false,
-                })
-            },
-            &format!("unlabel {label} from issue #{display_id}"),
-        )?;
+        // Event-sourced (#604): emit `LabelRemoved`; compaction removes
+        // it from the BTreeSet and materialize rewrites the JSON.
+        let event = crate::events::Event::LabelRemoved {
+            issue_uuid,
+            label: label_owned,
+        };
+        self.emit_compact_push(event, &format!("unlabel {label} from issue #{display_id}"))?;
 
         self.hydrate_with_retry(db);
         Ok(true)
@@ -673,28 +650,26 @@ impl SharedWriter {
         let blocker_uuid = self.resolve_uuid(blocking_issue_id, db)?;
 
         // Idempotency short-circuit (#600): if the blocker is already
-        // recorded, the closure would serialize an identical issue file and
-        // `git commit` would fail with "nothing to commit".
+        // present in the materialized JSON view, no event is needed.
         let current = self.load_issue_by_id(issue_id, db)?;
         if current.blockers.contains(&blocker_uuid) {
             return Ok(false);
         }
+        let blocked_uuid = current.uuid;
 
-        let _ = self.write_commit_push(
-            |writer| {
-                let mut issue = writer.load_issue_by_id(issue_id, db)?;
-                if !issue.blockers.contains(&blocker_uuid) {
-                    issue.blockers.push(blocker_uuid);
-                    issue.updated_at = Utc::now();
-                }
-                let json = serde_json::to_vec_pretty(&issue)?;
-                let rel_path = writer.issue_rel_path(&issue.uuid);
-                Ok(WriteSet {
-                    files: vec![(rel_path, json)],
-                    counters: None,
-                    use_git_rm: false,
-                })
-            },
+        // Event-sourced path (#604): emit a `DependencyAdded` event and
+        // let compaction materialize the updated issue JSON. The event
+        // log is the source of truth; the JSON file is a derived view
+        // rebuilt by the materialize step. This eliminates the
+        // JSON-write/git-commit/SQLite-hydrate transactionality gap
+        // that the previous `write_commit_push` path had — see #604 for
+        // the failure-mode table that path's gaps produced.
+        let event = crate::events::Event::DependencyAdded {
+            blocked_uuid,
+            blocker_uuid,
+        };
+        self.emit_compact_push(
+            event,
             &format!("block issue #{issue_id} on #{blocking_issue_id}"),
         )?;
 
@@ -718,28 +693,20 @@ impl SharedWriter {
     ) -> Result<bool> {
         let blocker_uuid = self.resolve_uuid(blocking_issue_id, db)?;
 
-        // Idempotency short-circuit (#600): if the blocker is absent, skip
-        // the write entirely to avoid an empty git commit.
         let current = self.load_issue_by_id(issue_id, db)?;
         if !current.blockers.contains(&blocker_uuid) {
             return Ok(false);
         }
+        let blocked_uuid = current.uuid;
 
-        let _ = self.write_commit_push(
-            |writer| {
-                let mut issue = writer.load_issue_by_id(issue_id, db)?;
-                if let Some(pos) = issue.blockers.iter().position(|u| u == &blocker_uuid) {
-                    issue.blockers.remove(pos);
-                    issue.updated_at = Utc::now();
-                }
-                let json = serde_json::to_vec_pretty(&issue)?;
-                let rel_path = writer.issue_rel_path(&issue.uuid);
-                Ok(WriteSet {
-                    files: vec![(rel_path, json)],
-                    counters: None,
-                    use_git_rm: false,
-                })
-            },
+        // Event-sourced (#604): emit `DependencyRemoved`; compaction
+        // rewrites the issue JSON without the blocker.
+        let event = crate::events::Event::DependencyRemoved {
+            blocked_uuid,
+            blocker_uuid,
+        };
+        self.emit_compact_push(
+            event,
             &format!("unblock issue #{issue_id} from #{blocking_issue_id}"),
         )?;
 
@@ -758,30 +725,19 @@ impl SharedWriter {
     pub fn add_relation(&self, db: &Database, issue_id: i64, related_id: i64) -> Result<bool> {
         let related_uuid = self.resolve_uuid(related_id, db)?;
 
-        // Idempotency short-circuit (#600): if the relation is already
-        // recorded, skip the write entirely to avoid an empty git commit.
         let current = self.load_issue_by_id(issue_id, db)?;
         if current.related.contains(&related_uuid) {
             return Ok(false);
         }
+        let uuid_a = current.uuid;
 
-        let _ = self.write_commit_push(
-            |writer| {
-                let mut issue = writer.load_issue_by_id(issue_id, db)?;
-                if !issue.related.contains(&related_uuid) {
-                    issue.related.push(related_uuid);
-                    issue.updated_at = Utc::now();
-                }
-                let json = serde_json::to_vec_pretty(&issue)?;
-                let rel_path = writer.issue_rel_path(&issue.uuid);
-                Ok(WriteSet {
-                    files: vec![(rel_path, json)],
-                    counters: None,
-                    use_git_rm: false,
-                })
-            },
-            &format!("relate issue #{issue_id} to #{related_id}"),
-        )?;
+        // Event-sourced (#604): emit `RelationAdded`; compaction's
+        // `apply_graph_event` arm adds the relation to both sides.
+        let event = crate::events::Event::RelationAdded {
+            uuid_a,
+            uuid_b: related_uuid,
+        };
+        self.emit_compact_push(event, &format!("relate issue #{issue_id} to #{related_id}"))?;
 
         self.hydrate_with_retry(db);
         Ok(true)
@@ -798,28 +754,20 @@ impl SharedWriter {
     pub fn remove_relation(&self, db: &Database, issue_id: i64, related_id: i64) -> Result<bool> {
         let related_uuid = self.resolve_uuid(related_id, db)?;
 
-        // Idempotency short-circuit (#600): if the relation is absent, skip
-        // the write entirely to avoid an empty git commit.
         let current = self.load_issue_by_id(issue_id, db)?;
         if !current.related.contains(&related_uuid) {
             return Ok(false);
         }
+        let uuid_a = current.uuid;
 
-        let _ = self.write_commit_push(
-            |writer| {
-                let mut issue = writer.load_issue_by_id(issue_id, db)?;
-                if let Some(pos) = issue.related.iter().position(|u| u == &related_uuid) {
-                    issue.related.remove(pos);
-                    issue.updated_at = Utc::now();
-                }
-                let json = serde_json::to_vec_pretty(&issue)?;
-                let rel_path = writer.issue_rel_path(&issue.uuid);
-                Ok(WriteSet {
-                    files: vec![(rel_path, json)],
-                    counters: None,
-                    use_git_rm: false,
-                })
-            },
+        // Event-sourced (#604): compaction's `apply_graph_event` removes
+        // both directions when it sees `RelationRemoved`.
+        let event = crate::events::Event::RelationRemoved {
+            uuid_a,
+            uuid_b: related_uuid,
+        };
+        self.emit_compact_push(
+            event,
             &format!("unrelate issue #{issue_id} from #{related_id}"),
         )?;
 
