@@ -1,0 +1,10 @@
+{
+  "uuid": "7c426518-b659-40c8-94c7-589775c74bb6",
+  "issue_uuid": "53a437e2-55d2-47ad-befb-cd347711267e",
+  "author": "dashboard-bootstrap",
+  "content": "Session auto-ended (stale after 4055 minutes). No handoff notes provided.",
+  "created_at": "2026-05-18T14:08:47.135113754Z",
+  "kind": "handoff",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAi5h/9d6bM8dYqEDxCIMY1lDPnplrUGCjHoQQZh78uTRJtpi3xhPWTPeuJGWHNIDEJXXa+9K94JyJ+OWWTl3yDQ=="
+}
