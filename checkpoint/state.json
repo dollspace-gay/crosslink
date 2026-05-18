@@ -58,10 +58,6 @@
     "744": {
       "agent_id": "dashboard-bootstrap",
       "claimed_at": "2026-05-15T18:34:11.597610774Z"
-    },
-    "745": {
-      "agent_id": "dashboard-bootstrap",
-      "claimed_at": "2026-05-15T19:13:27.128839246Z"
     }
   },
   "issues": {},
@@ -203,8 +199,8 @@
     }
   ],
   "watermark": {
-    "timestamp": "2026-05-15T19:13:27.128839246Z",
+    "timestamp": "2026-05-18T12:13:21.558872861Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 67
+    "agent_seq": 68
   }
 }
