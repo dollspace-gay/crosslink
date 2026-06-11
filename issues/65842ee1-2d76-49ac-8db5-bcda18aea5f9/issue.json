@@ -6,8 +6,9 @@
   "priority": "medium",
   "created_by": "dashboard-bootstrap",
   "created_at": "2026-06-11T21:42:29.393417820Z",
-  "updated_at": "2026-06-11T21:42:31.066368089Z",
+  "updated_at": "2026-06-11T21:44:59.113346690Z",
   "labels": [
-    "maintenance"
+    "maintenance",
+    "soak"
   ]
 }
