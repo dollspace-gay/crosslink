@@ -1,0 +1,10 @@
+{
+  "uuid": "65e70fc4-1f4d-4607-a918-f87f7e0f9c57",
+  "issue_uuid": "319aa3b4-b853-4767-89a1-685e3093c5e7",
+  "author": "dashboard-bootstrap",
+  "content": "Gate: do NOT start this migration until the hub_v3 dual-write soak from PR2 (GH PR #632) is clean -- enable with: crosslink config set hub_v3.dual_write true, monitor with: crosslink integrity hubv3 (want sustained PASS with mirror_failures=0 and push_failures=0 in .crosslink/hub-v3-shadow-stats.json over days of normal use).",
+  "created_at": "2026-06-11T21:42:02.655845388Z",
+  "kind": "blocker",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA0QQqJAyAaAzC+xfl2re1F8UfvCrZ/gJtR8gYgLVPorDCjqVs46uq/fY25fGk2M/7mpZ09GxLvSw8qeWsIlebAg=="
+}
