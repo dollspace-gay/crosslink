@@ -7,7 +7,10 @@
   "priority": "medium",
   "created_by": "dashboard-bootstrap",
   "created_at": "2026-06-11T18:48:40.201284589Z",
-  "updated_at": "2026-06-11T18:48:51.753223837Z",
+  "updated_at": "2026-06-11T18:48:58.624995066Z",
+  "labels": [
+    "architecture"
+  ],
   "blockers": [
     "c156deb9-0f3a-42e6-b52a-da3e95109c5f"
   ]
