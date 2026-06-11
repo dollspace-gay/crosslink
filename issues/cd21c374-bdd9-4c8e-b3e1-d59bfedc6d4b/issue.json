@@ -6,5 +6,8 @@
   "priority": "high",
   "created_by": "dashboard-bootstrap",
   "created_at": "2026-06-11T17:55:28.798750347Z",
-  "updated_at": "2026-06-11T17:55:28.798750347Z"
+  "updated_at": "2026-06-11T17:55:30.440494085Z",
+  "labels": [
+    "bug"
+  ]
 }
