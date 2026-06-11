@@ -1,0 +1,10 @@
+{
+  "uuid": "253bd064-f9ed-4ee8-a5c6-193cbb2e1d63",
+  "issue_uuid": "c156deb9-0f3a-42e6-b52a-da3e95109c5f",
+  "author": "dashboard-bootstrap",
+  "content": "Committed ea272b13 on feature/752-hub-v3-write-path. Both implementation agents completed; director review found and fixed two defects in the parity check before commit: (1) false-FAIL after crosslink prune -- shadow events absent from v2 are now tolerated iff covered by the checkpoint watermark, with a regression test covering both the covered-PASS and uncovered-FAIL directions; (2) process::exit(1) buried in check_hubv3_parity made the FAIL path untestable and the agent's tamper test was vacuous (asserted bytes differ without calling the check) -- replaced with bail!/Err per integrity command conventions and rewrote the test to assert the check itself errors. Gates: fmt clean, clippy --all-targets -D warnings clean, 1935 lib + 2924 bin tests passing (+20 total). Soak: crosslink config set hub_v3.dual_write true locally post-merge, monitor via crosslink integrity hubv3 and .crosslink/hub-v3-shadow-stats.json. Awaiting push.",
+  "created_at": "2026-06-11T21:01:07.830465477Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAJdWBGVxcGCHWbvSQOq7K9w6EKMsvhwfnH+21a3D0sssf60QXoFGtwc47LffvJWYItnKUyrQiaPsFhmxR8UmHCA=="
+}
