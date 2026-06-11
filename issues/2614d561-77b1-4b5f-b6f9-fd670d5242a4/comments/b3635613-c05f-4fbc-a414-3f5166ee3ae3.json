@@ -1,0 +1,10 @@
+{
+  "uuid": "b3635613-c05f-4fbc-a414-3f5166ee3ae3",
+  "issue_uuid": "2614d561-77b1-4b5f-b6f9-fd670d5242a4",
+  "author": "dashboard-bootstrap",
+  "content": "Hardening commit added: commit_object_exists probe (git cat-file -e sha^{commit}) disambiguates git's 'Not a valid object name' between path-absent-from-valid-commit and vanished-commit-object. agent_ids and git_cat_file_blob now hard-error on a pruned/corrupt object store instead of reading as empty hub/default state. New regression test destroys .git/objects post-construction. Gates: clippy clean, 1915 lib tests passing. Awaiting push.",
+  "created_at": "2026-06-11T19:31:02.623205738Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAzd3ZF10Q3+mhxuTauqG0cm9EOpj0OBQ0VwZ31RQHqdI2vXnvcv1LSddYmRWzwh7oT06ZnveY3XNUNzN2FGcPBw=="
+}
