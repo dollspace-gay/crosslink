@@ -1,0 +1,10 @@
+{
+  "uuid": "9be048eb-dbfe-4b94-af52-6de9b984cd3b",
+  "issue_uuid": "319aa3b4-b853-4767-89a1-685e3093c5e7",
+  "author": "dashboard-bootstrap",
+  "content": "Decision (user): complete the full hub-v3 migration now -- the multi-day soak gate is waived. Verification burden shifts to the test suites, parity checks, and the AC-6 full-state-diff migration gate.",
+  "created_at": "2026-06-11T21:49:40.457749940Z",
+  "kind": "decision",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAuX9TSAPFmdwYMT5zxmKiw6dzOVpYB82HMz0h1hxE0Bq//w1yy+fZmSTW76dGapkTnVT03hWgkm/B8k5BDDWtBg=="
+}
