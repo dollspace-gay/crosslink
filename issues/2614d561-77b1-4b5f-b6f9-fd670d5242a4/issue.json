@@ -3,11 +3,12 @@
   "display_id": 751,
   "title": "hub-v3 PR1: HubSource read abstraction over worktree files and object store",
   "description": "First PR of the hub v3 migration (.design/hub-v3-per-agent-refs.md, REQ-3). Introduce a HubSource trait that the materialization/reduction path reads through, with two impls: the current worktree-file reader and a git object-store reader (cat-file against refs). Proves the existing compaction reducer produces identical state from both sources before any write-path changes. Acceptance: reducer parity test over a populated hub via both impls; no behavior change for users.",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "created_by": "dashboard-bootstrap",
   "created_at": "2026-06-11T18:48:21.063133603Z",
-  "updated_at": "2026-06-11T18:49:02.728421278Z",
+  "updated_at": "2026-06-11T19:43:33.611488361Z",
+  "closed_at": "2026-06-11T19:43:33.611488361Z",
   "labels": [
     "architecture"
   ],
