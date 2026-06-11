@@ -1,0 +1,10 @@
+{
+  "uuid": "4af57b2a-c7ed-4341-90b4-4388fb3ae630",
+  "issue_uuid": "2614d561-77b1-4b5f-b6f9-fd670d5242a4",
+  "author": "dashboard-bootstrap",
+  "content": "Committed 1b722b6a on feature/751-hubsource-read-abstraction. Implementation agent died mid-task; recovered by completing: mod hub_source registration in main.rs bin tree, test-helper git invocation fixes (--git-dir pointed at repo root instead of .git; pinned-commit test never actually moved the ref so its assertion was vacuous -- now reuses git_commit_hub_layout and asserts the SHA moved), production fix in ObjectStoreSource::agent_ids treating 'Not a valid object name <sha>:agents' (matched with full tree path) as empty hub, dead_code annotations for the bin module tree per codebase precedent, and pedantic clippy cleanups. reduce() extraction verified semantically equivalent including the empty-events+no-watermark edge case. Gates: cargo fmt clean, clippy --all-targets -D warnings clean, 1914 lib tests passing (1906 baseline + 8 new parity/pinning tests). Awaiting push by user, then PR to develop.",
+  "created_at": "2026-06-11T19:15:54.072463411Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAQfQ9OJXyaM1GbGvC6zXvPjS+Qv1LtUIi+tnVc8B0JZdvIqFftx7iONYJ2oUPJa9tMTpW+LSHnDKG5rF/Xzf5Cw=="
+}
