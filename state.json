@@ -1015,9 +1015,12 @@
       "priority": "medium",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-12T18:15:48.385699994Z",
-      "updated_at": "2026-06-12T18:16:05.063970782Z",
+      "updated_at": "2026-06-12T18:16:08.586451019Z",
       "labels": [
         "testing"
+      ],
+      "related": [
+        "8f7be9f1-3633-4a6a-9421-8ab20e772feb"
       ]
     },
     "041f0d12-b43c-4b3f-8fdd-adda0eb80aa7": {
@@ -13976,7 +13979,7 @@
       "priority": "medium",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-11T18:48:42.330843364Z",
-      "updated_at": "2026-06-12T18:04:08.408543106Z",
+      "updated_at": "2026-06-12T18:16:08.586451019Z",
       "closed_at": "2026-06-12T18:04:08.408541800Z",
       "labels": [
         "architecture",
@@ -13985,6 +13988,9 @@
       "blockers": [
         "22609972-a1f7-4b46-8140-04ae255b43eb",
         "319aa3b4-b853-4767-89a1-685e3093c5e7"
+      ],
+      "related": [
+        "03dddcfc-dac5-4fc6-b003-c8b47bcc3dc7"
       ],
       "comments": {
         "0aac7547-e770-4f03-b0d1-9a5ce418f57f": {
@@ -23516,8 +23522,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-12T18:16:05.063970782Z",
+    "timestamp": "2026-06-12T18:16:08.586451019Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 108
+    "agent_seq": 109
   }
 }
