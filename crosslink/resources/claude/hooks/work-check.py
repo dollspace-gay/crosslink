@@ -296,11 +296,14 @@ def check_control_flags(crosslink_dir):
         except (json.JSONDecodeError, ValueError):
             state = {}
         if state.get("kill"):
+            # GH#624: blocking messages MUST go to stderr — Claude Code only
+            # shows stderr to the model on exit 2; stdout is silently dropped.
             print(
                 "AGENT KILL REQUESTED — an operator (dashboard or CLI) has "
                 "asked this agent to stop after the current tool use.\n"
                 "Acknowledge the request, summarise progress, then exit "
-                "your session cleanly. Do not attempt further tool calls."
+                "your session cleanly. Do not attempt further tool calls.",
+                file=sys.stderr,
             )
         else:
             hint = state.get("reprioritise")
@@ -314,7 +317,8 @@ def check_control_flags(crosslink_dir):
                 "AGENT PAUSED — an operator has paused this agent via the "
                 "dashboard. Tool use is blocked until they resume.\n"
                 "Wait for the resume signal or explain to the user that "
-                "you've been paused." + extra
+                "you've been paused." + extra,
+                file=sys.stderr,
             )
         sys.exit(2)
 
@@ -324,7 +328,10 @@ def main():
         input_data = json.load(sys.stdin)
         tool_name = input_data.get('tool_name', '')
     except (json.JSONDecodeError, ValueError, TypeError):
-        print("work-check: failed to parse stdin — blocking tool call (fail-closed)")
+        print(
+            "work-check: failed to parse stdin — blocking tool call (fail-closed)",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     # Only check on Write, Edit, Bash
@@ -360,7 +367,8 @@ def main():
             "--- INTERVENTION LOGGING ---\n"
             "Log this blocked action for the audit trail:\n"
             "  crosslink intervene <issue-id> \"Attempted: <command>\" "
-            "--trigger tool_blocked --context \"<what you were trying to accomplish>\""
+            "--trigger tool_blocked --context \"<what you were trying to accomplish>\"",
+            file=sys.stderr,
         )
         sys.exit(2)
 
@@ -381,7 +389,8 @@ def main():
                 "--- INTERVENTION LOGGING ---\n"
                 "If a human redirected you here, log the intervention:\n"
                 "  crosslink intervene <issue-id> \"Redirected to create issue before commit\" "
-                "--trigger redirect --context \"Attempted git commit without active issue\""
+                "--trigger redirect --context \"Attempted git commit without active issue\"",
+                file=sys.stderr,
             )
             sys.exit(2)
 
@@ -397,7 +406,7 @@ def main():
                     "This documents WHY the change was made, not just WHAT changed."
                 ).format(id=issue_id)
                 if comment_discipline == "required":
-                    print(msg)
+                    print(msg, file=sys.stderr)
                     sys.exit(2)
                 else:
                     print("Reminder: " + msg)
@@ -430,7 +439,7 @@ def main():
                     "This creates the audit trail for the work that was done."
                 ).format(id=issue_id)
                 if comment_discipline == "required":
-                    print(msg)
+                    print(msg, file=sys.stderr)
                     sys.exit(2)
                 else:
                     print("Reminder: " + msg)
@@ -501,7 +510,7 @@ def main():
     )
 
     if tracking_mode == "strict":
-        print(strict_msg)
+        print(strict_msg, file=sys.stderr)
         sys.exit(2)
     else:
         # normal mode: remind but allow
