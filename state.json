@@ -1,6 +1,6 @@
 {
   "next_display_id": 764,
-  "next_comment_id": 1074,
+  "next_comment_id": 1075,
   "display_id_map": {
     "00a365a3-7b31-465a-aced-4f1e39c68f8b": 118,
     "01b74b94-82e0-4bda-9bed-7eace0292544": 70,
@@ -17357,11 +17357,20 @@
       "priority": "medium",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-12T18:17:33.253659891Z",
-      "updated_at": "2026-06-12T18:31:16.616719671Z",
+      "updated_at": "2026-06-12T18:32:43.838836037Z",
       "labels": [
         "triage"
       ],
       "comments": {
+        "34304941-2063-4ee8-b8e1-08a610e04eb2": {
+          "display_id": 1074,
+          "author": "dashboard-bootstrap",
+          "content": "GH#627 closed with full migration explanation + hardening PR #639 linked. Triage complete.",
+          "created_at": "2026-06-12T18:32:43.836517050Z",
+          "kind": "result",
+          "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+          "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAxS+9eqAQc+FcvRO12C3Nec+C8i+yHMOUzoeTa44McgSps6LwOR0MO7f3lwTINEM2sSlSQr5x2JgLS2HSq8boAQ=="
+        },
         "5746f0ad-6308-45c9-aaff-2d55f40960b2": {
           "display_id": 1073,
           "author": "dashboard-bootstrap",
@@ -23563,8 +23572,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-12T18:31:16.616719671Z",
+    "timestamp": "2026-06-12T18:32:43.838836037Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 115
+    "agent_seq": 116
   }
 }
