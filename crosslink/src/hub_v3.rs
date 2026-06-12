@@ -2,7 +2,7 @@
 //! writes to per-agent refs; no index, no worktree, no checkout; always-fast-forward
 //! pushes; dual-write shadow mode pending integration.
 //!
-//! Each agent writes exclusively to `refs/crosslink/agents/<agent-id>` via the git
+//! Each agent writes exclusively to `refs/heads/crosslink/agents/<agent-id>` (branch `crosslink/agents/<agent-id>`) via the git
 //! plumbing commands `hash-object`, `mktree`, `commit-tree`, and `update-ref`. No
 //! shared worktree, no `git add`, no index mutations. A crash anywhere before the
 //! final `update-ref` leaves loose orphan objects in the repository but the ref
@@ -27,7 +27,14 @@ use crate::utils::is_windows_reserved_name;
 // ── Constants and ref name helpers ───────────────────────────────────
 
 /// Namespace prefix for per-agent hub refs.
-pub const AGENT_REF_PREFIX: &str = "refs/crosslink/agents/";
+///
+/// The refs live under `refs/heads/` so they appear as ordinary branches
+/// (`crosslink/agents/<id>`), making the whole hub browsable on GitHub and any
+/// host UI (#767, correcting OQ-1). Agent ids are `[A-Za-z0-9_-]{3,64}`
+/// ([`validate_agent_id`]), so `crosslink/agents/<id>` is always a valid branch
+/// name. Push semantics are unchanged: a plain fast-forward push to the agent's
+/// own branch IS the CAS (REQ-1).
+pub const AGENT_REF_PREFIX: &str = "refs/heads/crosslink/agents/";
 
 /// Ref holding the pure-cache compaction checkpoint (`state.json` at tree root).
 ///
@@ -35,11 +42,11 @@ pub const AGENT_REF_PREFIX: &str = "refs/crosslink/agents/";
 /// (REQ-7). Concurrent compactions are harmless: the same event set reduces to
 /// the same deterministic state, so two writers produce byte-identical content
 /// and the lease loser simply refetches an identical result.
-pub const CHECKPOINT_REF: &str = "refs/crosslink/checkpoint";
+pub const CHECKPOINT_REF: &str = "refs/heads/crosslink/checkpoint";
 
 /// Ref holding hub metadata: the version marker (`hub.json`) and the
 /// `allowed_signers` trust store (REQ-9, REQ-12). Driver-written, CAS-updated.
-pub const META_REF: &str = "refs/crosslink/meta";
+pub const META_REF: &str = "refs/heads/crosslink/meta";
 
 /// Compare-and-swap expectation for the generalized single-file commit core.
 ///
@@ -65,7 +72,7 @@ pub enum CasExpectation<'a> {
 ///
 /// Validates the agent ID (3–64 characters, alphanumeric plus `-` and `_`;
 /// same rules as [`crate::identity::AgentConfig`]) and returns the qualified
-/// ref `refs/crosslink/agents/<agent_id>`.
+/// ref `refs/heads/crosslink/agents/<agent_id>`.
 ///
 /// # Errors
 ///
@@ -74,6 +81,29 @@ pub enum CasExpectation<'a> {
 pub fn agent_ref_name(agent_id: &str) -> Result<String> {
     validate_agent_id(agent_id)?;
     Ok(format!("{AGENT_REF_PREFIX}{agent_id}"))
+}
+
+/// The OLD (pre-#767) hidden-ref namespace, retained ONLY by
+/// `crosslink migrate hub-branches` to find and rename refs left over from a hub
+/// created before the visible-branches flip. New code never writes these.
+pub const OLD_AGENT_REF_PREFIX: &str = "refs/crosslink/agents/";
+/// Old hidden checkpoint ref (pre-#767). See [`OLD_AGENT_REF_PREFIX`].
+pub const OLD_CHECKPOINT_REF: &str = "refs/crosslink/checkpoint";
+/// Old hidden meta ref (pre-#767). See [`OLD_AGENT_REF_PREFIX`].
+pub const OLD_META_REF: &str = "refs/crosslink/meta";
+
+/// Whether `ref_name` is one of the v3 hub refs in the CURRENT (visible) layout:
+/// the checkpoint branch, the meta branch, or a `crosslink/agents/<id>` branch.
+///
+/// This is the gate that keeps the rename migration and the ref-snapshot/push
+/// logic from ever touching the two sibling branches that share the
+/// `refs/heads/crosslink/` prefix but are NOT hub state (#767): the frozen v2
+/// branch `crosslink/hub` and the worktree host `crosslink/hub-v3-host`. It
+/// matches checkpoint/meta by exact name and agent refs by the `agents/` subpath
+/// only, so neither sibling is ever classified as hub state.
+#[must_use]
+pub fn is_v3_hub_ref(ref_name: &str) -> bool {
+    ref_name == CHECKPOINT_REF || ref_name == META_REF || ref_name.starts_with(AGENT_REF_PREFIX)
 }
 
 /// Validate an agent ID using the same rules as `identity::AgentConfig`.
@@ -399,7 +429,7 @@ pub fn push_agent_ref(repo_dir: &Path, remote: &str, agent_id: &str) -> Result<P
     push_ref(repo_dir, remote, &ref_name)
 }
 
-/// Push an arbitrary `refs/crosslink/*` ref to a remote with a plain
+/// Push an arbitrary `refs/heads/crosslink/*` ref to a remote with a plain
 /// (non-force) push.
 ///
 /// `git push <remote> <ref>:<ref>` — no `+`, no `--force-with-lease`. The plain
@@ -549,8 +579,11 @@ pub fn detect_hub_version(repo_dir: &Path) -> Result<HubVersion> {
 
 /// Detect the REMOTE hub version via a single `git ls-remote` call.
 ///
-/// Queries `git ls-remote <remote> refs/crosslink/* refs/heads/crosslink/hub`
-/// and classifies the returned ref listing identically to [`detect_hub_version`].
+/// Queries `git ls-remote <remote> refs/heads/crosslink/*` and classifies the
+/// returned ref listing identically to [`detect_hub_version`]. Detection keys on
+/// the exact [`CHECKPOINT_REF`] + [`META_REF`] branches; the host worktree branch
+/// (`crosslink/hub-v3-host`) and the frozen v2 branch (`crosslink/hub`) are
+/// matched by their own exact names and never mistaken for hub state (#767).
 /// Unlike the local probe, an unreachable or unauthenticated remote is a hard
 /// error — the version of an unreachable remote must never be guessed (REQ-9).
 ///
@@ -564,7 +597,7 @@ pub fn detect_hub_version(repo_dir: &Path) -> Result<HubVersion> {
 pub fn detect_remote_hub_version(repo_dir: &Path, remote: &str) -> Result<HubVersion> {
     let output = Command::new("git")
         .current_dir(repo_dir)
-        .args(["ls-remote", remote, "refs/crosslink/*", V2_HUB_BRANCH])
+        .args(["ls-remote", remote, "refs/heads/crosslink/*"])
         .output()
         .with_context(|| format!("failed to run git ls-remote for remote '{remote}'"))?;
 
@@ -721,7 +754,7 @@ pub fn read_hub_meta(repo_dir: &Path) -> Result<Option<HubMeta>> {
 // ── Heartbeats on agent refs (REQ-7 auxiliary state) ──────────────────
 //
 // Writer-ownership: each agent's heartbeat lives at `heartbeat.json` at the
-// TREE ROOT of that agent's own ref (`refs/crosslink/agents/<id>`), the only
+// TREE ROOT of that agent's own ref (`refs/heads/crosslink/agents/<id>`), the only
 // ref that agent writes (single-writer invariant). The serialized shape is the
 // SAME [`crate::locks::Heartbeat`] schema the v2 path uses, so a reader parses
 // either source without a v3-specific type. Because the write goes through the
@@ -763,7 +796,7 @@ pub fn write_heartbeat_to_ref(
     )
 }
 
-/// Read every agent's heartbeat by scanning `refs/crosslink/agents/*` and
+/// Read every agent's heartbeat by scanning `refs/heads/crosslink/agents/*` and
 /// reading `heartbeat.json` at each tip.
 ///
 /// Agents whose ref carries no `heartbeat.json` (e.g. an events-only ref that
@@ -1025,7 +1058,7 @@ pub fn read_max_event_seq_from_ref(repo_dir: &Path, agent_id: &str) -> Result<u6
     Ok(events.iter().map(|e| e.agent_seq).max().unwrap_or(0))
 }
 
-/// Enumerate `refs/crosslink/agents/*` ref names.
+/// Enumerate `refs/heads/crosslink/agents/*` ref names.
 fn for_each_agent_ref(repo_dir: &Path) -> Result<Vec<String>> {
     let pattern = format!("{AGENT_REF_PREFIX}*");
     let output = Command::new("git")
@@ -1089,6 +1122,273 @@ fn list_subtree_leaf_stems(repo_dir: &Path, commit_sha: &str, dir: &str) -> Resu
         .collect())
 }
 
+// ── Browsable materialized state on the checkpoint branch (#767) ──────
+//
+// In addition to the machine-read `state.json`, the checkpoint branch carries a
+// human-browsable tree so the hub is legible on GitHub:
+//   - issues/<uuid>.json — one rendered file per live issue, comments + time
+//     entries inline, deterministically sorted.
+//   - meta/milestones.json — the milestone registry (rendered, write-when-changed).
+//   - README.md — a generated explanation of the branch (deterministic; no
+//     wall-clock values that would differ between concurrent compactors).
+//
+// All content is DETERMINISTIC for a given CheckpointState, so two compactors
+// over the same event set still produce byte-identical commits and the
+// force-with-lease race story (REQ-7) is unchanged. The tree is maintained
+// INCREMENTALLY (upsert changed issues, delete tombstoned ones) via the same
+// sibling-preserving `write_tree_with` core that the rest of hub-v3 uses; the
+// full tree is materialized once when it is absent (first compact after
+// bootstrap / migration / the hub-branches rename).
+
+/// A browse-rendering of one issue: the machine [`crate::checkpoint::CompactIssue`]
+/// flattened into a stable, readable JSON shape with comments and time entries
+/// inline. Keys are emitted in a fixed order and collections are sorted
+/// deterministically so the rendered bytes are a pure function of the issue.
+#[derive(serde::Serialize)]
+struct BrowseIssue<'a> {
+    uuid: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    display_id: Option<i64>,
+    title: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<&'a str>,
+    status: crate::models::IssueStatus,
+    priority: crate::models::Priority,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    parent_uuid: Option<uuid::Uuid>,
+    created_by: &'a str,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    closed_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scheduled_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    due_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    labels: Vec<&'a str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    blockers: Vec<uuid::Uuid>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    related: Vec<uuid::Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    milestone_uuid: Option<uuid::Uuid>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    comments: Vec<BrowseComment<'a>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    time_entries: Vec<BrowseTimeEntry>,
+}
+
+/// A browse-rendering of one comment (uuid-keyed, sorted by `(created_at, uuid)`).
+#[derive(serde::Serialize)]
+struct BrowseComment<'a> {
+    uuid: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    display_id: Option<i64>,
+    author: &'a str,
+    content: &'a str,
+    created_at: chrono::DateTime<chrono::Utc>,
+    kind: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    trigger_type: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    intervention_context: Option<&'a str>,
+}
+
+/// A browse-rendering of one time entry (uuid-keyed, sorted by `(started_at, uuid)`).
+#[derive(serde::Serialize)]
+struct BrowseTimeEntry {
+    uuid: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    display_id: Option<i64>,
+    started_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ended_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    duration_seconds: Option<i64>,
+}
+
+/// Render one issue to the deterministic browse-JSON byte image.
+///
+/// Comments and time entries are pulled from the [`CompactIssue`] maps and sorted
+/// by `(timestamp, uuid)` so the output is a pure function of the issue state.
+fn render_browse_issue(issue: &crate::checkpoint::CompactIssue) -> Result<Vec<u8>> {
+    let mut comments: Vec<BrowseComment<'_>> = issue
+        .comments
+        .iter()
+        .map(|(uuid, c)| BrowseComment {
+            uuid: *uuid,
+            display_id: c.display_id,
+            author: &c.author,
+            content: &c.content,
+            created_at: c.created_at,
+            kind: &c.kind,
+            trigger_type: c.trigger_type.as_deref(),
+            intervention_context: c.intervention_context.as_deref(),
+        })
+        .collect();
+    comments.sort_by(|a, b| a.created_at.cmp(&b.created_at).then(a.uuid.cmp(&b.uuid)));
+
+    let mut time_entries: Vec<BrowseTimeEntry> = issue
+        .time_entries
+        .iter()
+        .map(|(uuid, t)| BrowseTimeEntry {
+            uuid: *uuid,
+            display_id: t.display_id,
+            started_at: t.started_at,
+            ended_at: t.ended_at,
+            duration_seconds: t.duration_seconds,
+        })
+        .collect();
+    time_entries.sort_by(|a, b| a.started_at.cmp(&b.started_at).then(a.uuid.cmp(&b.uuid)));
+
+    let browse = BrowseIssue {
+        uuid: issue.uuid,
+        display_id: issue.display_id,
+        title: &issue.title,
+        description: issue.description.as_deref(),
+        status: issue.status,
+        priority: issue.priority,
+        parent_uuid: issue.parent_uuid,
+        created_by: &issue.created_by,
+        created_at: issue.created_at,
+        updated_at: issue.updated_at,
+        closed_at: issue.closed_at,
+        scheduled_at: issue.scheduled_at,
+        due_at: issue.due_at,
+        labels: issue.labels.iter().map(String::as_str).collect(),
+        blockers: issue.blockers.iter().copied().collect(),
+        related: issue.related.iter().copied().collect(),
+        milestone_uuid: issue.milestone_uuid,
+        comments,
+        time_entries,
+    };
+    serde_json::to_vec_pretty(&browse).context("failed to render browse issue JSON")
+}
+
+/// A browse-rendering of the milestone registry, sorted by uuid for determinism.
+#[derive(serde::Serialize)]
+struct BrowseMilestones<'a> {
+    milestones: Vec<&'a crate::checkpoint::CompactMilestone>,
+}
+
+/// Render `meta/milestones.json` from the checkpoint state (sorted by uuid).
+fn render_browse_milestones(state: &crate::checkpoint::CheckpointState) -> Result<Vec<u8>> {
+    // BTreeMap iteration is already uuid-sorted; collect the values in that order.
+    let milestones: Vec<&crate::checkpoint::CompactMilestone> = state.milestones.values().collect();
+    serde_json::to_vec_pretty(&BrowseMilestones { milestones })
+        .context("failed to render browse milestones JSON")
+}
+
+/// Render the branch `README.md` from the checkpoint state.
+///
+/// Every value is derived from `state` (issue / milestone counts, the watermark
+/// timestamp) so two compactors over the same event set produce byte-identical
+/// output. No wall-clock `now()` is used.
+fn render_browse_readme(state: &crate::checkpoint::CheckpointState) -> Vec<u8> {
+    let live_issues = state
+        .issues
+        .keys()
+        .filter(|u| !state.deleted_issues.contains(u))
+        .count();
+    let milestones = state.milestones.len();
+    let watermark = state
+        .watermark
+        .as_ref()
+        .map_or_else(|| "(none)".to_string(), |w| w.timestamp.to_rfc3339());
+
+    let body = format!(
+        "# crosslink hub (v3 checkpoint)\n\
+\n\
+This branch is the **machine-written** materialized state of the crosslink issue\n\
+tracker. It is regenerated by compaction after every mutation — do not edit it by\n\
+hand; manual changes are overwritten on the next compaction.\n\
+\n\
+## What lives here\n\
+\n\
+- `state.json` — the compacted [`CheckpointState`] (the authoritative cache the\n\
+  CLI hydrates from).\n\
+- `issues/<uuid>.json` — one rendered file per live issue, comments and time\n\
+  entries inline. Browse them directly in the GitHub web UI.\n\
+- `meta/milestones.json` — the milestone registry.\n\
+\n\
+The append-only **event logs** that this state is reduced from live on the\n\
+per-agent branches `crosslink/agents/<agent-id>`. Each agent is the single writer\n\
+of its own branch.\n\
+\n\
+## Snapshot\n\
+\n\
+- Live issues: {live_issues}\n\
+- Milestones: {milestones}\n\
+- Compaction watermark: {watermark}\n"
+    );
+    body.into_bytes()
+}
+
+/// Whether the checkpoint commit at `tip` already carries the browse tree.
+///
+/// Keys on the presence of `README.md` at the tree root — the browse tree is
+/// always written as a unit, so README is a sufficient sentinel. A checkpoint
+/// written by `bootstrap_v3_hub` or the migration (state.json only) returns
+/// `false`, triggering a one-time full-tree materialization on the next compact.
+fn browse_tree_present(repo_dir: &Path, tip: &str) -> Result<bool> {
+    let spec = format!("{tip}:README.md");
+    Ok(git_cat_file_blob_optional(repo_dir, &spec)?.is_some())
+}
+
+/// Owned upserts (`(path, bytes)`) and delete paths for a browse-tree update.
+type BrowseOps = (Vec<(String, Vec<u8>)>, Vec<String>);
+
+/// Build the (upserts, deletes) for the browse tree of this compaction pass.
+///
+/// `full` rebuilds every live issue (used when the tree is absent); otherwise
+/// only `changed` issues are touched — tombstoned ones are deleted, the rest
+/// upserted. `meta/milestones.json` and `README.md` are always (re)rendered into
+/// the upsert set; `write_tree_with` is content-addressed so an unchanged file
+/// hashes to the same blob and the commit is a no-op for it.
+///
+/// Returns owned `(path, bytes)` upserts and owned delete paths; the caller wraps
+/// them in `BlobRef::Bytes` borrows for `commit_upserts_to_ref`.
+fn build_browse_ops(
+    state: &crate::checkpoint::CheckpointState,
+    changed: &std::collections::HashSet<uuid::Uuid>,
+    full: bool,
+) -> Result<BrowseOps> {
+    let mut upserts: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut deletes: Vec<String> = Vec::new();
+
+    let render_path = |uuid: &uuid::Uuid| -> String { format!("issues/{uuid}.json") };
+
+    if full {
+        // Materialize every live (non-tombstoned) issue.
+        for (uuid, issue) in &state.issues {
+            if state.deleted_issues.contains(uuid) {
+                continue;
+            }
+            upserts.push((render_path(uuid), render_browse_issue(issue)?));
+        }
+    } else {
+        for uuid in changed {
+            if state.deleted_issues.contains(uuid) {
+                // Tombstoned this pass — drop its browse file (no-op if absent).
+                deletes.push(render_path(uuid));
+            } else if let Some(issue) = state.issues.get(uuid) {
+                upserts.push((render_path(uuid), render_browse_issue(issue)?));
+            }
+        }
+    }
+
+    // Milestones + README are small and rendered every pass; content-addressing
+    // makes an unchanged render a no-op at the tree level.
+    upserts.push((
+        "meta/milestones.json".to_string(),
+        render_browse_milestones(state)?,
+    ));
+    upserts.push(("README.md".to_string(), render_browse_readme(state)));
+
+    Ok((upserts, deletes))
+}
+
 // ── V3 compaction cycle (REQ-7 checkpoint + REQ-11 own-ref prune) ─────
 //
 // compact_v3 lives HERE (hub_v3.rs) rather than in compaction.rs because it
@@ -1121,10 +1421,15 @@ pub struct CompactV3Result {
 ///
 /// 1. `reduce(RefHubSource)` → materialized [`CheckpointState`].
 /// 2. Serialize the state and commit it to [`CHECKPOINT_REF`] as `state.json`
-///    via [`commit_blob_to_ref`] (CAS `CurrentTip`). A concurrent local
-///    compactor that moved the checkpoint first wins the CAS; THIS process loses
-///    it benignly (deterministic content — both produce the same state), logs at
-///    debug, and returns with `checkpoint_commit: None` and no prune.
+///    PLUS the human-browsable tree (`issues/<uuid>.json`, `meta/milestones.json`,
+///    `README.md`; #767) in a single sibling-preserving CAS commit. The browse
+///    tree is maintained INCREMENTALLY (upsert `changed_issues`, delete
+///    tombstoned issues) and rebuilt in full only when absent (first compact
+///    after bootstrap / migration / rename). All browse content is deterministic
+///    for a given state, so the REQ-7 concurrent-compactor story is unchanged: a
+///    concurrent local compactor that moved the checkpoint first wins the CAS;
+///    THIS process loses it benignly (identical content), logs at debug, and
+///    returns with `checkpoint_commit: None` and no prune.
 /// 3. If `remote` is `Some`, push the checkpoint with `--force-with-lease`. A
 ///    lease loss is benign (REQ-7: identical content) → logged at debug, not an
 ///    error, and prune is skipped.
@@ -1172,34 +1477,64 @@ pub fn compact_v3(
     let state_bytes =
         serde_json::to_vec_pretty(&state).context("failed to serialize v3 checkpoint state")?;
 
+    // Determine whether the existing checkpoint already carries the browse tree
+    // (#767). When absent — a checkpoint written by bootstrap or the migration
+    // (state.json only) — the next compact must materialize the FULL browse tree
+    // even if state.json itself is byte-identical.
+    let existing_tip = git_rev_parse_optional(repo_dir, CHECKPOINT_REF)?;
+    let browse_present = match &existing_tip {
+        Some(tip) => browse_tree_present(repo_dir, tip)?,
+        None => false,
+    };
+
     // Idempotency guard: if the existing checkpoint's `state.json` already
-    // equals the freshly-reduced bytes, writing a new commit would only churn
-    // the ref SHA (new commit object, same content) and break SHA-level
-    // idempotency for callers that re-compact opportunistically (e.g. fetch).
-    // Skip the commit AND the prune — nothing changed.
-    if let Some(existing_tip) = git_rev_parse_optional(repo_dir, CHECKPOINT_REF)? {
-        let spec = format!("{existing_tip}:state.json");
-        if let Some(existing_bytes) = git_cat_file_blob_optional(repo_dir, &spec)? {
-            if existing_bytes == state_bytes {
-                tracing::debug!(
-                    "v3 compaction: checkpoint already current (byte-identical); no-op"
-                );
-                return Ok(CompactV3Result {
-                    events_processed,
-                    checkpoint_commit: Some(existing_tip),
-                    checkpoint_pushed: false,
-                    events_pruned: 0,
-                });
+    // equals the freshly-reduced bytes AND the browse tree is already present,
+    // writing a new commit would only churn the ref SHA (new commit object, same
+    // content) and break SHA-level idempotency for callers that re-compact
+    // opportunistically (e.g. fetch). Skip the commit AND the prune.
+    if browse_present {
+        if let Some(tip) = &existing_tip {
+            let spec = format!("{tip}:state.json");
+            if let Some(existing_bytes) = git_cat_file_blob_optional(repo_dir, &spec)? {
+                if existing_bytes == state_bytes {
+                    tracing::debug!(
+                        "v3 compaction: checkpoint already current (byte-identical); no-op"
+                    );
+                    return Ok(CompactV3Result {
+                        events_processed,
+                        checkpoint_commit: Some(tip.clone()),
+                        checkpoint_pushed: false,
+                        events_pruned: 0,
+                    });
+                }
             }
         }
     }
 
-    let checkpoint_commit = match commit_blob_to_ref(
+    // Build the browse-tree ops for this pass. The full tree is rebuilt when it
+    // is absent (first compact after bootstrap / migration / hub-branches
+    // rename); otherwise only changed issues are upserted and tombstoned ones
+    // deleted. `state.json` is written alongside in the SAME commit so the
+    // machine state and the browse tree are always consistent.
+    let (browse_upserts, browse_deletes) =
+        build_browse_ops(&state, &outcome.changed_issues, !browse_present)?;
+
+    // Assemble the full upsert/delete list (state.json + browse files) for one
+    // sibling-preserving CAS commit.
+    let mut upserts: Vec<(&str, BlobRef<'_>)> = vec![("state.json", BlobRef::Bytes(&state_bytes))];
+    for (path, bytes) in &browse_upserts {
+        upserts.push((path.as_str(), BlobRef::Bytes(bytes)));
+    }
+    let deletes: Vec<&str> = browse_deletes.iter().map(String::as_str).collect();
+
+    let checkpoint_commit = match commit_upserts_to_ref(
         repo_dir,
         CHECKPOINT_REF,
-        "state.json",
-        &state_bytes,
+        &upserts,
+        &deletes,
         "crosslink v3 checkpoint",
+        "crosslink",
+        CasExpectation::CurrentTip,
     ) {
         Ok(sha) => Some(sha),
         Err(e) => {
@@ -1428,7 +1763,7 @@ pub fn genesis_sentinel_watermark() -> crate::events::OrderingKey {
 /// - [`CHECKPOINT_REF`] — an empty [`crate::checkpoint::CheckpointState`] whose
 ///   watermark is the fixed-epoch [`genesis_sentinel_watermark`]. A `None`
 ///   watermark would make the first reduce full-reset, so it is always `Some`.
-/// - `refs/crosslink/agents/<agent_id>` — the bootstrapping agent's own ref
+/// - `refs/heads/crosslink/agents/<agent_id>` — the bootstrapping agent's own ref
 ///   carrying an empty `events.log` (it becomes the single writer of that ref).
 ///
 /// When `remote` is `Some`, the refs are pushed best-effort (parity with the
@@ -1539,7 +1874,7 @@ fn push_bootstrap_refs(
 ///
 /// When a second machine clones a project whose hub is already v3, there is no
 /// local hub to bootstrap and bootstrapping one would mint a CONFLICTING genesis
-/// checkpoint/meta. Instead this fetches the remote's `refs/crosslink/*` into the
+/// checkpoint/meta. Instead this fetches the remote's `refs/heads/crosslink/*` into the
 /// local ref namespace verbatim, so the machine joins the existing v3 hub. The
 /// joining agent's own ref does not exist remotely yet; it is created on its
 /// first mutation (the v3 write path seeds an absent own-ref as genesis).
@@ -1554,9 +1889,9 @@ pub fn fetch_v3_refs_for_join(repo_dir: &Path, remote: &str) -> Result<()> {
         .args([
             "fetch",
             remote,
-            "+refs/crosslink/meta:refs/crosslink/meta",
-            "+refs/crosslink/checkpoint:refs/crosslink/checkpoint",
-            "+refs/crosslink/agents/*:refs/crosslink/agents/*",
+            "+refs/heads/crosslink/meta:refs/heads/crosslink/meta",
+            "+refs/heads/crosslink/checkpoint:refs/heads/crosslink/checkpoint",
+            "+refs/heads/crosslink/agents/*:refs/heads/crosslink/agents/*",
         ])
         .output()
         .with_context(|| format!("failed to fetch v3 refs from remote '{remote}'"))?;
@@ -3625,7 +3960,11 @@ mod tests {
         );
         run_git(
             fresh.path(),
-            &["fetch", "origin", "+refs/crosslink/*:refs/crosslink/*"],
+            &[
+                "fetch",
+                "origin",
+                "+refs/heads/crosslink/*:refs/heads/crosslink/*",
+            ],
         );
         let fresh_outcome =
             crate::compaction::reduce(&crate::hub_source::RefHubSource::new(fresh.path()).unwrap())
@@ -3761,5 +4100,303 @@ mod tests {
         let state_bytes = cat_blob(&repo, &format!("{cp_tip}:state.json")).unwrap();
         let state = crate::checkpoint::CheckpointState::from_slice(&state_bytes).unwrap();
         assert_eq!(state.issues.len(), 3);
+    }
+
+    // ── Detection exclusions: crosslink/hub and crosslink/hub-v3-host (#767) ──
+
+    /// `crosslink/hub` ALONE (no checkpoint/meta branches) classifies as `V2Only`,
+    /// and a `crosslink/hub-v3-host` worktree branch never counts as hub state.
+    #[test]
+    fn detect_excludes_v2_branch_and_host_branch() {
+        let dir = tempfile::tempdir().unwrap();
+        git_init(dir.path());
+
+        // A commit to point branches at.
+        let cp = commit_blob_to_ref(dir.path(), "refs/heads/scratch", "x", b"x\n", "x").unwrap();
+
+        // Only the frozen v2 branch present → V2Only.
+        run_git(dir.path(), &["update-ref", "refs/heads/crosslink/hub", &cp]);
+        assert_eq!(
+            detect_hub_version(dir.path()).unwrap(),
+            HubVersion::V2Only,
+            "crosslink/hub alone must be V2Only"
+        );
+
+        // Adding the host worktree branch must NOT change the classification —
+        // it is not hub state.
+        run_git(
+            dir.path(),
+            &["update-ref", "refs/heads/crosslink/hub-v3-host", &cp],
+        );
+        assert_eq!(
+            detect_hub_version(dir.path()).unwrap(),
+            HubVersion::V2Only,
+            "crosslink/hub-v3-host must never count as hub state"
+        );
+        assert!(
+            !is_v3_hub_ref("refs/heads/crosslink/hub-v3-host"),
+            "host branch is not a v3 hub ref"
+        );
+        assert!(
+            !is_v3_hub_ref("refs/heads/crosslink/hub"),
+            "v2 branch is not a v3 hub ref"
+        );
+    }
+
+    /// Adding the checkpoint + meta branches flips classification to
+    /// `V3 { v2_branch_present: true }` while the v2 branch is still around.
+    #[test]
+    fn detect_v3_with_v2_branch_present() {
+        let dir = tempfile::tempdir().unwrap();
+        git_init(dir.path());
+        let cp = commit_blob_to_ref(dir.path(), "refs/heads/scratch", "x", b"x\n", "x").unwrap();
+
+        // v2 branch + host branch present (both must be ignored for V3 keying).
+        run_git(dir.path(), &["update-ref", "refs/heads/crosslink/hub", &cp]);
+        run_git(
+            dir.path(),
+            &["update-ref", "refs/heads/crosslink/hub-v3-host", &cp],
+        );
+
+        // Now stamp the real v3 marker branches.
+        commit_files_to_ref(dir.path(), META_REF, &[("hub.json", b"{}\n")], "meta").unwrap();
+        commit_blob_to_ref(dir.path(), CHECKPOINT_REF, "state.json", b"{}\n", "cp").unwrap();
+
+        assert_eq!(
+            detect_hub_version(dir.path()).unwrap(),
+            HubVersion::V3 {
+                v2_branch_present: true
+            },
+            "checkpoint+meta present, v2 still around → V3 with v2_branch_present true"
+        );
+
+        // Delete the v2 branch → V3{v2_branch_present:false}.
+        run_git(
+            dir.path(),
+            &["update-ref", "-d", "refs/heads/crosslink/hub"],
+        );
+        assert_eq!(
+            detect_hub_version(dir.path()).unwrap(),
+            HubVersion::V3 {
+                v2_branch_present: false
+            }
+        );
+    }
+
+    // ── Browse tree (#767 part 2) ────────────────────────────────────────
+
+    /// Build an `IssueCreated` envelope for a fixed uuid (so tests can target it).
+    fn make_issue_envelope(agent_id: &str, seq: u64, uuid: Uuid, title: &str) -> EventEnvelope {
+        EventEnvelope {
+            agent_id: agent_id.to_string(),
+            agent_seq: seq,
+            timestamp: Utc::now(),
+            event: Event::IssueCreated {
+                uuid,
+                title: title.to_string(),
+                description: None,
+                priority: "medium".to_string(),
+                labels: vec![],
+                parent_uuid: None,
+                created_by: agent_id.to_string(),
+                display_id: None,
+                scheduled_at: None,
+                due_at: None,
+            },
+            signed_by: None,
+            signature: None,
+        }
+    }
+
+    /// Build a `CommentAdded` envelope.
+    fn make_comment_envelope(
+        agent_id: &str,
+        seq: u64,
+        issue_uuid: Uuid,
+        content: &str,
+    ) -> EventEnvelope {
+        EventEnvelope {
+            agent_id: agent_id.to_string(),
+            agent_seq: seq,
+            timestamp: Utc::now(),
+            event: Event::CommentAdded {
+                issue_uuid,
+                comment_uuid: Uuid::new_v4(),
+                display_id: None,
+                author: agent_id.to_string(),
+                content: content.to_string(),
+                created_at: Utc::now(),
+                kind: "note".to_string(),
+                trigger_type: None,
+                intervention_context: None,
+                driver_key_fingerprint: None,
+                signed_by: None,
+                signature: None,
+            },
+            signed_by: None,
+            signature: None,
+        }
+    }
+
+    /// Read the full tree of a commit as a sorted map of path → bytes (one level
+    /// of nesting), so two browse trees can be compared structurally.
+    fn read_browse_tree(
+        repo_dir: &Path,
+        commit: &str,
+    ) -> std::collections::BTreeMap<String, Vec<u8>> {
+        let mut out = std::collections::BTreeMap::new();
+        let listing = run_git_output(repo_dir, &["ls-tree", "-r", &format!("{commit}^{{tree}}")]);
+        for line in listing.lines() {
+            let Some((_meta, name)) = line.split_once('\t') else {
+                continue;
+            };
+            let bytes = cat_blob(repo_dir, &format!("{commit}:{name}")).unwrap();
+            out.insert(name.to_string(), bytes);
+        }
+        out
+    }
+
+    /// The browse tree converges to byte-identical content whether built
+    /// incrementally over N compacts or in one shot — over the SAME event set
+    /// (same timestamps), which is the invariant that matters: a fresh full-tree
+    /// reduction and the incremental upserts must produce identical bytes.
+    #[test]
+    fn browse_tree_incremental_equals_one_shot() {
+        let agent = "browse-agent";
+        let u1 = Uuid::new_v4();
+        let u2 = Uuid::new_v4();
+        let u3 = Uuid::new_v4();
+
+        // Build ONE shared event set so both repos reduce to identical state
+        // (identical timestamps ⇒ identical watermark ⇒ identical README).
+        let events: Vec<EventEnvelope> = vec![
+            make_issue_envelope(agent, 1, u1, "one"),
+            make_issue_envelope(agent, 2, u2, "two"),
+            make_issue_envelope(agent, 3, u3, "three"),
+            make_comment_envelope(agent, 4, u2, "hello"),
+        ];
+
+        // --- One-shot: append all events, compact once (full tree). ---
+        let one = tempfile::tempdir().unwrap();
+        git_init(one.path());
+        commit_files_to_ref(one.path(), META_REF, &[("hub.json", b"{}\n")], "meta").unwrap();
+        for ev in &events {
+            append_event_to_ref(one.path(), agent, ev).unwrap();
+        }
+        {
+            let lock = test_hub_lock(one.path());
+            compact_v3(one.path(), agent, &lock, None).unwrap();
+        }
+        let one_tip = run_git_output(one.path(), &["rev-parse", CHECKPOINT_REF]);
+        let one_tree = read_browse_tree(one.path(), &one_tip);
+
+        // --- Incremental: same events, but compact after each append. ---
+        let inc = tempfile::tempdir().unwrap();
+        git_init(inc.path());
+        commit_files_to_ref(inc.path(), META_REF, &[("hub.json", b"{}\n")], "meta").unwrap();
+        for ev in &events {
+            append_event_to_ref(inc.path(), agent, ev).unwrap();
+            let lock = test_hub_lock(inc.path());
+            compact_v3(inc.path(), agent, &lock, None).unwrap();
+            drop(lock);
+        }
+        let inc_tip = run_git_output(inc.path(), &["rev-parse", CHECKPOINT_REF]);
+        let inc_tree = read_browse_tree(inc.path(), &inc_tip);
+
+        // Browse files (everything except state.json, whose watermark differs by
+        // the last-processed ordering key) must converge byte-for-byte. state.json
+        // also converges because the same events reduce identically.
+        assert_eq!(
+            one_tree, inc_tree,
+            "incremental and one-shot browse trees must be byte-identical"
+        );
+
+        // Sanity: the changed issue's browse file carries the inline comment.
+        let issue_file = one_tree
+            .get(&format!("issues/{u2}.json"))
+            .expect("issue file present");
+        let text = String::from_utf8_lossy(issue_file);
+        assert!(
+            text.contains("\"comments\""),
+            "inline comments present: {text}"
+        );
+        assert!(text.contains("hello"), "comment content inline: {text}");
+        // README present and deterministic-shaped.
+        assert!(one_tree.contains_key("README.md"));
+        assert!(one_tree.contains_key("meta/milestones.json"));
+        assert!(one_tree.contains_key(&format!("issues/{u1}.json")));
+    }
+
+    /// Deleting an issue removes its browse file via tombstone on the next compact.
+    #[test]
+    fn browse_tree_tombstone_deletes_file() {
+        let agent = "tomb-agent";
+        let dir = tempfile::tempdir().unwrap();
+        git_init(dir.path());
+        commit_files_to_ref(dir.path(), META_REF, &[("hub.json", b"{}\n")], "meta").unwrap();
+        let u1 = Uuid::new_v4();
+        append_event_to_ref(
+            dir.path(),
+            agent,
+            &make_issue_envelope(agent, 1, u1, "doomed"),
+        )
+        .unwrap();
+        {
+            let lock = test_hub_lock(dir.path());
+            compact_v3(dir.path(), agent, &lock, None).unwrap();
+        }
+        let tip = run_git_output(dir.path(), &["rev-parse", CHECKPOINT_REF]);
+        assert!(
+            cat_blob(dir.path(), &format!("{tip}:issues/{u1}.json")).is_some(),
+            "issue browse file exists before delete"
+        );
+
+        // Delete the issue → tombstone.
+        let del = EventEnvelope {
+            agent_id: agent.to_string(),
+            agent_seq: 2,
+            timestamp: Utc::now(),
+            event: Event::IssueDeleted { uuid: u1 },
+            signed_by: None,
+            signature: None,
+        };
+        append_event_to_ref(dir.path(), agent, &del).unwrap();
+        {
+            let lock = test_hub_lock(dir.path());
+            compact_v3(dir.path(), agent, &lock, None).unwrap();
+        }
+        let tip2 = run_git_output(dir.path(), &["rev-parse", CHECKPOINT_REF]);
+        assert!(
+            cat_blob(dir.path(), &format!("{tip2}:issues/{u1}.json")).is_none(),
+            "tombstoned issue browse file removed"
+        );
+    }
+
+    /// Two independent compactors over the same event set produce a byte-identical
+    /// README.md (no wall-clock in the rendered content).
+    #[test]
+    fn browse_readme_deterministic_across_compactors() {
+        let agent = "readme-agent";
+        let u1 = Uuid::new_v4();
+        // ONE shared event (shared timestamp) reduced by two independent
+        // compactors → byte-identical README (no wall-clock in the render).
+        let ev = make_issue_envelope(agent, 1, u1, "x");
+        let mk = |dir: &Path| -> Vec<u8> {
+            git_init(dir);
+            commit_files_to_ref(dir, META_REF, &[("hub.json", b"{}\n")], "meta").unwrap();
+            append_event_to_ref(dir, agent, &ev).unwrap();
+            let lock = test_hub_lock(dir);
+            compact_v3(dir, agent, &lock, None).unwrap();
+            drop(lock);
+            let tip = run_git_output(dir, &["rev-parse", CHECKPOINT_REF]);
+            cat_blob(dir, &format!("{tip}:README.md")).unwrap()
+        };
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        assert_eq!(
+            mk(a.path()),
+            mk(b.path()),
+            "README.md must be byte-identical across compactors"
+        );
     }
 }

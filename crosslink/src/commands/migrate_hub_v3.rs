@@ -9,12 +9,12 @@
 //! 2. Force a compaction so v2 state is fully reduced and the watermark embedded.
 //! 3. Build the GENESIS [`CheckpointState`] FROM THE FILES (authoritative
 //!    materialized state) — independent of the event reducer.
-//! 4. Record pre-existing tips of every `refs/crosslink/*` ref (for rollback),
+//! 4. Record pre-existing tips of every v3 hub branch (for rollback),
 //!    seed per-agent refs from each v2 `events.log`, commit the genesis
 //!    checkpoint, and write the meta marker.
 //! 5. AC-6 verification gate: reduce a fresh [`RefHubSource`] and compare it
 //!    field-complete against the files + invariants.
-//! 6. On any failure: roll back every `refs/crosslink/*` ref to its recorded
+//! 6. On any failure: roll back every v3 hub branch to its recorded
 //!    pre-migration tip (the v2 branch is never touched).
 //! 7. On success: push all created/updated refs and print the cutover next step.
 //!
@@ -85,6 +85,281 @@ pub fn hub_v3(crosslink_dir: &Path, finalize: bool, yes_delete_v2: bool) -> Resu
     } else {
         migrate_phase_a(crosslink_dir, &cache_dir, &remote, &hub_lock)
     }
+}
+
+// ── `migrate hub-branches` — visible-branch rename (#767) ────────────
+
+/// One OLD→NEW ref rename pair for the hub-branches migration.
+struct RenamePair {
+    /// Old hidden ref, e.g. `refs/crosslink/checkpoint`.
+    old: String,
+    /// New visible branch, e.g. `refs/heads/crosslink/checkpoint`.
+    new: String,
+}
+
+/// Map an old hidden hub ref to its new visible-branch name, or `None` if the
+/// ref is not a hub ref this migration owns (so siblings are never renamed).
+fn old_to_new_ref(old: &str) -> Option<String> {
+    if old == hub_v3::OLD_CHECKPOINT_REF {
+        Some(hub_v3::CHECKPOINT_REF.to_string())
+    } else if old == hub_v3::OLD_META_REF {
+        Some(hub_v3::META_REF.to_string())
+    } else {
+        old.strip_prefix(hub_v3::OLD_AGENT_REF_PREFIX)
+            .map(|agent_id| format!("{}{agent_id}", hub_v3::AGENT_REF_PREFIX))
+    }
+}
+
+/// `crosslink migrate hub-branches` — move the v3 hub refs to visible branches.
+///
+/// Idempotent, one-shot per machine (#767, correcting OQ-1). For every old hidden
+/// ref present locally or on the remote (`refs/crosslink/agents/*`,
+/// `refs/crosslink/checkpoint`, `refs/crosslink/meta`):
+///
+/// 1. Create the matching `refs/heads/crosslink/*` branch at the same SHA —
+///    locally via `update-ref`, remotely via `git push <remote> <sha>:<new>`.
+/// 2. Delete the old ref locally (`update-ref -d`) and remotely
+///    (`git push <remote> :<old>`).
+///
+/// After the rename, one [`hub_v3::compact_v3`] is run so the browsable state
+/// tree (#767 part 2) materializes on the now-visible checkpoint branch.
+///
+/// Skips cleanly when no old refs exist (already migrated / fresh hub) and
+/// reports per-ref actions.
+///
+/// # Errors
+///
+/// Returns an error only if the hub cache cannot be initialized or a git
+/// plumbing step fails fatally; per-ref remote-push problems are reported, not
+/// propagated (re-run is the retry mechanism).
+pub fn hub_branches(crosslink_dir: &Path) -> Result<()> {
+    let sync = SyncManager::new(crosslink_dir)?;
+    sync.init_cache()?;
+
+    let hub_lock = sync.acquire_lock()?;
+    let cache_dir = sync.cache_path().to_path_buf();
+    let remote = sync.remote().to_string();
+    let has_remote = sync.remote_exists();
+
+    // Collect the OLD-namespace refs present locally and (if reachable) remotely.
+    let mut old_refs: BTreeSet<String> = BTreeSet::new();
+    for r in for_each_ref(&cache_dir, "refs/crosslink/*")? {
+        if old_to_new_ref(&r).is_some() {
+            old_refs.insert(r);
+        }
+    }
+    if has_remote {
+        match ls_remote_old_namespace(&cache_dir, &remote) {
+            Ok(remote_refs) => {
+                for r in remote_refs.keys() {
+                    if old_to_new_ref(r).is_some() {
+                        old_refs.insert(r.clone());
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!("hub-branches: could not list remote old refs (continuing): {e}");
+            }
+        }
+    }
+
+    if old_refs.is_empty() {
+        println!(
+            "no old-namespace hub refs found — the hub is already on visible \
+             branches (or is fresh). Nothing to rename."
+        );
+        // Still materialize the browse tree if a v3 hub is present and lacks it.
+        maybe_compact_after_rename(crosslink_dir, &cache_dir, &remote, has_remote, &hub_lock);
+        return Ok(());
+    }
+
+    let pairs: Vec<RenamePair> = old_refs
+        .iter()
+        .filter_map(|old| {
+            old_to_new_ref(old).map(|new| RenamePair {
+                old: old.clone(),
+                new,
+            })
+        })
+        .collect();
+
+    println!("Renaming {} hub ref(s) to visible branches:", pairs.len());
+    let remote_old = if has_remote {
+        ls_remote_old_namespace(&cache_dir, &remote).unwrap_or_default()
+    } else {
+        BTreeMap::new()
+    };
+
+    for pair in &pairs {
+        rename_one_ref(&cache_dir, &remote, has_remote, pair, &remote_old)?;
+    }
+
+    // Materialize the browse tree on the now-visible checkpoint branch.
+    maybe_compact_after_rename(crosslink_dir, &cache_dir, &remote, has_remote, &hub_lock);
+
+    print_hub_branches_summary(&cache_dir, &remote, has_remote);
+    Ok(())
+}
+
+/// Rename a single ref: create the new branch at the old SHA (local + remote),
+/// then delete the old ref (local + remote). CAS-guards the local create against
+/// the old SHA and the remote create against the expected old remote SHA where
+/// the plumbing supports it.
+fn rename_one_ref(
+    cache_dir: &Path,
+    remote: &str,
+    has_remote: bool,
+    pair: &RenamePair,
+    remote_old: &BTreeMap<String, String>,
+) -> Result<()> {
+    let local_sha = git_rev_parse(cache_dir, &pair.old)?;
+    let remote_sha = remote_old.get(&pair.old).cloned();
+
+    // The authoritative SHA to place at the new ref: prefer the local tip (the
+    // single-writer ref), fall back to the remote tip if only the remote has it.
+    let sha = local_sha.clone().or_else(|| remote_sha.clone());
+    let Some(sha) = sha else {
+        // Ref vanished between listing and now — nothing to do.
+        return Ok(());
+    };
+
+    // 1. Local create (idempotent — update-ref to the same sha is a no-op).
+    if local_sha.is_some() {
+        let existing_new = git_rev_parse(cache_dir, &pair.new)?;
+        if existing_new.as_deref() != Some(sha.as_str()) {
+            git_update_ref(cache_dir, &pair.new, &sha)?;
+        }
+        println!("  local  {} -> {}", pair.old, pair.new);
+    }
+
+    // 2. Remote create + old-ref delete (when a remote is configured).
+    if has_remote {
+        // Create the new branch at the SHA. A plain push is the create; if the
+        // remote already holds it at this SHA the push is a no-op.
+        let create_spec = format!("{sha}:{}", pair.new);
+        match run_git(cache_dir, &["push", remote, &create_spec]) {
+            Ok(_) => println!("  remote {} -> {} (created)", pair.old, pair.new),
+            Err(e) => {
+                tracing::warn!("hub-branches: remote create of {} failed: {e}", pair.new);
+                println!(
+                    "  remote {} -> {}: SKIPPED (push failed: {e})",
+                    pair.old, pair.new
+                );
+                // Do not delete the old remote ref if the new one did not land.
+                // Local rename already happened; a re-run retries the remote.
+            }
+        }
+
+        // Delete the old remote ref, CAS-guarded against its expected old SHA so
+        // a concurrently-advanced ref is not silently dropped.
+        if let Some(old_remote_sha) = &remote_sha {
+            let delete_spec = format!(":{}", pair.old);
+            // CAS-guard the delete against the expected old remote SHA so a
+            // concurrently-advanced ref is never silently dropped.
+            let lease = format!("--force-with-lease={}:{old_remote_sha}", pair.old);
+            let args = ["push", &lease, remote, &delete_spec];
+            match run_git(cache_dir, &args) {
+                Ok(_) => println!("  remote deleted {}", pair.old),
+                Err(e) => {
+                    tracing::warn!("hub-branches: remote delete of {} failed: {e}", pair.old);
+                    println!("  remote delete of {}: SKIPPED ({e})", pair.old);
+                }
+            }
+        }
+    }
+
+    // 3. Delete the old LOCAL ref last, only after the new local ref exists.
+    if local_sha.is_some() && git_rev_parse(cache_dir, &pair.new)?.is_some() {
+        git_delete_ref(cache_dir, &pair.old)?;
+    }
+
+    Ok(())
+}
+
+/// Run one [`hub_v3::compact_v3`] so the browse tree materializes on the visible
+/// checkpoint branch. Only when the hub is v3; non-fatal on failure (the rename
+/// already succeeded; a later `crosslink compact` retries the tree).
+fn maybe_compact_after_rename(
+    crosslink_dir: &Path,
+    cache_dir: &Path,
+    remote: &str,
+    has_remote: bool,
+    hub_lock: &crate::sync::HubWriteLock,
+) {
+    if !matches!(
+        hub_v3::detect_hub_version(cache_dir),
+        Ok(HubVersion::V3 { .. })
+    ) {
+        return;
+    }
+    let agent_id = crate::identity::AgentConfig::load(crosslink_dir)
+        .ok()
+        .flatten()
+        .map_or_else(|| "hub-v3-bootstrap".to_string(), |a| a.agent_id);
+    let remote_opt = has_remote.then_some(remote);
+    match hub_v3::compact_v3(cache_dir, &agent_id, hub_lock, remote_opt) {
+        Ok(_) => println!("Materialized the browsable state tree on crosslink/checkpoint."),
+        Err(e) => tracing::warn!(
+            "hub-branches: post-rename compaction failed (non-fatal; run `crosslink compact`): {e}"
+        ),
+    }
+}
+
+/// `git ls-remote <remote> refs/crosslink/*` → map of OLD-namespace refname → sha.
+fn ls_remote_old_namespace(repo_dir: &Path, remote: &str) -> Result<BTreeMap<String, String>> {
+    let output = Command::new("git")
+        .current_dir(repo_dir)
+        .args(["ls-remote", remote, "refs/crosslink/*"])
+        .output()
+        .with_context(|| format!("failed to run git ls-remote for '{remote}'"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("git ls-remote failed for '{remote}': {}", stderr.trim());
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut map = BTreeMap::new();
+    for line in stdout.lines() {
+        if let Some((sha, name)) = line.split_once('\t') {
+            map.insert(name.trim().to_string(), sha.trim().to_string());
+        }
+    }
+    Ok(map)
+}
+
+/// Print the closing summary + the GitHub web-UI hint.
+fn print_hub_branches_summary(cache_dir: &Path, remote: &str, has_remote: bool) {
+    println!("\nDone. The hub now lives on visible branches under crosslink/* .");
+    if has_remote {
+        if let Some(url) = github_branches_url(cache_dir, remote) {
+            println!("Browse it on GitHub: {url}");
+        } else {
+            println!("Browse the crosslink/checkpoint branch on your git host's web UI.");
+        }
+    }
+}
+
+/// Best-effort `https://github.com/<owner>/<repo>/branches` URL from the remote
+/// URL. Returns `None` for non-GitHub or unparseable remotes.
+fn github_branches_url(cache_dir: &Path, remote: &str) -> Option<String> {
+    let output = Command::new("git")
+        .current_dir(cache_dir)
+        .args(["remote", "get-url", remote])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    // git@github.com:owner/repo.git  OR  https://github.com/owner/repo(.git)
+    let slug = if let Some(rest) = url.strip_prefix("git@github.com:") {
+        rest.to_string()
+    } else if let Some(rest) = url.strip_prefix("https://github.com/") {
+        rest.to_string()
+    } else {
+        return None;
+    };
+    let slug = slug.strip_suffix(".git").unwrap_or(&slug);
+    Some(format!("https://github.com/{slug}/branches"))
 }
 
 // ── Phase A: migrate ─────────────────────────────────────────────────
@@ -196,7 +471,7 @@ fn migrate_phase_a(
     let v2_tip = git_rev_parse(cache_dir, V2_HUB_BRANCH)?
         .ok_or_else(|| anyhow::anyhow!("crosslink/hub branch vanished mid-migration"))?;
 
-    // Snapshot every refs/crosslink/* tip for rollback (these are the only refs
+    // Snapshot every v3 hub branch tip for rollback (these are the only refs
     // the migration touches; the v2 branch is never modified).
     let pre_tips = snapshot_crosslink_refs(cache_dir)?;
 
@@ -206,7 +481,7 @@ fn migrate_phase_a(
         Ok(s) => s,
         Err(e) => {
             rollback_refs(cache_dir, &pre_tips)?;
-            return Err(e.context("migration seeding failed; rolled back all refs/crosslink/*"));
+            return Err(e.context("migration seeding failed; rolled back all v3 hub branches"));
         }
     };
 
@@ -216,7 +491,7 @@ fn migrate_phase_a(
         Err(e) => {
             rollback_refs(cache_dir, &pre_tips)?;
             return Err(e.context(
-                "AC-6 verification gate failed; rolled back all refs/crosslink/* \
+                "AC-6 verification gate failed; rolled back all v3 hub branches \
                  (the crosslink/hub branch was never touched)",
             ));
         }
@@ -753,20 +1028,25 @@ fn count_disk_comments(issue: &IssueFile, layout: &IssueLayout) -> Result<usize>
 
 // ── Ref snapshot / rollback ──────────────────────────────────────────
 
-/// Snapshot of a `refs/crosslink/*` ref's tip before migration.
+/// Snapshot of a v3 hub branch's tip before migration.
 struct RefTip {
     name: String,
     /// `Some(sha)` if the ref existed before migration; `None` if it did not.
     old_sha: Option<String>,
 }
 
-/// Record the current tip of every `refs/crosslink/*` ref. The set is the union
+/// Record the current tip of every v3 hub branch. The set is the union
 /// of refs that exist now and the refs the migration is about to write, so that
 /// a ref created by the migration but absent before is rolled back by deletion.
 fn snapshot_crosslink_refs(cache_dir: &Path) -> Result<Vec<RefTip>> {
     let mut names: BTreeSet<String> = BTreeSet::new();
-    for r in for_each_ref(cache_dir, "refs/crosslink/*")? {
-        names.insert(r);
+    for r in for_each_ref(cache_dir, "refs/heads/crosslink/*")? {
+        // Only the v3 hub refs (checkpoint, meta, agents/*); never the frozen v2
+        // `crosslink/hub` branch or the `crosslink/hub-v3-host` worktree host,
+        // which share the prefix but are not hub state (#767).
+        if hub_v3::is_v3_hub_ref(&r) {
+            names.insert(r);
+        }
     }
     // The refs the migration writes (so a newly-created one rolls back to absent).
     names.insert(CHECKPOINT_REF.to_string());
@@ -866,7 +1146,10 @@ fn push_v3_refs(cache_dir: &Path, remote: &str, seeded: &SeededRefs) -> PushSumm
 /// On the already-migrated re-run path, push any v3 ref the remote lacks. This
 /// makes re-run the retry mechanism for an interrupted remote propagation.
 fn retry_push_missing_refs(cache_dir: &Path, remote: &str) -> Result<()> {
-    let local_refs = for_each_ref(cache_dir, "refs/crosslink/*")?;
+    let local_refs: Vec<String> = for_each_ref(cache_dir, "refs/heads/crosslink/*")?
+        .into_iter()
+        .filter(|r| hub_v3::is_v3_hub_ref(r))
+        .collect();
     if local_refs.is_empty() {
         return Ok(());
     }
@@ -1185,11 +1468,11 @@ fn for_each_ref(repo_dir: &Path, pattern: &str) -> Result<Vec<String>> {
         .collect())
 }
 
-/// `git ls-remote <remote> refs/crosslink/*` → map of refname → sha.
+/// `git ls-remote <remote> refs/heads/crosslink/*` → map of refname → sha.
 fn ls_remote_crosslink(repo_dir: &Path, remote: &str) -> Result<BTreeMap<String, String>> {
     let output = Command::new("git")
         .current_dir(repo_dir)
-        .args(["ls-remote", remote, "refs/crosslink/*"])
+        .args(["ls-remote", remote, "refs/heads/crosslink/*"])
         .output()
         .with_context(|| format!("failed to run git ls-remote for '{remote}'"))?;
     if !output.status.success() {

@@ -49,7 +49,7 @@ pub fn status_from_heartbeat(heartbeat: &Heartbeat) -> AgentStatus {
 ///
 /// - **V2**: `<.crosslink>/.hub-cache/heartbeats/`, non-recursive — heartbeats
 ///   are flat worktree files, watched exactly as before.
-/// - **V3**: the main repo's `.git/refs/crosslink/` directory, recursive —
+/// - **V3**: the main repo's `.git/refs/heads/crosslink/` directory, recursive —
 ///   heartbeats live on per-agent refs, so loose-ref updates under that tree
 ///   are the change signal. The git common dir is resolved against the hub
 ///   cache (which shares the main repo's ref namespace); if that resolution
@@ -65,7 +65,7 @@ fn resolve_watch_target(
     }
     git_common_dir(sync.cache_path()).map_or((v2_path, RecursiveMode::NonRecursive), |git_dir| {
         (
-            git_dir.join("refs").join("crosslink"),
+            git_dir.join("refs").join("heads").join("crosslink"),
             RecursiveMode::Recursive,
         )
     })
@@ -120,9 +120,9 @@ async fn run_watcher(crosslink_dir: PathBuf, tx: broadcast::Sender<WsEvent>) -> 
     // file-level mtime changes — the original, unchanged behavior.
     //
     // V3: there is no heartbeats directory. Each agent's heartbeat lives on its
-    // own ref (`refs/crosslink/agents/<id>` -> `heartbeat.json`); the change
+    // own ref (`refs/heads/crosslink/agents/<id>` -> `heartbeat.json`); the change
     // signal is REF MOVEMENT. Loose-ref updates land as files under the main
-    // repo's `.git/refs/crosslink/`, so we watch that directory recursively. The
+    // repo's `.git/refs/heads/crosslink/`, so we watch that directory recursively. The
     // tradeoff: refs packed into `.git/packed-refs` (after gc / fetch) do not
     // fire a per-file event, but the 30s polling fallback re-reads
     // `read_heartbeats_auto` (which scans the refs) and closes that gap — the
@@ -380,7 +380,7 @@ mod tests {
         assert!(matches!(mode, RecursiveMode::NonRecursive));
     }
 
-    /// V3 hub: the watch target is the main repo's `.git/refs/crosslink/`
+    /// V3 hub: the watch target is the main repo's `.git/refs/heads/crosslink/`
     /// directory, recursive — ref movement is the change signal.
     #[test]
     fn test_resolve_watch_target_v3_refs_dir() {
@@ -420,8 +420,8 @@ mod tests {
 
         let (path, mode) = resolve_watch_target(&sync_v3, &crosslink_dir);
         assert!(
-            path.ends_with(std::path::Path::new("refs").join("crosslink")),
-            "v3 watch target must be .git/refs/crosslink, got {}",
+            path.ends_with(std::path::Path::new("refs").join("heads").join("crosslink")),
+            "v3 watch target must be .git/refs/heads/crosslink, got {}",
             path.display()
         );
         assert!(matches!(mode, RecursiveMode::Recursive));

@@ -56,7 +56,7 @@ impl SyncManager {
 
         // Resolve the operation mode ONCE (754a PASS 2). Probe the hub-cache
         // worktree: its `.git` link shares the main repository's ref namespace,
-        // so the v3 marker refs (`refs/crosslink/meta` + `/checkpoint`) resolve
+        // so the v3 marker refs (`refs/heads/crosslink/meta` + `/checkpoint`) resolve
         // there. When the cache is absent (fresh repo, never synced) detection
         // returns `Absent` ⇒ `V2`, preserving today's init behavior.
         let hub_mode = crate::hub_v3::HubMode::resolve(&cache_dir);

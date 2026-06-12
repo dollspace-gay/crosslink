@@ -195,7 +195,11 @@ fn clone_for_agent(remote: &Path, agent_id: &str) -> (TempDir, PathBuf, PathBuf)
     // discovers the already-migrated hub.
     git(
         &cache_dir,
-        &["fetch", "origin", "+refs/crosslink/*:refs/crosslink/*"],
+        &[
+            "fetch",
+            "origin",
+            "+refs/heads/crosslink/*:refs/heads/crosslink/*",
+        ],
     );
     (work, crosslink_dir, cache_dir)
 }
@@ -866,4 +870,162 @@ fn v3_locks_cmd_and_stale_detection_over_refs() {
     super::locks_cmd::check(&hub.crosslink_dir, id).unwrap();
     super::locks_cmd::list(&hub.crosslink_dir, &db, true).unwrap();
     super::next::run(&db, &hub.crosslink_dir).unwrap();
+}
+
+// ── `migrate hub-branches` round-trip (#767) ─────────────────────────
+
+/// Move every NEW-namespace hub ref back to the OLD hidden namespace, locally
+/// and on the bare remote (via the cache's `origin`), to simulate a hub created
+/// before the #767 flip.
+fn demote_to_old_namespace(cache_dir: &Path) {
+    let pairs = [
+        (
+            "refs/heads/crosslink/checkpoint",
+            "refs/crosslink/checkpoint",
+        ),
+        ("refs/heads/crosslink/meta", "refs/crosslink/meta"),
+        (
+            &format!("refs/heads/crosslink/agents/{}", "alpha"),
+            "refs/crosslink/agents/alpha",
+        ),
+    ];
+    for (new, old) in pairs {
+        let sha = Command::new("git")
+            .current_dir(cache_dir)
+            .args(["rev-parse", "--verify", "--quiet", new])
+            .output()
+            .unwrap();
+        if !sha.status.success() {
+            continue;
+        }
+        let sha = String::from_utf8_lossy(&sha.stdout).trim().to_string();
+        // Local: create old, delete new.
+        git(cache_dir, &["update-ref", old, &sha]);
+        git(cache_dir, &["update-ref", "-d", new]);
+        // Remote (via the cache's `origin`): push old, delete new.
+        git(cache_dir, &["push", "origin", &format!("{sha}:{old}")]);
+        let _ = Command::new("git")
+            .current_dir(cache_dir)
+            .args(["push", "origin", &format!(":{new}")])
+            .output()
+            .unwrap();
+    }
+}
+
+/// Round-trip: build an OLD-namespace v3 hub, run `migrate hub-branches`, and
+/// assert the new visible branches land at the same SHAs local + remote, the old
+/// refs are gone both sides, the `RefHubSource` reduces identically post-rename,
+/// and a second run is a clean no-op.
+#[test]
+fn hub_branches_rename_round_trip() {
+    if !git_ok() {
+        return;
+    }
+    let hub = setup_migrated_v3_hub();
+
+    // Capture the authoritative reduced state BEFORE the demotion/rename.
+    let before =
+        crate::compaction::reduce(&crate::hub_source::RefHubSource::new(&hub.cache_dir).unwrap())
+            .unwrap()
+            .state;
+
+    // Demote to the OLD hidden namespace (simulate a pre-#767 hub).
+    demote_to_old_namespace(&hub.cache_dir);
+
+    // The old hidden refs exist; the new visible ones don't (local).
+    let rev =
+        |dir: &Path, r: &str| -> Option<String> { hub_v3::git_rev_parse_optional(dir, r).unwrap() };
+    assert!(rev(&hub.cache_dir, "refs/crosslink/checkpoint").is_some());
+    assert!(rev(&hub.cache_dir, "refs/heads/crosslink/checkpoint").is_none());
+
+    // Record the old SHAs so we can assert SHA-equality after the rename.
+    let old_cp = rev(&hub.cache_dir, "refs/crosslink/checkpoint").unwrap();
+    let old_meta = rev(&hub.cache_dir, "refs/crosslink/meta").unwrap();
+    let old_alpha = rev(&hub.cache_dir, "refs/crosslink/agents/alpha").unwrap();
+
+    // Run the rename migration.
+    super::migrate_hub_v3::hub_branches(&hub.crosslink_dir).unwrap();
+
+    // Helper: `new` is the old tip or a descendant of it (the post-rename
+    // compaction can advance the checkpoint by writing the browse tree and the
+    // agent ref by a REQ-11 prune, both as CHILD commits preserving history).
+    let same_or_descendant = |old: &str, new: &str| -> bool {
+        new == old
+            || Command::new("git")
+                .current_dir(&hub.cache_dir)
+                .args(["merge-base", "--is-ancestor", old, new])
+                .status()
+                .unwrap()
+                .success()
+    };
+
+    // meta is never compacted → exact-SHA rename.
+    assert!(rev(&hub.cache_dir, "refs/heads/crosslink/meta").as_deref() == Some(old_meta.as_str()));
+    // The agent ref lands at the old SHA, then the post-rename compaction may
+    // prune it forward (a child commit), so assert old is an ancestor-or-equal.
+    let new_alpha = rev(&hub.cache_dir, "refs/heads/crosslink/agents/alpha").unwrap();
+    assert!(
+        same_or_descendant(&old_alpha, &new_alpha),
+        "renamed agent ref must be the old tip or a descendant of it"
+    );
+    assert!(rev(&hub.cache_dir, "refs/crosslink/meta").is_none());
+    assert!(rev(&hub.cache_dir, "refs/crosslink/checkpoint").is_none());
+    assert!(rev(&hub.cache_dir, "refs/crosslink/agents/alpha").is_none());
+    // The renamed checkpoint exists; compaction advances it (browse tree), so the
+    // old tip is an ancestor-or-equal.
+    let new_cp = rev(&hub.cache_dir, "refs/heads/crosslink/checkpoint").unwrap();
+    assert!(
+        same_or_descendant(&old_cp, &new_cp),
+        "renamed checkpoint must be the old tip or a descendant of it"
+    );
+
+    // Remote: new visible branches present, old hidden refs gone.
+    let remote_refs: Vec<String> = {
+        let out = Command::new("git")
+            .current_dir(&hub.cache_dir)
+            .args(["ls-remote", "origin"])
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .filter_map(|l| l.split_once('\t').map(|(_, n)| n.trim().to_string()))
+            .collect()
+    };
+    assert!(remote_refs.iter().any(|r| r == "refs/heads/crosslink/meta"));
+    assert!(remote_refs
+        .iter()
+        .any(|r| r == "refs/heads/crosslink/agents/alpha"));
+    assert!(
+        !remote_refs.iter().any(|r| r.starts_with("refs/crosslink/")),
+        "no old hidden refs remain on the remote, got {remote_refs:?}"
+    );
+
+    // RefHubSource reduces to the SAME issue set post-rename (browse-tree commit
+    // does not change the reduced state).
+    let after =
+        crate::compaction::reduce(&crate::hub_source::RefHubSource::new(&hub.cache_dir).unwrap())
+            .unwrap()
+            .state;
+    assert_eq!(
+        before
+            .issues
+            .keys()
+            .collect::<std::collections::BTreeSet<_>>(),
+        after
+            .issues
+            .keys()
+            .collect::<std::collections::BTreeSet<_>>(),
+        "reduced issue set must be identical after the rename"
+    );
+
+    // The browse tree materialized on the now-visible checkpoint branch.
+    let cp_tip = rev(&hub.cache_dir, "refs/heads/crosslink/checkpoint").unwrap();
+    let readme =
+        hub_v3::git_cat_file_blob_optional(&hub.cache_dir, &format!("{cp_tip}:README.md")).unwrap();
+    assert!(readme.is_some(), "browse README materialized after rename");
+
+    // Second run is a clean no-op (idempotent).
+    super::migrate_hub_v3::hub_branches(&hub.crosslink_dir).unwrap();
+    assert!(rev(&hub.cache_dir, "refs/crosslink/checkpoint").is_none());
+    assert!(rev(&hub.cache_dir, "refs/heads/crosslink/checkpoint").is_some());
 }

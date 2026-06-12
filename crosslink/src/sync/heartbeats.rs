@@ -9,7 +9,7 @@ impl SyncManager {
     /// Write and push this agent's heartbeat.
     ///
     /// v3 is the only mode that writes (754b): the heartbeat is written to the
-    /// agent's OWN ref (`refs/crosslink/agents/<id>`, sibling-preserving,
+    /// agent's OWN ref (`refs/heads/crosslink/agents/<id>`, sibling-preserving,
     /// single-writer) and that ref is pushed. There is no worktree file and no
     /// v2 commit flow — the v2 `crosslink/hub` branch is frozen.
     ///

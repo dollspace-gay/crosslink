@@ -905,9 +905,9 @@ mod integration {
             .output();
         // Drop the v3 marker refs so detection sees a pure v2 hub.
         for r in [
-            "refs/crosslink/meta",
-            "refs/crosslink/checkpoint",
-            "refs/crosslink/agents/test-agent",
+            "refs/heads/crosslink/meta",
+            "refs/heads/crosslink/checkpoint",
+            "refs/heads/crosslink/agents/test-agent",
         ] {
             let _ = Command::new("git")
                 .current_dir(work_dir.path())

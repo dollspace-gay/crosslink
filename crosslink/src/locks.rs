@@ -129,7 +129,7 @@ impl LocksFile {
 }
 
 /// Heartbeat for an agent. In v3 the serialized form lives at `heartbeat.json`
-/// at the root of the agent's own ref (`refs/crosslink/agents/<id>`); the legacy
+/// at the root of the agent's own ref (`refs/heads/crosslink/agents/<id>`); the legacy
 /// v2/V1 worktree heartbeat files used the same schema.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Heartbeat {

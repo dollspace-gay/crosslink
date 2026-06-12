@@ -191,7 +191,7 @@ pub fn read_snapshot(clone_path: &Path) -> Result<HubSnapshot> {
 /// Read a snapshot from a v3 hub (per-agent refs + checkpoint ref).
 ///
 /// A v3 hub stores no worktree files: issues/comments live in the reduced
-/// `CheckpointState` on `refs/crosslink/checkpoint`, locks in `state.locks`,
+/// `CheckpointState` on `refs/heads/crosslink/checkpoint`, locks in `state.locks`,
 /// and heartbeats on each agent ref's `heartbeat.json`. This reads the LAST
 /// MATERIALIZED checkpoint directly (no full `reduce`), which is the exact
 /// v2-equivalent freshness: the v2 file path equally reflects the last

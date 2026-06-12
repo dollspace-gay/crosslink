@@ -239,7 +239,7 @@ impl SharedWriter {
     /// Read the max `agent_seq` from this agent's existing event log.
     ///
     /// V2: reads the worktree file `agents/<id>/events.log`. V3: reads the
-    /// agent's OWN REF (`refs/crosslink/agents/<id>` -> `events.log`) via git
+    /// agent's OWN REF (`refs/heads/crosslink/agents/<id>` -> `events.log`) via git
     /// cat-file, since there is no worktree log in v3 and the ref is the only
     /// durable record of the sequence high-water mark (including after a prune).
     pub(super) fn read_max_event_seq(

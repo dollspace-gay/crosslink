@@ -884,6 +884,15 @@ enum MigrateCommands {
         #[arg(long)]
         yes_delete_v2: bool,
     },
+    /// Move the v3 hub refs to VISIBLE branches (#767), one-shot per machine.
+    ///
+    /// Renames every old hidden ref (`refs/crosslink/agents/*`,
+    /// `refs/crosslink/checkpoint`, `refs/crosslink/meta`) to the matching branch
+    /// under `refs/heads/crosslink/*` at the same SHA — local and on the remote —
+    /// then deletes the old refs and runs one compaction so the browsable state
+    /// tree materializes. Idempotent: a second run (or a hub already on visible
+    /// branches) is a clean no-op.
+    HubBranches,
 }
 
 /// Subcommands for `crosslink dashboard` (GH #429).
@@ -2675,6 +2684,10 @@ fn main() -> Result<()> {
             } => {
                 let crosslink_dir = find_crosslink_dir()?;
                 commands::migrate_hub_v3::hub_v3(&crosslink_dir, finalize, yes_delete_v2)
+            }
+            MigrateCommands::HubBranches => {
+                let crosslink_dir = find_crosslink_dir()?;
+                commands::migrate_hub_v3::hub_branches(&crosslink_dir)
             }
         },
 

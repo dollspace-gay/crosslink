@@ -27,7 +27,7 @@ impl SyncManager {
     /// Read lock state from the LOCAL v3 checkpoint ref's `state.json`.
     ///
     /// This deliberately does NOT run a full reduction: it reads the most
-    /// recently compacted checkpoint (`refs/crosslink/checkpoint` -> `state.json`
+    /// recently compacted checkpoint (`refs/heads/crosslink/checkpoint` -> `state.json`
     /// -> `state.locks`) and maps it into a [`LocksFile`]. The hot path here is
     /// `lock_check` (invoked per tool call by `PreToolUse` hooks), so a full
     /// `RefHubSource` reduce on every call would be too expensive.

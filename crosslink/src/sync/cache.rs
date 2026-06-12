@@ -142,8 +142,9 @@ impl SyncManager {
     /// Initialize the hub cache directory.
     ///
     /// The hub cache is a linked git worktree whose `.git` link shares the main
-    /// repository's object store and ref namespace, so the v3 `refs/crosslink/*`
-    /// refs resolve from it. The worktree branch is only a host for that working
+    /// repository's object store and ref namespace, so the v3
+    /// `refs/heads/crosslink/*` refs resolve from it. The worktree branch is only
+    /// a host for that working
     /// directory; v3 stores no data in its tree.
     ///
     /// Behavior by detected hub version (754b REQ-10 — fresh hubs bootstrap v3):
@@ -260,9 +261,11 @@ impl SyncManager {
     ///
     /// The host branch ([`super::HUB_V3_HOST_BRANCH`], an orphan with one empty
     /// commit) carries no hub data; it only makes the cache a valid git worktree
-    /// whose `.git` link shares the main repo's ref namespace, so `refs/crosslink/*`
-    /// resolve. It is deliberately NOT [`HUB_BRANCH`] (`crosslink/hub`), whose
-    /// presence would make detection report a v2 hub. A single empty genesis
+    /// whose `.git` link shares the main repo's ref namespace, so
+    /// `refs/heads/crosslink/*` resolve. It is deliberately NOT [`HUB_BRANCH`]
+    /// (`crosslink/hub`), whose presence would make detection report a v2 hub —
+    /// nor does its own name (`crosslink/hub-v3-host`) collide with the
+    /// checkpoint/meta/agents hub branches (#767). A single empty genesis
     /// commit gives `git log` etc. a valid HEAD.
     fn init_v3_host_worktree(&self) -> Result<()> {
         self.git_in_repo(&[
@@ -357,8 +360,8 @@ impl SyncManager {
 
     /// V3 ref-based fetch (754a PASS 2, REQ-3).
     ///
-    /// 1. `git fetch <remote> '+refs/crosslink/checkpoint:refs/crosslink-remote/checkpoint'
-    ///    'refs/crosslink/agents/*:refs/crosslink-remote/agents/*'` — checkpoint
+    /// 1. `git fetch <remote> '+refs/heads/crosslink/checkpoint:refs/crosslink-remote/checkpoint'
+    ///    'refs/heads/crosslink/agents/*:refs/crosslink-remote/agents/*'` — checkpoint
     ///    forced (pure cache), agent refs non-forced into tracking refs.
     /// 2. For each OTHER agent's ref, adopt the remote tracking tip
     ///    (writer-authoritative: the agent is the single writer of its ref, so
@@ -398,8 +401,8 @@ impl SyncManager {
         let fetch_result = self.git_in_cache(&[
             "fetch",
             &self.remote,
-            "+refs/crosslink/checkpoint:refs/crosslink-remote/checkpoint",
-            "refs/crosslink/agents/*:refs/crosslink-remote/agents/*",
+            "+refs/heads/crosslink/checkpoint:refs/crosslink-remote/checkpoint",
+            "refs/heads/crosslink/agents/*:refs/crosslink-remote/agents/*",
         ]);
         if fetch_result.is_err() {
             // Offline / no remote refs yet — nothing to adopt; local refs stand.

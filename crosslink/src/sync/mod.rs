@@ -22,7 +22,7 @@ pub(crate) const HUB_CACHE_DIR: &str = ".hub-cache";
 pub(crate) const HUB_BRANCH: &str = "crosslink/hub";
 
 /// Branch hosting the v3 hub-cache working directory. The branch carries no hub
-/// data (v3 state lives in `refs/crosslink/*`); it exists only so the cache is a
+/// data (v3 state lives in `refs/heads/crosslink/*`); it exists only so the cache is a
 /// valid git worktree whose `.git` link shares the main repo's ref namespace.
 /// Deliberately distinct from [`HUB_BRANCH`] so detection never mistakes a fresh
 /// v3 hub for a v2 one.
