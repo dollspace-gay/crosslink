@@ -1684,6 +1684,14 @@ fn git_hash_object(repo_dir: &Path, data: &[u8]) -> Result<String> {
 ///
 /// Sets deterministic author/committer identity from `agent_id`. Parent is
 /// optional (None for genesis commits).
+///
+/// Signing is explicitly disabled (`-c commit.gpgsign=false`): hub integrity
+/// lives in the envelope-level SSH signatures inside `events.log`, not in git
+/// commit signatures. Whether `commit-tree` honors `commit.gpgsign` varies by
+/// git version, and a repository may carry a stale `user.signingkey` (GH#627:
+/// a worktree-scoped key path left dangling by kickoff cleanup) — pinning the
+/// flag off makes ref writes immune to git signing config state, by contract
+/// rather than by accident.
 fn git_commit_tree(
     repo_dir: &Path,
     tree_sha: &str,
@@ -1694,7 +1702,7 @@ fn git_commit_tree(
     let author_name = agent_id;
     let author_email = format!("{agent_id}@crosslink");
 
-    let mut args: Vec<&str> = vec!["commit-tree", tree_sha];
+    let mut args: Vec<&str> = vec!["-c", "commit.gpgsign=false", "commit-tree", tree_sha];
     let parent_arg;
     if let Some(p) = parent_sha {
         parent_arg = p.to_string();
@@ -2372,6 +2380,43 @@ mod tests {
         run_git(path, &["init"]);
         run_git(path, &["config", "user.email", "test@crosslink.test"]);
         run_git(path, &["config", "user.name", "Test"]);
+    }
+
+    /// GH#627 regression: ref writes must be immune to git signing config.
+    /// A repository carrying `commit.gpgsign=true` plus a DANGLING
+    /// `user.signingkey` (the post-kickoff-cleanup state that broke v2 hub
+    /// commits) must neither fail the plumbing write nor produce a signed
+    /// commit — hub integrity lives in envelope-level SSH signatures, not
+    /// git commit signatures.
+    #[test]
+    fn append_immune_to_dangling_signing_config() {
+        let dir = tempfile::tempdir().unwrap();
+        git_init(dir.path());
+        run_git(dir.path(), &["config", "gpg.format", "ssh"]);
+        run_git(
+            dir.path(),
+            &[
+                "config",
+                "user.signingkey",
+                "/nonexistent/deleted-worktree/keys/dead_ed25519",
+            ],
+        );
+        run_git(dir.path(), &["config", "commit.gpgsign", "true"]);
+
+        let agent_id = "test-agent";
+        let outcome = append_event_to_ref(dir.path(), agent_id, &make_envelope(agent_id, 1))
+            .expect("dangling signing config must not break plumbing ref writes");
+
+        let raw = std::process::Command::new("git")
+            .current_dir(dir.path())
+            .args(["cat-file", "commit", &outcome.new_commit])
+            .output()
+            .unwrap();
+        let commit_text = String::from_utf8_lossy(&raw.stdout).to_string();
+        assert!(
+            !commit_text.contains("gpgsig"),
+            "ref commits must be unsigned regardless of git config, got:\n{commit_text}"
+        );
     }
 
     fn run_git(repo_dir: &Path, args: &[&str]) {
