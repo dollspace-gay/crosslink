@@ -1,0 +1,10 @@
+{
+  "uuid": "bcc9eb03-bd41-4625-8730-860ec6530936",
+  "issue_uuid": "319aa3b4-b853-4767-89a1-685e3093c5e7",
+  "author": "dashboard-bootstrap",
+  "content": "Part 1 (v3 read source + version detection) implemented on feature/753-hub-v3-migrate. hub_v3.rs: CHECKPOINT_REF/META_REF consts; commit machinery generalized onto commit_single_file_tree with CasExpectation (MustNotExist/MustMatch/CurrentTip); commit_blob_to_ref + commit_files_to_ref (multi-file mktree, defensively sorted); push_ref/push_ref_with_lease (push_agent_ref now a thin wrapper); HubVersion + detect_hub_version + detect_remote_hub_version (single ls-remote, unreachable remote = hard error); HubMeta + read_hub_meta. hub_source.rs: RefHubSource pinned at construction (checkpoint/meta/all agent tips), events.log at tree root, vanished-commit hard error, allowed_signers from META_REF via owned TempDir. 12 new tests incl. keystone reduce(WorktreeSource)==reduce(RefHubSource) equivalence. Gates: fmt clean, both clippy gates clean, lib 1978 pass (baseline 1966+12), bin 2967 pass (baseline 2955+12). mktree finding: git 2.54 sorts unsorted stdin itself (identical tree SHA either way); sort kept defensively for older gits.",
+  "created_at": "2026-06-12T00:02:19.360133448Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABABUodZqePKukDgAKiRwZg+IhtpnEm5QeIrphjo//xl+mcICNEAeSw15txOlKmBYYrTrhGECl+p0eqWQo2axK5Dw=="
+}
