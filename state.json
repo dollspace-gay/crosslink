@@ -1,5 +1,5 @@
 {
-  "next_display_id": 765,
+  "next_display_id": 766,
   "next_comment_id": 1076,
   "display_id_map": {
     "00a365a3-7b31-465a-aced-4f1e39c68f8b": 118,
@@ -219,6 +219,7 @@
     "45c56e7a-b649-496e-b086-7ddfdca739a6": 464,
     "4726a6dc-50c1-4e64-8cc4-5844ce15284f": 687,
     "4730e7c2-8806-49ac-88e2-e421be167008": 507,
+    "4748dcc9-a6df-46c0-a859-e526f2f73d9c": 765,
     "47c81c76-f8d2-435d-9750-4953cf3470cf": 235,
     "4887a521-615e-44e0-837f-f43eaab219b3": 397,
     "48b0d09d-46ae-45a2-a1be-bca1fbaa92d1": 233,
@@ -7243,6 +7244,16 @@
           "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAry05qkL+h+P9+RMsQrdSVz8HkUrWeelVknvJzHadxCdKA/xXYFDU/JY0FHaQ7ywtmYbjQRfZDDOCsHUV5jCVAw=="
         }
       }
+    },
+    "4748dcc9-a6df-46c0-a859-e526f2f73d9c": {
+      "uuid": "4748dcc9-a6df-46c0-a859-e526f2f73d9c",
+      "display_id": 765,
+      "title": "Review GH#628: knowledge contributors attribution",
+      "status": "open",
+      "priority": "medium",
+      "created_by": "dashboard-bootstrap",
+      "created_at": "2026-06-12T18:47:27.837568509Z",
+      "updated_at": "2026-06-12T18:47:27.837568509Z"
     },
     "47c81c76-f8d2-435d-9750-4953cf3470cf": {
       "uuid": "47c81c76-f8d2-435d-9750-4953cf3470cf",
@@ -23603,8 +23614,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-12T18:37:20.219852880Z",
+    "timestamp": "2026-06-12T18:47:27.837568509Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 122
+    "agent_seq": 123
   }
 }
