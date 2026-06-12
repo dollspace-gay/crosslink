@@ -1,6 +1,6 @@
 {
   "next_display_id": 768,
-  "next_comment_id": 1081,
+  "next_comment_id": 1082,
   "display_id_map": {
     "00a365a3-7b31-465a-aced-4f1e39c68f8b": 118,
     "01b74b94-82e0-4bda-9bed-7eace0292544": 70,
@@ -13607,11 +13607,20 @@
       "priority": "high",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-12T19:40:22.651433804Z",
-      "updated_at": "2026-06-12T20:18:19.793455448Z",
+      "updated_at": "2026-06-12T20:23:10.247327723Z",
       "labels": [
         "architecture"
       ],
       "comments": {
+        "506d3cd8-ef28-4588-817d-6a631092d08f": {
+          "display_id": 1081,
+          "author": "dashboard-bootstrap",
+          "content": "Committed on feature/767-hub-visible-branches. Namespace flipped to refs/heads/crosslink/*, browse tree (issues + README + milestones) on the checkpoint branch with incremental updates and deterministic content, migrate hub-branches rename command. Director-verified gates: 1767 lib + 2776 bin + 194 integration, fmt, both clippy profiles. Heartbeat visibility restored as a side effect: heartbeat commits appear on agent branches in the web UI. Awaiting push; rollout = migrate hub-branches on dollspace then basel post-merge.",
+          "created_at": "2026-06-12T20:23:10.245095133Z",
+          "kind": "result",
+          "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+          "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAkwP5iqr+v6j28way0jUk/5jIi7aVvjzY8tNe7rlxaS5MCO69pLFQ19bnhinymwpvpcBP31RegK1k9IPwo+dKDg=="
+        },
         "6c6f22dc-ab57-4b2a-9ad7-beb26cc15ae0": {
           "display_id": 1079,
           "author": "dashboard-bootstrap",
@@ -23709,8 +23718,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-12T20:18:19.793455448Z",
+    "timestamp": "2026-06-12T20:23:10.247327723Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 137
+    "agent_seq": 138
   }
 }
