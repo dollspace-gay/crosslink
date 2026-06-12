@@ -21554,11 +21554,12 @@
       "uuid": "ea7ce593-a9a4-4b2f-bc5c-e69ed0d9f0f5",
       "display_id": 771,
       "title": "Fix GH#621: cpitd init failure UX + actually USE cpitd somewhere useful",
-      "status": "open",
+      "status": "closed",
       "priority": "high",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-12T21:46:45.783911058Z",
-      "updated_at": "2026-06-12T22:22:28.998085275Z",
+      "updated_at": "2026-06-12T22:22:32.527435653Z",
+      "closed_at": "2026-06-12T22:22:32.527434475Z",
       "labels": [
         "bug"
       ],
@@ -23893,8 +23894,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-12T22:22:28.998085275Z",
+    "timestamp": "2026-06-12T22:22:32.527435653Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 166
+    "agent_seq": 167
   }
 }
