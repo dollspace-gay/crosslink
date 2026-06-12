@@ -91,6 +91,13 @@ fn poll_all_sources(
             ));
         }
     }
+    if config.sources.cpitd.enabled {
+        sources.push(Box::new(super::sources::cpitd::CpitdSource::new(
+            crosslink_dir,
+            config.sources.cpitd.interval_hours,
+            config.sources.cpitd.min_tokens,
+        )));
+    }
 
     let mut all_signals: Vec<Signal> = Vec::new();
     for source in &mut sources {

@@ -1153,7 +1153,30 @@ pub fn run(path: &Path, opts: &InitOpts<'_>) -> Result<()> {
                 // Finish the step_start line, then show warning below
                 println!();
                 ui.warn(&format!("Could not auto-install cpitd: {e}"));
-                ui.detail("You can install it manually: pip install cpitd");
+                if e.externally_managed {
+                    // PEP 668: the system Python is externally managed, so plain
+                    // `pip install` (and `pip install --user`) are refused. Give
+                    // the specific, working paths instead of a useless suggestion.
+                    ui.detail(
+                        "This Python is externally managed (PEP 668), so `pip install` is blocked.",
+                    );
+                    ui.detail("To install cpitd, pick one of:");
+                    ui.detail("  1. Install pipx, then cpitd into its own isolated env:");
+                    ui.detail("       apt install pipx   (or: brew install pipx)");
+                    ui.detail("       pipx install cpitd");
+                    ui.detail("  2. Create a virtualenv and install there:");
+                    ui.detail("       python3 -m venv .venv && . .venv/bin/activate");
+                    ui.detail("       pip install cpitd");
+                    ui.detail("  3. Re-run init without cpitd: crosslink init --skip-cpitd");
+                } else {
+                    ui.detail(
+                        "To install cpitd: pipx install cpitd  (or in a venv: pip install cpitd)",
+                    );
+                    ui.detail("Or re-run init without it: crosslink init --skip-cpitd");
+                }
+                ui.detail(
+                    "cpitd is OPTIONAL: only `crosslink cpitd scan` and the sentinel cpitd source use it; everything else works without it.",
+                );
             }
         }
     }

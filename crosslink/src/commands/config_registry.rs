@@ -210,6 +210,27 @@ pub static REGISTRY: &[ConfigKey] = &[
         hot_swappable: true,
     },
     ConfigKey {
+        key: "sentinel.sources.cpitd.enabled",
+        config_type: ConfigType::Bool,
+        description: "Enable periodic cpitd clone-detection source (default off)",
+        group: ConfigGroup::Sentinel,
+        hot_swappable: true,
+    },
+    ConfigKey {
+        key: "sentinel.sources.cpitd.interval_hours",
+        config_type: ConfigType::Integer,
+        description: "Hours between cpitd clone scans (default 168 = weekly)",
+        group: ConfigGroup::Sentinel,
+        hot_swappable: true,
+    },
+    ConfigKey {
+        key: "sentinel.sources.cpitd.min_tokens",
+        config_type: ConfigType::Integer,
+        description: "Minimum token sequence length cpitd reports as a clone (default 50)",
+        group: ConfigGroup::Sentinel,
+        hot_swappable: true,
+    },
+    ConfigKey {
         key: "sentinel.default_agent.model",
         config_type: ConfigType::String,
         description: "Default model for sentinel-dispatched agents",
