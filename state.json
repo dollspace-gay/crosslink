@@ -1,6 +1,6 @@
 {
   "next_display_id": 772,
-  "next_comment_id": 1089,
+  "next_comment_id": 1090,
   "display_id_map": {
     "00a365a3-7b31-465a-aced-4f1e39c68f8b": 118,
     "01b74b94-82e0-4bda-9bed-7eace0292544": 70,
@@ -21558,10 +21558,21 @@
       "priority": "high",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-12T21:46:45.783911058Z",
-      "updated_at": "2026-06-12T21:46:49.283890371Z",
+      "updated_at": "2026-06-12T21:48:29.440488629Z",
       "labels": [
         "bug"
-      ]
+      ],
+      "comments": {
+        "75e5604b-6e69-4ca2-8f21-678defd32d20": {
+          "display_id": 1089,
+          "author": "dashboard-bootstrap",
+          "content": "Design: (A) INIT UX -- install chain becomes pipx-first (canonical PEP 668 answer), then pip --user, then pip, then git fallback; the externally-managed-environment failure is detected specifically and the warning becomes actionable (exact pipx/venv commands, note that --skip-cpitd and post-init crosslink cpitd scan remain available); init continues gracefully as today. (B) USAGE -- cpitd gets a real home in sentinel as a new source (sentinel.sources.cpitd.*, default disabled): on its interval, runs the existing scan (which files clone issues directly); newly filed clone issues surface as signals through sentinel's existing dispatch/reporting so fix agents can be configured per existing policy. Plus a cpitd scan step in the /maintain skill checklist template. Grounding: cpitd currently has ZERO automatic callers -- installed by init, used only via manual crosslink cpitd scan.",
+          "created_at": "2026-06-12T21:48:29.438226238Z",
+          "kind": "plan",
+          "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+          "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA3YbefvH6oHarGQQ+5lAZGdDO8a7PBzY5yhUaK4oGVpl6da5KvxHhluN7lu+QgMyWnd/TRsm2pvBB8hU4Orx7AQ=="
+        }
+      }
     },
     "ea8b2b52-86c6-47df-a85d-628869b5706c": {
       "uuid": "ea8b2b52-86c6-47df-a85d-628869b5706c",
@@ -23864,8 +23875,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-12T21:46:53.393199771Z",
+    "timestamp": "2026-06-12T21:48:29.440488629Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 163
+    "agent_seq": 164
   }
 }
