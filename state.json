@@ -16453,11 +16453,12 @@
       "uuid": "aa93a0c5-1994-4517-ad8a-4971df341917",
       "display_id": 768,
       "title": "Security check: verify allowed_signers on meta branch is public-key-only",
-      "status": "open",
+      "status": "closed",
       "priority": "high",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-12T20:56:11.240154119Z",
-      "updated_at": "2026-06-12T20:56:51.774135294Z",
+      "updated_at": "2026-06-12T20:56:55.312892517Z",
+      "closed_at": "2026-06-12T20:56:55.312890971Z",
       "labels": [
         "security"
       ],
@@ -23757,8 +23758,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-12T20:56:51.774135294Z",
+    "timestamp": "2026-06-12T20:56:55.312892517Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 144
+    "agent_seq": 145
   }
 }
