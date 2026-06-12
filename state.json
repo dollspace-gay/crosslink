@@ -8275,7 +8275,10 @@
       "priority": "medium",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-12T18:35:51.187514311Z",
-      "updated_at": "2026-06-12T18:35:51.187514311Z"
+      "updated_at": "2026-06-12T18:35:54.680565120Z",
+      "labels": [
+        "triage"
+      ]
     },
     "562ecb52-d472-4f77-a8b3-f3aee7c21e59": {
       "uuid": "562ecb52-d472-4f77-a8b3-f3aee7c21e59",
@@ -23584,8 +23587,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-12T18:35:51.187514311Z",
+    "timestamp": "2026-06-12T18:35:54.680565120Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 118
+    "agent_seq": 119
   }
 }
