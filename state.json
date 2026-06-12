@@ -13943,9 +13943,10 @@
       "priority": "medium",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-11T18:48:42.330843364Z",
-      "updated_at": "2026-06-11T21:46:59.237815581Z",
+      "updated_at": "2026-06-12T05:38:31.991527542Z",
       "labels": [
-        "architecture"
+        "architecture",
+        "v3-cutover"
       ],
       "blockers": [
         "22609972-a1f7-4b46-8140-04ae255b43eb",
@@ -23426,8 +23427,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-12T04:11:40.129665691Z",
+    "timestamp": "2026-06-12T05:38:31.991527542Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 92
+    "agent_seq": 93
   }
 }
