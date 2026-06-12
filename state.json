@@ -1,6 +1,6 @@
 {
   "next_display_id": 764,
-  "next_comment_id": 1073,
+  "next_comment_id": 1074,
   "display_id_map": {
     "00a365a3-7b31-465a-aced-4f1e39c68f8b": 118,
     "01b74b94-82e0-4bda-9bed-7eace0292544": 70,
@@ -17357,10 +17357,21 @@
       "priority": "medium",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-12T18:17:33.253659891Z",
-      "updated_at": "2026-06-12T18:17:40.018078320Z",
+      "updated_at": "2026-06-12T18:31:16.616719671Z",
       "labels": [
         "triage"
-      ]
+      ],
+      "comments": {
+        "5746f0ad-6308-45c9-aaff-2d55f40960b2": {
+          "display_id": 1073,
+          "author": "dashboard-bootstrap",
+          "content": "Hardening committed on fix/627-plumbing-gpgsign-hardening: -c commit.gpgsign=false pinned at git_commit_tree (single chokepoint for all v3 ref commits) + GH#627-shaped regression test (dangling signingkey + gpgsign=true -> write succeeds, commit unsigned). GH#627 close comment with full migration explanation will be posted with the PR link after PR creation. Gates: 1762 lib + 2766 bin, fmt, both clippy profiles.",
+          "created_at": "2026-06-12T18:31:16.562509309Z",
+          "kind": "result",
+          "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+          "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAj5rnH92mHw771guwE5TPAFuTXrUiRdRSV4c9wQrhdlXsDs1nTV5VepoENBvVQuqvjqKtVhsoiwsCx3dnXzT5DQ=="
+        }
+      }
     },
     "b7cde38d-4091-4bf9-9e74-47eed19ff788": {
       "uuid": "b7cde38d-4091-4bf9-9e74-47eed19ff788",
@@ -23552,8 +23563,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-12T18:17:44.680062984Z",
+    "timestamp": "2026-06-12T18:31:16.616719671Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 114
+    "agent_seq": 115
   }
 }
