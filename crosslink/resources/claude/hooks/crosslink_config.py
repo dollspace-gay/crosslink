@@ -68,19 +68,32 @@ def _resolve_main_repo_root(start_dir):
         return None
 
 
+def _is_initialized_crosslink_dir(candidate):
+    """Whether a .crosslink candidate is an initialized crosslink project dir.
+
+    `crosslink init` always writes hook-config.json. Stray `.crosslink/`
+    directories seeded in subdirectories by cwd drift (GH#625) lack it —
+    they contain only hydration caches. Binding to a stray sends hook
+    caches/heartbeats to the wrong place, so candidates without the marker
+    are skipped.
+    """
+    return os.path.isfile(os.path.join(candidate, 'hook-config.json'))
+
+
 def find_crosslink_dir():
-    """Find the .crosslink directory.
+    """Find the INITIALIZED .crosslink directory (GH#625-safe).
 
     Prefers the project root derived from the hook script's own path
     (reliable even when cwd is a subdirectory), falling back to walking
     up from cwd, then checking if we're in a git worktree and looking
-    in the main repo root.
+    in the main repo root. Candidates without hook-config.json are
+    strays and are never bound.
     """
     # Primary: resolve from script location
     root = project_root_from_script()
     if root:
         candidate = os.path.join(root, '.crosslink')
-        if os.path.isdir(candidate):
+        if os.path.isdir(candidate) and _is_initialized_crosslink_dir(candidate):
             return candidate
 
     # Fallback: walk up from cwd
@@ -88,7 +101,7 @@ def find_crosslink_dir():
     start = current
     for _ in range(10):
         candidate = os.path.join(current, '.crosslink')
-        if os.path.isdir(candidate):
+        if os.path.isdir(candidate) and _is_initialized_crosslink_dir(candidate):
             return candidate
         parent = os.path.dirname(current)
         if parent == current:
@@ -99,7 +112,7 @@ def find_crosslink_dir():
     main_root = _resolve_main_repo_root(start)
     if main_root:
         candidate = os.path.join(main_root, '.crosslink')
-        if os.path.isdir(candidate):
+        if os.path.isdir(candidate) and _is_initialized_crosslink_dir(candidate):
             return candidate
 
     return None

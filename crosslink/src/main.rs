@@ -2141,14 +2141,43 @@ fn init_tracing(log_level: &str, log_format: &str) {
 }
 
 fn find_crosslink_dir() -> Result<PathBuf> {
-    let mut current = env::current_dir()?;
+    find_crosslink_dir_from(&env::current_dir()?)
+}
 
-    // First, walk up from cwd looking for .crosslink (works in main repo)
-    let start = current.clone();
+/// Whether a `.crosslink` candidate is an initialized crosslink project dir.
+///
+/// `crosslink init` always writes `hook-config.json`, and agent worktrees
+/// carry it (committed on their branch or written by the worktree init).
+/// Stray `.crosslink/` directories seeded by cwd drift (GH#625) lack it —
+/// they contain only hydration caches (`issues.db`, `.cache/`). Binding to
+/// a stray silently splits the database, so candidates without the marker
+/// are skipped with a warning instead of bound.
+fn is_initialized_crosslink_dir(candidate: &std::path::Path) -> bool {
+    candidate.join("hook-config.json").is_file()
+}
+
+fn find_crosslink_dir_from(start: &std::path::Path) -> Result<PathBuf> {
+    let mut current = start.to_path_buf();
+    let mut skipped_strays: Vec<PathBuf> = Vec::new();
+
+    // First, walk up from the start dir looking for an INITIALIZED
+    // .crosslink (works in main repo). Stray dirs are skipped, not bound.
     loop {
         let candidate = current.join(".crosslink");
         if candidate.is_dir() {
-            return Ok(candidate);
+            if is_initialized_crosslink_dir(&candidate) {
+                for stray in &skipped_strays {
+                    tracing::warn!(
+                        "ignoring stray .crosslink at {} (no hook-config.json — likely \
+                         created by cwd drift, GH#625); using {} — consider deleting \
+                         the stray",
+                        stray.display(),
+                        candidate.display()
+                    );
+                }
+                return Ok(candidate);
+            }
+            skipped_strays.push(candidate);
         }
 
         if !current.pop() {
@@ -2157,14 +2186,36 @@ fn find_crosslink_dir() -> Result<PathBuf> {
     }
 
     // Not found — check if we're in a git worktree and look in the main repo root
-    if let Some(main_root) = utils::resolve_main_repo_root(&start) {
+    if let Some(main_root) = utils::resolve_main_repo_root(start) {
         let candidate = main_root.join(".crosslink");
-        if candidate.is_dir() {
+        if candidate.is_dir() && is_initialized_crosslink_dir(&candidate) {
             return Ok(candidate);
         }
     }
 
-    bail!("Not a crosslink repository (or any parent). Run 'crosslink init' first.");
+    if skipped_strays.is_empty() {
+        bail!("Not a crosslink repository (or any parent). Run 'crosslink init' first.");
+    }
+    bail!(
+        "Not a crosslink repository (or any parent). Found stray uninitialized \
+         .crosslink director{} (no hook-config.json) at: {} — likely created by \
+         cwd drift (GH#625). Delete {} or run 'crosslink init' at the project root.",
+        if skipped_strays.len() == 1 {
+            "y"
+        } else {
+            "ies"
+        },
+        skipped_strays
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", "),
+        if skipped_strays.len() == 1 {
+            "it"
+        } else {
+            "them"
+        },
+    );
 }
 
 fn get_db() -> Result<Database> {
@@ -3402,5 +3453,81 @@ fn main() -> Result<()> {
                 crosslink_dir,
             ))
         }
+    }
+}
+
+#[cfg(test)]
+mod find_crosslink_dir_tests {
+    use super::find_crosslink_dir_from;
+
+    fn mk_initialized(dir: &std::path::Path) {
+        let cl = dir.join(".crosslink");
+        std::fs::create_dir_all(&cl).unwrap();
+        std::fs::write(cl.join("hook-config.json"), "{}").unwrap();
+    }
+
+    fn mk_stray(dir: &std::path::Path) {
+        // GH#625 stray shape: hydration cache only, no hook-config.json.
+        let cl = dir.join(".crosslink");
+        std::fs::create_dir_all(cl.join(".cache")).unwrap();
+        std::fs::write(cl.join("issues.db"), b"sqlite").unwrap();
+    }
+
+    #[test]
+    fn binds_initialized_dir_directly() {
+        let root = tempfile::tempdir().unwrap();
+        mk_initialized(root.path());
+        let found = find_crosslink_dir_from(root.path()).unwrap();
+        assert_eq!(found, root.path().join(".crosslink"));
+    }
+
+    #[test]
+    fn skips_stray_in_subdir_and_binds_root() {
+        // The GH#625 scenario: cwd drifted to web/, which holds a stray.
+        let root = tempfile::tempdir().unwrap();
+        mk_initialized(root.path());
+        let web = root.path().join("web");
+        std::fs::create_dir_all(&web).unwrap();
+        mk_stray(&web);
+
+        let found = find_crosslink_dir_from(&web).unwrap();
+        assert_eq!(
+            found,
+            root.path().join(".crosslink"),
+            "must bind the initialized root, not the stray"
+        );
+    }
+
+    #[test]
+    fn stray_only_errors_naming_the_stray() {
+        let root = tempfile::tempdir().unwrap();
+        let web = root.path().join("web");
+        std::fs::create_dir_all(&web).unwrap();
+        mk_stray(&web);
+
+        let err = find_crosslink_dir_from(&web).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("stray") && msg.contains("GH#625"),
+            "error must explain the stray, got: {msg}"
+        );
+        assert!(
+            msg.contains(&web.join(".crosslink").display().to_string()),
+            "error must name the stray path, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn nested_initialized_dir_still_wins_over_parent() {
+        // An intentionally initialized nested project (has hook-config.json)
+        // must keep binding locally -- the marker, not depth, decides.
+        let root = tempfile::tempdir().unwrap();
+        mk_initialized(root.path());
+        let sub = root.path().join("subproject");
+        std::fs::create_dir_all(&sub).unwrap();
+        mk_initialized(&sub);
+
+        let found = find_crosslink_dir_from(&sub).unwrap();
+        assert_eq!(found, sub.join(".crosslink"));
     }
 }
