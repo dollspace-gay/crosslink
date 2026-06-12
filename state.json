@@ -1,6 +1,6 @@
 {
   "next_display_id": 761,
-  "next_comment_id": 1066,
+  "next_comment_id": 1067,
   "display_id_map": {
     "00a365a3-7b31-465a-aced-4f1e39c68f8b": 118,
     "01b74b94-82e0-4bda-9bed-7eace0292544": 70,
@@ -13943,7 +13943,7 @@
       "priority": "medium",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-11T18:48:42.330843364Z",
-      "updated_at": "2026-06-12T05:38:31.991527542Z",
+      "updated_at": "2026-06-12T05:47:38.339890974Z",
       "labels": [
         "architecture",
         "v3-cutover"
@@ -13960,6 +13960,15 @@
           "kind": "result",
           "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
           "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAPSMYmdIfQYU9eO2L+Py9pmFNls7ZcUDOzBdHBDhfPqSGe1mOv2zVdgGJz77wz1OOFYq+Wj9sec2CyfArshODAQ=="
+        },
+        "64c969b9-336b-4164-9847-4d00c9b085fb": {
+          "display_id": 1066,
+          "author": "dashboard-bootstrap",
+          "content": "MIGRATION EXECUTED ON THIS REPOSITORY: crosslink migrate hub-v3 succeeded -- 759 issues, 1345 comments, 16 locks in genesis; 3 orphaned offline relics minted ids #758-#760; AC-6 verification passed; refs/crosslink/{agents/dashboard-bootstrap,checkpoint,meta} pushed to origin. Live v3 operation verified: label op advanced the agent ref (local == remote tip), v2 branch untouched since migration. v2 branch retained as escape hatch; finalize deferred until 754b merges and v3 operation has been exercised. Stale migrated-hub warning fixed on fix/754-stale-v2-warning (fired for V3-mode clients due to pre-754a wiring).",
+          "created_at": "2026-06-12T05:47:38.326314878Z",
+          "kind": "result",
+          "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+          "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAzagkeuvXBFreDX8+A8ZX1q/V0MfmRj7q1sOPyUYPUjh1xySbvbXcPv4AGs1Ws04DJMtZBrNACVlquylQam18DQ=="
         },
         "a5089588-55bc-4637-b766-d6af5b5e0908": {
           "author": "dashboard-bootstrap",
@@ -23427,8 +23436,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-12T05:38:31.991527542Z",
+    "timestamp": "2026-06-12T05:47:38.339890974Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 93
+    "agent_seq": 94
   }
 }
