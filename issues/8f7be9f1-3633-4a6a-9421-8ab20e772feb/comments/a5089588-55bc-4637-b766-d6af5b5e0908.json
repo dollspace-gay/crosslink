@@ -1,0 +1,10 @@
+{
+  "uuid": "a5089588-55bc-4637-b766-d6af5b5e0908",
+  "issue_uuid": "8f7be9f1-3633-4a6a-9421-8ab20e772feb",
+  "author": "dashboard-bootstrap",
+  "content": "PASS 1 complete (hub_v3.rs only, +1474/-51). Tree core: read_tree_entries (git ls-tree, subtrees kept verbatim), write_tree_with (one nesting level via split_one_level; subtree rebuilt from leaves, emptied subtree dropped), BlobRef::{Existing,Bytes}; all commit paths (append step-e, commit_log_bytes, commit_blob_to_ref, commit_files_to_ref) routed through commit_upserts_to_ref -> sibling-preserving. Removed now-dead git_mktree_single/multi/commit_tree_and_update_ref. Heartbeats: write_heartbeat_to_ref/read_heartbeats_from_refs reuse locks::Heartbeat schema. Requests: requests-out/<target>--<ulid>.json (split on LAST --) + requests-ack/<ulid>.json, one-level subtrees both; write_request_to_own_ref/write_ack_to_own_ref/poll_requests_for_agent. compact_v3 in hub_v3.rs (depends on its own ref primitives + RefHubSource; compaction.rs sits below in dep graph so placing it there would cycle): reduce->commit checkpoint (CAS CurrentTip, lost CAS benign None)->push_ref_with_lease (lease loss benign)->REQ-11 prune_own_ref ONLY after checkpoint committed AND (if remote) pushed. v2 sig finding: requests/acks are plain JSON with requested_by fingerprint, NOT git-signed; v2 trusts local cache (fetch rejects bad-signer commits) and reduce only WARNS on unsigned -> mirrored: no per-request sig gate. Tests +15 all green. Gates: fmt clean, both clippy gates clean, lib 1993, bin 2990, cli_integration 194.",
+  "created_at": "2026-06-12T01:07:28.563384642Z",
+  "kind": "result",
+  "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAP8O5d+PxKVTEgjkO4Ni4A6xT+i+wkRqKN1ScQzTeB9/CtAnHvUZiGxSUyAUwP/ovCBmrYpAcvBdI/QcHgL/6AA=="
+}
