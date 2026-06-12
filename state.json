@@ -13939,11 +13939,12 @@
       "display_id": 754,
       "title": "hub-v3 PR4: flip default, delete v2 conflict machinery, add --finalize",
       "description": "Fourth PR of the hub v3 migration (.design/hub-v3-per-agent-refs.md, REQ-10, REQ-11). Make hub_v3 the default, delete recover_from_push_conflict, rebase-retry, clean_dirty_state conflict repair, hub_health_check, verify_cache_worktree, V1 layout support, reconcile_display_counter, dedup_issue_files, counters.json and locks.json schemas, and the hub-cache worktree lifecycle. Add migrate hub-v3 --finalize. Event-log pruning per REQ-11. Acceptance: AC-8, AC-9, AC-10 (grep returns nothing, negative diffstat), AC-11 (smoke suite against GitHub and bare remotes).",
-      "status": "open",
+      "status": "closed",
       "priority": "medium",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-11T18:48:42.330843364Z",
-      "updated_at": "2026-06-12T18:04:03.974949986Z",
+      "updated_at": "2026-06-12T18:04:08.408543106Z",
+      "closed_at": "2026-06-12T18:04:08.408541800Z",
       "labels": [
         "architecture",
         "v3-cutover"
@@ -23481,8 +23482,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-12T18:04:03.974949986Z",
+    "timestamp": "2026-06-12T18:04:08.408543106Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 100
+    "agent_seq": 101
   }
 }
