@@ -1,5 +1,5 @@
 {
-  "next_display_id": 777,
+  "next_display_id": 778,
   "next_comment_id": 1102,
   "display_id_map": {
     "00a365a3-7b31-465a-aced-4f1e39c68f8b": 118,
@@ -294,6 +294,7 @@
     "5ef61b1b-cf61-491a-b977-560299cc355b": 442,
     "603b1f51-5fff-4501-9849-d0846da3de94": 374,
     "608e249c-369a-4612-a025-06f1104489ef": 300,
+    "609c6dd2-387b-4c0f-9c22-d0e74c5d13b8": 777,
     "6133d2c0-9aa9-47a3-8687-c2989653dac3": 681,
     "61e4265f-0a2c-4089-b3e3-5fbd422452c3": 761,
     "62910353-e816-4177-b3de-c62d4f1e3873": 279,
@@ -9505,6 +9506,17 @@
       "labels": [
         "enhancement"
       ]
+    },
+    "609c6dd2-387b-4c0f-9c22-d0e74c5d13b8": {
+      "uuid": "609c6dd2-387b-4c0f-9c22-d0e74c5d13b8",
+      "display_id": 777,
+      "title": "auto-changelog appends to first '### Changed' heading -- lands entries inside released sections when Unreleased lacks the heading",
+      "description": "Found during the v0.9.0-beta.1 release cut: issue-close auto-entries targeted under Changed were appended at the first '### Changed' heading in CHANGELOG.md, which belonged to the released [0.5.2] section because [Unreleased] had only Fixed/Added headings. The appender must scope heading search to the [Unreleased] section and create the heading there when absent. Evidence: ~15 hub-v3-era entries at line 158ff inside [0.5.2] in the working tree diff of the release session.",
+      "status": "open",
+      "priority": "medium",
+      "created_by": "dashboard-bootstrap",
+      "created_at": "2026-06-13T01:57:54.441908491Z",
+      "updated_at": "2026-06-13T01:57:54.441908491Z"
     },
     "6133d2c0-9aa9-47a3-8687-c2989653dac3": {
       "uuid": "6133d2c0-9aa9-47a3-8687-c2989653dac3",
@@ -24097,8 +24109,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-13T01:54:42.447745669Z",
+    "timestamp": "2026-06-13T01:57:54.441908491Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 199
+    "agent_seq": 200
   }
 }
