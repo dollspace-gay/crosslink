@@ -6159,11 +6159,12 @@
       "uuid": "3bb3af59-2b5f-4d79-b332-9f3e758414a7",
       "display_id": 773,
       "title": "Fix GH#614: pipeline.json runs array grows monotonically, never reconciled",
-      "status": "open",
+      "status": "closed",
       "priority": "medium",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-12T22:26:42.161182933Z",
-      "updated_at": "2026-06-13T00:29:34.695570588Z",
+      "updated_at": "2026-06-13T00:29:39.362757492Z",
+      "closed_at": "2026-06-13T00:29:39.362756151Z",
       "labels": [
         "bug"
       ],
@@ -23980,8 +23981,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-13T00:29:34.695570588Z",
+    "timestamp": "2026-06-13T00:29:39.362757492Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 179
+    "agent_seq": 180
   }
 }
