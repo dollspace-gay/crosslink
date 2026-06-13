@@ -1022,7 +1022,15 @@ pub fn run(path: &Path, opts: &InitOpts<'_>) -> Result<()> {
              \n\
              # Machine-local overrides\n\
              hook-config.local.json\n\
-             rules.local/\n",
+             rules.local/\n\
+             \n\
+             # Machine-local runtime state (regenerated per machine; never commit)\n\
+             .active-issue\n\
+             .last-hydrated-ref\n\
+             .promoted-uuids\n\
+             promotion-log.json\n\
+             hub-v3-shadow-stats.json\n\
+             sentinel.log\n",
         )
         .context("Failed to write .crosslink/.gitignore")?;
     }
@@ -2256,6 +2264,46 @@ mod tests {
 
         let content = fs::read_to_string(dir.path().join(".crosslink/.gitignore")).unwrap();
         assert!(content.contains("integrations/"));
+    }
+
+    #[test]
+    fn test_crosslink_inner_gitignore_ignores_runtime_state() {
+        // GH#778: runtime state files must be gitignored so `git add -A` can
+        // never commit machine-local churn (it did, into the v0.9.0-beta.1
+        // release merge, before this fix).
+        let dir = test_dir();
+        run(dir.path(), &test_opts(false)).unwrap();
+
+        let inner = fs::read_to_string(dir.path().join(".crosslink/.gitignore")).unwrap();
+        for entry in [
+            ".active-issue",
+            ".last-hydrated-ref",
+            ".promoted-uuids",
+            "promotion-log.json",
+            "hub-v3-shadow-stats.json",
+            "sentinel.log",
+        ] {
+            assert!(
+                inner.contains(entry),
+                "inner .crosslink/.gitignore missing runtime entry: {entry}"
+            );
+        }
+
+        // The root managed section must ignore them too (the deeper cause:
+        // the root .gitignore is what `git add -A` consults from repo root).
+        let root = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+        for entry in [
+            ".crosslink/.last-hydrated-ref",
+            ".crosslink/.promoted-uuids",
+            ".crosslink/promotion-log.json",
+            ".crosslink/hub-v3-shadow-stats.json",
+            ".crosslink/sentinel.log",
+        ] {
+            assert!(
+                root.contains(entry),
+                "root .gitignore managed section missing runtime entry: {entry}"
+            );
+        }
     }
 
     // --- Tier 1/2 smoke tests (GH issue #242) ---
