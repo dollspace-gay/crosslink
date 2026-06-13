@@ -1,6 +1,6 @@
 {
   "next_display_id": 779,
-  "next_comment_id": 1105,
+  "next_comment_id": 1106,
   "display_id_map": {
     "00a365a3-7b31-465a-aced-4f1e39c68f8b": 118,
     "01b74b94-82e0-4bda-9bed-7eace0292544": 70,
@@ -1011,7 +1011,7 @@
       "priority": "high",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-13T01:54:30.953851101Z",
-      "updated_at": "2026-06-13T02:30:43.776493452Z",
+      "updated_at": "2026-06-13T02:58:43.318575726Z",
       "labels": [
         "release"
       ],
@@ -1057,6 +1057,17 @@
           "kind": "plan",
           "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
           "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAXuBGEKQxU1mf8wSDKmP3F1MSIW6yt7BN4WKfPecyJYhxbuHV2A3iWSevv47aR9a51LvDErSJ/6FIaM6f1AiKDA=="
+        },
+        "ebd585c3-a7f0-4a77-9215-7cc6f07190da": {
+          "display_id": 1105,
+          "author": "dashboard-bootstrap",
+          "content": "git add -A on the conflict-merge committed 6 untracked .crosslink runtime files; rode #650 into main + the v0.9.0-beta.1 tag. crates.io unaffected (Cargo.toml include is a whitelist). Remediation: untrack in back-merge PR + .gitignore patched; template fix filed as #778.",
+          "created_at": "2026-06-13T02:58:43.316196160Z",
+          "kind": "intervention",
+          "trigger_type": "manual_action",
+          "intervention_context": "release conflict merge staging mistake",
+          "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+          "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAwAg9rRbPMferV0sH2rWlU3xV2AFRtbfggh2o69D8ofV2V4dg/2GJrY6tPd1MMQghQ3IXcAFmchpzuafxqEZJCg=="
         }
       }
     },
@@ -24151,8 +24162,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-13T02:58:25.929071673Z",
+    "timestamp": "2026-06-13T02:58:43.318575726Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 204
+    "agent_seq": 205
   }
 }
