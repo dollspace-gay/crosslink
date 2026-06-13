@@ -1,6 +1,6 @@
 {
   "next_display_id": 775,
-  "next_comment_id": 1097,
+  "next_comment_id": 1098,
   "display_id_map": {
     "00a365a3-7b31-465a-aced-4f1e39c68f8b": 118,
     "01b74b94-82e0-4bda-9bed-7eace0292544": 70,
@@ -20425,10 +20425,21 @@
       "priority": "high",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-13T00:35:04.469339706Z",
-      "updated_at": "2026-06-13T00:35:07.887955034Z",
+      "updated_at": "2026-06-13T00:52:03.597822298Z",
       "labels": [
         "bug"
-      ]
+      ],
+      "comments": {
+        "a4df0f56-5db8-4439-8949-be5bc89a864b": {
+          "display_id": 1097,
+          "author": "dashboard-bootstrap",
+          "content": "Committed: V2Only preflight consults the remote; adopt path (fetch-join + verify + hydrate + meta print), unreachable-remote refusal with rationale, empty-adoption honesty guard, full basel-sequence test with no-second-genesis assertion via byte-identical remote checkpoint. Awaiting push.",
+          "created_at": "2026-06-13T00:52:03.595710989Z",
+          "kind": "result",
+          "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+          "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAIBaR8Pq+NvUGI5ylo9aPkVkpY2brQzIlXEmJZdGamZpe098AAfgDLHTh7jC2Dcwadatp9wbpkX1szSBkpexsDQ=="
+        }
+      }
     },
     "d8abbf37-7ece-4aa5-a8b7-dd4a8ddbc367": {
       "uuid": "d8abbf37-7ece-4aa5-a8b7-dd4a8ddbc367",
@@ -24003,8 +24014,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-13T00:35:53.262386881Z",
+    "timestamp": "2026-06-13T00:52:03.597822298Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 187
+    "agent_seq": 188
   }
 }
