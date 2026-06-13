@@ -1,5 +1,5 @@
 {
-  "next_display_id": 778,
+  "next_display_id": 779,
   "next_comment_id": 1105,
   "display_id_map": {
     "00a365a3-7b31-465a-aced-4f1e39c68f8b": 118,
@@ -456,6 +456,7 @@
     "91c4d337-d415-4fae-b9d3-668f41cb9456": 28,
     "91d2b705-d74d-48fc-83be-6cf3bcddfd01": 699,
     "92816a43-66e1-4e0f-aad2-1eb96a8d0039": 267,
+    "928473a8-0d9d-41ec-b2ca-4e7be653fcce": 778,
     "92a10a5a-0b1b-4d35-96ce-0ca8b9243b3b": 276,
     "93a207f4-5507-4327-b6d8-d7e8a9ba88fd": 445,
     "93bfa125-7d68-4634-b640-20257c0fe017": 531,
@@ -14659,6 +14660,17 @@
         "enhancement"
       ]
     },
+    "928473a8-0d9d-41ec-b2ca-4e7be653fcce": {
+      "uuid": "928473a8-0d9d-41ec-b2ca-4e7be653fcce",
+      "display_id": 778,
+      "title": "crosslink init .gitignore template omits runtime state files (.active-issue, sentinel.log, etc.) -- git add -A commits them",
+      "description": "Surfaced during v0.9.0-beta.1 back-merge: the deployed .crosslink/.gitignore ignores agent.json/.hub-cache/keys but NOT the machine-local runtime files written during normal operation: .active-issue, .last-hydrated-ref, .promoted-uuids, promotion-log.json, hub-v3-shadow-stats.json, sentinel.log. Any 'git add -A' (including by the release flow) commits them as tracked churn. Fix the init-deployed gitignore template (resources/ or init code) so every user's repo ignores these. This repo's working-tree .gitignore was patched directly during the release; the template fix is the product-level follow-up.",
+      "status": "open",
+      "priority": "high",
+      "created_by": "dashboard-bootstrap",
+      "created_at": "2026-06-13T02:58:25.929071673Z",
+      "updated_at": "2026-06-13T02:58:25.929071673Z"
+    },
     "92a10a5a-0b1b-4d35-96ce-0ca8b9243b3b": {
       "uuid": "92a10a5a-0b1b-4d35-96ce-0ca8b9243b3b",
       "display_id": 276,
@@ -24139,8 +24151,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-13T02:30:43.776493452Z",
+    "timestamp": "2026-06-13T02:58:25.929071673Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 203
+    "agent_seq": 204
   }
 }
