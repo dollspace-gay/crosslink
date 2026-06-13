@@ -1,6 +1,6 @@
 {
   "next_display_id": 778,
-  "next_comment_id": 1104,
+  "next_comment_id": 1105,
   "display_id_map": {
     "00a365a3-7b31-465a-aced-4f1e39c68f8b": 118,
     "01b74b94-82e0-4bda-9bed-7eace0292544": 70,
@@ -1010,11 +1010,20 @@
       "priority": "high",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-13T01:54:30.953851101Z",
-      "updated_at": "2026-06-13T02:16:22.165411980Z",
+      "updated_at": "2026-06-13T02:30:43.776493452Z",
       "labels": [
         "release"
       ],
       "comments": {
+        "2bcb5925-422d-40ad-860a-6b339a72861a": {
+          "display_id": 1104,
+          "author": "dashboard-bootstrap",
+          "content": "Merge conflict resolution (develop release branch x origin/main, 4-release gitflow drift): Cargo.toml/Cargo.lock -> ours (0.9.0-beta.1; 30 lock blocks resolved to HEAD then cargo check normalized); design.md -> ours (GH#615 find-form over main's vulnerable ls-form); root CHANGELOG.md -> union (0.9.0-beta.1 + main's 0.8.0/0.7.0/0.6.0 sections + common 0.5.2), consolidation note corrected; crosslink/CHANGELOG.md -> accept main's deletion (stale [0.3.0] stub, strict subset of root, unreferenced). Verified all main-only code fixes (Windows signal handling, build.rs backslash fix, smoke repairs) already present in develop -- no regression. All gates green on merged tree: 1767 lib + 2813 bin + 194 integration, fmt + both clippy. ROOT-CAUSE: prior releases skipped/incompleted the Phase-10 back-merge; must complete it this cut.",
+          "created_at": "2026-06-13T02:30:43.711828236Z",
+          "kind": "decision",
+          "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+          "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAIbxQd+gS80FCghjpv9ObqnQInKsfHh16wMrVMKeOKzwTHdIXnZzIArYWioyjBDyuPoF1BhBfDCKeZy6ZzMMPAw=="
+        },
         "4fe31150-8d54-46e9-a678-d0ccadb73549": {
           "display_id": 1103,
           "author": "dashboard-bootstrap",
@@ -24130,8 +24139,8 @@
   },
   "next_milestone_id": 1,
   "watermark": {
-    "timestamp": "2026-06-13T02:16:22.165411980Z",
+    "timestamp": "2026-06-13T02:30:43.776493452Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 202
+    "agent_seq": 203
   }
 }
