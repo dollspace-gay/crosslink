@@ -5,8 +5,6 @@
 [![License: MIT](https://img.shields.io/crates/l/crosslink?style=flat-square)](LICENSE)
 ![AI Generated](https://img.shields.io/badge/Code-AI_Generated-blue?style=flat-square&logo=probot&logoColor=white)
 
-![Crosslink Banner](images/banner.svg)
-
 **You direct. Your agents remember. Nothing gets lost.**
 
 AI coding agents forget everything between conversations. Crosslink gives them persistent memory — sessions, handoff notes, issue tracking, and breadcrumbs that survive context compression, session restarts, and agent handoffs.
