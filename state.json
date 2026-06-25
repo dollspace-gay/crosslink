@@ -1,6 +1,6 @@
 {
   "next_display_id": 786,
-  "next_comment_id": 1116,
+  "next_comment_id": 1117,
   "display_id_map": {
     "00a365a3-7b31-465a-aced-4f1e39c68f8b": 118,
     "01b74b94-82e0-4bda-9bed-7eace0292544": 70,
@@ -16946,10 +16946,21 @@
       "priority": "high",
       "created_by": "dashboard-bootstrap",
       "created_at": "2026-06-25T06:43:26.017036961Z",
-      "updated_at": "2026-06-25T06:43:29.529897001Z",
+      "updated_at": "2026-06-25T06:45:05.970794118Z",
       "labels": [
         "chore"
-      ]
+      ],
+      "comments": {
+        "fdc28596-60fa-4292-8d62-eb30733d8087": {
+          "display_id": 1116,
+          "author": "dashboard-bootstrap",
+          "content": "Committed as 8e93e11f on develop. Changed: git remote origin -> git@github.com:dollspace-gay/crosslink.git (local config); identity URLs in README, Cargo.toml, vscode-extension; GHCR image namespace forecast-bio -> dollspace-gay across kickoff/container code, workflow, and tests. Left historical refs (CHANGELOG, upstream issue refs, URL-parsing test fixtures) on forecast-bio. Awaiting user push.",
+          "created_at": "2026-06-25T06:45:05.896456783Z",
+          "kind": "result",
+          "signed_by": "SHA256:Mo1WTOTK4LiH6tRPxuqcXZEu28j7nHfcNKzBc8ZRg70",
+          "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgoAVSoPNZVKcrMVLDFcYmdht4ApGHpHxrnyaIXR6QJBMAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA5wRqcLJ4tJIe3tAJQdA4E6dSt8ueJ+bl2CVeJGGc3ZtPQzmkcfEooNHHPS4qncpce5yHgfK1MCDLdN6wL1ChDg=="
+        }
+      }
     },
     "ab34350f-d664-4017-b3e5-0d10fe5014b2": {
       "uuid": "ab34350f-d664-4017-b3e5-0d10fe5014b2",
@@ -24428,8 +24439,8 @@
     }
   ],
   "watermark": {
-    "timestamp": "2026-06-25T06:43:33.654453474Z",
+    "timestamp": "2026-06-25T06:45:05.970794118Z",
     "agent_id": "dashboard-bootstrap",
-    "agent_seq": 220
+    "agent_seq": 221
   }
 }
