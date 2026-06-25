@@ -1023,17 +1023,17 @@ enum IssuesAliasCommands {
 enum ContainerCommands {
     /// Build the crosslink agent container image locally.
     ///
-    /// Produces `ghcr.io/forecast-bio/crosslink-agent:<tag>` (default tag
+    /// Produces `ghcr.io/dollspace-gay/crosslink-agent:<tag>` (default tag
     /// `local`) so it composes with `crosslink kickoff run --container
-    /// docker|podman --image ghcr.io/forecast-bio/crosslink-agent:<tag>`.
-    /// For routine use prefer `docker pull ghcr.io/forecast-bio/crosslink-agent:latest`
+    /// docker|podman --image ghcr.io/dollspace-gay/crosslink-agent:<tag>`.
+    /// For routine use prefer `docker pull ghcr.io/dollspace-gay/crosslink-agent:latest`
     /// or `:nightly` — this command exists for offline / Dockerfile-iteration work.
     Build {
         /// Rebuild from scratch (no cache)
         #[arg(long)]
         force: bool,
         /// Image tag suffix (default: `local`). Image is always namespaced
-        /// `ghcr.io/forecast-bio/crosslink-agent:<tag>`.
+        /// `ghcr.io/dollspace-gay/crosslink-agent:<tag>`.
         #[arg(long)]
         tag: Option<String>,
         /// Path to a custom Dockerfile
@@ -1667,7 +1667,7 @@ enum KickoffCommands {
         #[arg(long, default_value = "opus")]
         model: String,
         /// Container image (for --container docker/podman)
-        #[arg(long, default_value = "ghcr.io/forecast-bio/crosslink-agent:latest")]
+        #[arg(long, default_value = "ghcr.io/dollspace-gay/crosslink-agent:latest")]
         image: String,
         /// Max runtime before killing agent (e.g. "1h", "30m")
         #[arg(long, default_value = "1h")]

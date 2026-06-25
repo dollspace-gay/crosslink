@@ -228,7 +228,7 @@ Requires **Rust 1.87+** ([install rustup](https://rustup.rs/)).
 cargo install crosslink
 
 # From source
-git clone https://github.com/forecast-bio/crosslink.git
+git clone https://github.com/dollspace-gay/crosslink.git
 cd crosslink/crosslink && cargo install --path .
 ```
 

@@ -827,7 +827,7 @@ fn format_container_launch_error(runtime_cmd: &str, image: &str, stderr: &str) -
              Hint: the image `{image}` could not be pulled. Either:\n  \
                * Build it locally:  just build-image       (tags as :local)\n  \
                * Or pick a published tag from {AGENT_IMAGE_PACKAGE_URL}\n  \
-                 and pass it via `--image ghcr.io/forecast-bio/crosslink-agent:<tag>`."
+                 and pass it via `--image ghcr.io/dollspace-gay/crosslink-agent:<tag>`."
         )
     } else {
         format!("{runtime_cmd} container launch failed: {trimmed}")
@@ -840,17 +840,17 @@ mod tests {
 
     #[test]
     fn pull_failure_not_found_yields_hint() {
-        let stderr = "Unable to find image 'ghcr.io/forecast-bio/crosslink-agent:latest' locally\nError response from daemon: manifest unknown";
+        let stderr = "Unable to find image 'ghcr.io/dollspace-gay/crosslink-agent:latest' locally\nError response from daemon: manifest unknown";
         let msg = format_container_launch_error(
             "docker",
-            "ghcr.io/forecast-bio/crosslink-agent:latest",
+            "ghcr.io/dollspace-gay/crosslink-agent:latest",
             stderr,
         );
         assert!(msg.contains("docker container launch failed"));
         assert!(msg.contains("Hint:"));
         assert!(msg.contains("just build-image"));
         assert!(msg.contains(AGENT_IMAGE_PACKAGE_URL));
-        assert!(msg.contains("ghcr.io/forecast-bio/crosslink-agent:latest"));
+        assert!(msg.contains("ghcr.io/dollspace-gay/crosslink-agent:latest"));
     }
 
     #[test]
@@ -858,7 +858,7 @@ mod tests {
         let stderr = "Error response from daemon: pull access denied for some/image, repository does not exist or may require 'docker login'";
         let msg = format_container_launch_error(
             "podman",
-            "ghcr.io/forecast-bio/crosslink-agent:nightly",
+            "ghcr.io/dollspace-gay/crosslink-agent:nightly",
             stderr,
         );
         assert!(msg.contains("podman container launch failed"));
@@ -868,10 +868,10 @@ mod tests {
 
     #[test]
     fn pull_failure_no_such_image_yields_hint() {
-        let stderr = "Error: No such image: ghcr.io/forecast-bio/crosslink-agent:does-not-exist";
+        let stderr = "Error: No such image: ghcr.io/dollspace-gay/crosslink-agent:does-not-exist";
         let msg = format_container_launch_error(
             "docker",
-            "ghcr.io/forecast-bio/crosslink-agent:does-not-exist",
+            "ghcr.io/dollspace-gay/crosslink-agent:does-not-exist",
             stderr,
         );
         assert!(msg.contains("Hint:"));
@@ -882,7 +882,7 @@ mod tests {
         let stderr = "docker: Error response from daemon: invalid mount config for type \"bind\": bind source path does not exist";
         let msg = format_container_launch_error(
             "docker",
-            "ghcr.io/forecast-bio/crosslink-agent:latest",
+            "ghcr.io/dollspace-gay/crosslink-agent:latest",
             stderr,
         );
         assert!(msg.contains("docker container launch failed"));

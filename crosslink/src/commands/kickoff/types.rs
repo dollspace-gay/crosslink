@@ -8,7 +8,7 @@ use std::time::Duration;
 ///
 /// Consolidated here to avoid duplicating the string literal across kickoff,
 /// swarm, and CLI default values.
-pub const DEFAULT_AGENT_IMAGE: &str = "ghcr.io/forecast-bio/crosslink-agent:latest";
+pub const DEFAULT_AGENT_IMAGE: &str = "ghcr.io/dollspace-gay/crosslink-agent:latest";
 
 /// Container runtime for agent execution.
 #[derive(Debug, Clone, PartialEq, Eq)]

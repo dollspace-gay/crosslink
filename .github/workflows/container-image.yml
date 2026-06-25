@@ -38,7 +38,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: forecast-bio/crosslink-agent
+  IMAGE_NAME: dollspace-gay/crosslink-agent
 
 jobs:
   # ===========================================
