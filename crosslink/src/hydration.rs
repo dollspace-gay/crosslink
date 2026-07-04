@@ -360,6 +360,17 @@ pub fn hydrate_from_state(
     let preserved_ids: Vec<i64> = sqlite_only_rows.iter().map(|r| r.id).collect();
     let saved_children = snapshot_children(db, &preserved_ids)?;
 
+    // Preserved SQLite-only comments may carry negative ids from a previous
+    // hydration. Start this pass's negative comment numbering below the lowest
+    // preserved id so the plain-INSERT comment rows never collide (the v3
+    // analogue of #681).
+    let comment_id_start = saved_children
+        .comments
+        .iter()
+        .map(|c| c.0)
+        .min()
+        .map_or(-1, |min| min.min(0) - 1);
+
     // Build uuid -> display_id lookup for cross-references (blockers/related/
     // parent/milestone). Issues without a frozen display id get a deterministic
     // negative local id assigned during insertion below.
@@ -404,6 +415,7 @@ pub fn hydrate_from_state(
             state,
             &mut uuid_to_id,
             &milestone_uuid_to_id,
+            comment_id_start,
             &mut stats,
         )?;
         hydrate_state_dependencies(db, state, &uuid_to_id, &mut stats);
@@ -461,12 +473,16 @@ fn hydrate_state_issues(
     state: &crate::checkpoint::CheckpointState,
     uuid_to_id: &mut HashMap<String, i64>,
     milestone_uuid_to_id: &HashMap<String, i64>,
+    comment_id_start: i64,
     stats: &mut HydrationStats,
 ) -> Result<()> {
     // Negative local ids for issues without a frozen display id, and for v3
     // comments/time-entries (event-only identity, no counter-claimed i64).
+    // `comment_id_start` begins below the lowest preserved SQLite-only comment
+    // id so this pass's negative ids never collide with rows re-inserted by
+    // `restore_sqlite_only_issues` (the v3 analogue of #681).
     let mut next_local_id: i64 = -1;
-    let mut next_v2_comment_id: i64 = -1;
+    let mut next_v2_comment_id: i64 = comment_id_start;
 
     for issue in topo_sort_state_issues(state) {
         let display_id = issue.display_id.unwrap_or_else(|| {
@@ -897,21 +913,49 @@ fn snapshot_children(db: &Database, preserved_ids: &[i64]) -> Result<SavedChildr
 }
 
 /// Re-insert SQLite-only issues and their child data after hydration clears shared tables.
+///
+/// Runs AFTER the hub-derived rows are inserted, and `insert_hydrated_issue`
+/// is INSERT OR REPLACE — so a preserved local-only issue whose id equals a
+/// reduction-assigned display id would silently REPLACE the hub issue at that
+/// id (GH#5: creates after a legacy `import` vanish while the CLI reports
+/// success). Ids that collide are remapped to fresh negative local ids so
+/// both issues survive; the local-only issue keeps its identity via uuid.
 fn restore_sqlite_only_issues(
     db: &Database,
     sqlite_only_rows: &[SavedIssue],
     saved_children: &SavedChildren,
     stats: &mut HydrationStats,
 ) -> Result<()> {
+    let occupied = occupied_issue_ids(db)?;
+    let mut next_local = occupied.iter().copied().min().unwrap_or(0).min(0) - 1;
+    let mut remap: HashMap<i64, i64> = HashMap::new();
+    for row in sqlite_only_rows {
+        if occupied.contains(&row.id) {
+            remap.insert(row.id, next_local);
+            next_local -= 1;
+        }
+    }
+    if !remap.is_empty() {
+        let mut collided: Vec<i64> = remap.keys().copied().collect();
+        collided.sort_unstable();
+        tracing::warn!(
+            "hydration: {} local-only issue(s) collide with hub-assigned display id(s) \
+             {:?}; remapped to negative local ids so the hub issues are not overwritten",
+            remap.len(),
+            collided
+        );
+    }
+    let mapped = |id: i64| remap.get(&id).copied().unwrap_or(id);
+
     for row in sqlite_only_rows {
         db.insert_hydrated_issue(&HydratedIssue {
-            id: row.id,
+            id: mapped(row.id),
             uuid: &row.uuid,
             title: &row.title,
             description: row.description.as_deref(),
             status: &row.status,
             priority: &row.priority,
-            parent_id: row.parent_id,
+            parent_id: row.parent_id.map(mapped),
             created_by: row.created_by.as_deref(),
             created_at: &row.created_at,
             updated_at: &row.updated_at,
@@ -923,7 +967,7 @@ fn restore_sqlite_only_issues(
     }
 
     for (issue_id, label) in &saved_children.labels {
-        db.insert_hydrated_label(*issue_id, label)?;
+        db.insert_hydrated_label(mapped(*issue_id), label)?;
     }
     for (
         id,
@@ -940,7 +984,7 @@ fn restore_sqlite_only_issues(
     {
         db.insert_hydrated_comment(
             *id,
-            *issue_id,
+            mapped(*issue_id),
             uuid.as_deref(),
             author.as_deref(),
             content,
@@ -953,27 +997,38 @@ fn restore_sqlite_only_issues(
         stats.comments += 1;
     }
     for (blocker_id, blocked_id) in &saved_children.deps {
-        db.insert_dependency_raw(*blocker_id, *blocked_id)?;
+        db.insert_dependency_raw(mapped(*blocker_id), mapped(*blocked_id))?;
         stats.dependencies += 1;
     }
     for (id1, id2) in &saved_children.relations {
-        db.insert_relation_raw(*id1, *id2)?;
+        db.insert_relation_raw(mapped(*id1), mapped(*id2))?;
         stats.relations += 1;
     }
     for (id, issue_id, started_at, ended_at, duration_seconds) in &saved_children.time_entries {
         db.insert_hydrated_time_entry(
             *id,
-            *issue_id,
+            mapped(*issue_id),
             started_at,
             ended_at.as_deref(),
             *duration_seconds,
         )?;
     }
     for (milestone_id, issue_id) in &saved_children.milestone_issues {
-        db.insert_hydrated_milestone_issue(*milestone_id, *issue_id)?;
+        db.insert_hydrated_milestone_issue(*milestone_id, mapped(*issue_id))?;
     }
 
     Ok(())
+}
+
+/// All issue ids currently present in `SQLite` (the hub-derived rows inserted
+/// earlier in this hydration pass, since shared tables were cleared first).
+fn occupied_issue_ids(db: &Database) -> Result<std::collections::HashSet<i64>> {
+    let ids = db
+        .conn
+        .prepare("SELECT id FROM issues")?
+        .query_map([], |row| row.get(0))?
+        .collect::<std::result::Result<std::collections::HashSet<i64>, _>>()?;
+    Ok(ids)
 }
 
 /// Hydrate the dependencies table from `blockers` arrays in issue files.

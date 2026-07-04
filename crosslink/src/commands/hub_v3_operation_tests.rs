@@ -1029,3 +1029,121 @@ fn hub_branches_rename_round_trip() {
     assert!(rev(&hub.cache_dir, "refs/crosslink/checkpoint").is_none());
     assert!(rev(&hub.cache_dir, "refs/heads/crosslink/checkpoint").is_some());
 }
+
+#[test]
+fn v3_import_issues_promotes_batch_to_hub() {
+    // GH#4/GH#5: `SharedWriter::import_issues` emits the whole batch as hub
+    // events in one commit — display ids come from the reduction, the issues
+    // are visible in both the reduced state and SQLite, and children
+    // (labels, comments, closed status, parent, blockers) survive.
+    if !git_ok() {
+        return;
+    }
+    let hub = setup_migrated_v3_hub();
+    let db = Database::open(&hub.crosslink_dir.join("issues.db")).unwrap();
+    let writer = SharedWriter::new(&hub.crosslink_dir).unwrap().unwrap();
+
+    let parent_uuid = uuid::Uuid::new_v4();
+    let child_uuid = uuid::Uuid::new_v4();
+    let specs = vec![
+        crate::shared_writer::ImportedIssueSpec {
+            uuid: parent_uuid,
+            title: "imported parent".to_string(),
+            description: Some("desc".to_string()),
+            priority: "high".to_string(),
+            parent_uuid: None,
+            closed: false,
+            labels: vec!["migrated".to_string()],
+            comments: vec![crate::shared_writer::ImportedCommentSpec {
+                author: "import".to_string(),
+                content: "carried over".to_string(),
+                created_at: chrono::Utc::now(),
+                kind: "note".to_string(),
+            }],
+            blockers: vec![],
+        },
+        crate::shared_writer::ImportedIssueSpec {
+            uuid: child_uuid,
+            title: "imported child".to_string(),
+            description: None,
+            priority: "low".to_string(),
+            parent_uuid: Some(parent_uuid),
+            closed: true,
+            labels: vec![],
+            comments: vec![],
+            blockers: vec![parent_uuid],
+        },
+    ];
+
+    let assigned = writer.import_issues(&db, &specs).unwrap();
+    assert_eq!(assigned.len(), 2);
+    let (parent_id, child_id) = (assigned[0].1, assigned[1].1);
+    assert!(parent_id > 0 && child_id > 0, "reduction-assigned ids");
+
+    // Visible in SQLite with children intact.
+    let parent = db.get_issue(parent_id).unwrap().expect("parent hydrated");
+    assert_eq!(parent.title, "imported parent");
+    assert!(db
+        .get_labels(parent_id)
+        .unwrap()
+        .iter()
+        .any(|l| l == "migrated"));
+    assert!(!db.get_comments(parent_id).unwrap().is_empty());
+    let child = db.get_issue(child_id).unwrap().expect("child hydrated");
+    assert_eq!(child.status, crate::models::IssueStatus::Closed);
+    assert_eq!(child.parent_id, Some(parent_id));
+
+    // Visible in the reduced hub state (the whole point of promotion).
+    let source = crate::hub_source::RefHubSource::new(&hub.cache_dir).unwrap();
+    let state = crate::compaction::reduce(&source).unwrap().state;
+    assert!(state.issues.contains_key(&parent_uuid));
+    assert!(state.issues.contains_key(&child_uuid));
+}
+
+#[test]
+fn v3_create_after_direct_sqlite_rows_keeps_both_issues() {
+    // GH#5 regression: rows written straight into SQLite (the legacy import
+    // path) occupy the same positive id space the reduction assigns. A
+    // subsequent create must not vanish: the hub issue keeps the
+    // reduction-assigned id, the local-only row is remapped, and the id the
+    // CLI reports must exist in SQLite.
+    if !git_ok() {
+        return;
+    }
+    let hub = setup_migrated_v3_hub();
+    let db = Database::open(&hub.crosslink_dir.join("issues.db")).unwrap();
+    let writer = SharedWriter::new(&hub.crosslink_dir).unwrap().unwrap();
+
+    // Hydrate the migrated hub first so the direct row lands after the
+    // existing display ids — exactly where the reduction's next id will land.
+    writer.hydrate_with_retry(&db);
+    let direct_id = db.create_issue("direct sqlite row", None, "low").unwrap();
+
+    let created_id = writer
+        .create_issue(&db, "hub created after import", None, "medium", None, None)
+        .unwrap();
+    assert_eq!(
+        created_id, direct_id,
+        "test precondition: reduction assigns the id the direct row occupied"
+    );
+
+    // The reported id must be the hub issue, visible in SQLite (the GH#5
+    // guard makes create fail loudly rather than report a phantom id).
+    let hub_issue = db
+        .get_issue(created_id)
+        .unwrap()
+        .expect("hub issue visible");
+    assert_eq!(hub_issue.title, "hub created after import");
+
+    // The direct row survives at a remapped negative id.
+    let issues = db.list_issues(Some("all"), None, None).unwrap();
+    let direct_row = issues
+        .iter()
+        .find(|i| i.title == "direct sqlite row")
+        .expect("direct row survives");
+    assert!(
+        direct_row.id < 0,
+        "direct row remapped, got {}",
+        direct_row.id
+    );
+}

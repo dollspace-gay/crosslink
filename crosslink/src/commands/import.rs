@@ -6,12 +6,13 @@ use std::path::Path;
 use super::export::{ExportData, ExportedIssue};
 use crate::db::Database;
 use crate::issue_file::IssueFile;
+use crate::shared_writer::{ImportedCommentSpec, ImportedIssueSpec, SharedWriter};
 use crate::utils::format_issue_id;
 
 /// Maximum import file size (10 MB).
 const MAX_IMPORT_SIZE: u64 = 10 * 1024 * 1024;
 
-pub fn run_json(db: &Database, input_path: &Path) -> Result<()> {
+pub fn run_json(db: &Database, writer: Option<&SharedWriter>, input_path: &Path) -> Result<()> {
     let metadata = fs::metadata(input_path).context("Failed to read import file metadata")?;
     if metadata.len() > MAX_IMPORT_SIZE {
         anyhow::bail!(
@@ -24,11 +25,110 @@ pub fn run_json(db: &Database, input_path: &Path) -> Result<()> {
 
     // Try new IssueFile array format first, then fall back to legacy ExportData envelope.
     if let Ok(issue_files) = serde_json::from_str::<Vec<IssueFile>>(&content) {
+        // GH#4/GH#5: on a v3 hub, promote imported issues through the event
+        // log so the reduction assigns their display ids. Direct-SQLite rows
+        // stay invisible to the reduction and shadow future display ids.
+        if let Some(w) = writer.filter(|w| w.is_v3_public()) {
+            let specs: Vec<ImportedIssueSpec> =
+                issue_files.iter().map(spec_from_issue_file).collect();
+            return import_shared(db, w, &specs, "IssueFile", input_path);
+        }
         return import_issue_files(db, &issue_files, input_path);
     }
 
     let data: ExportData = serde_json::from_str(&content).context("Failed to parse JSON")?;
+    if let Some(w) = writer.filter(|w| w.is_v3_public()) {
+        let specs = specs_from_legacy(&data);
+        return import_shared(db, w, &specs, "legacy", input_path);
+    }
     import_legacy(db, &data, input_path)
+}
+
+/// Lower an `IssueFile` into an [`ImportedIssueSpec`], preserving its uuid
+/// (and therefore parent/blocker references, which are uuid-keyed already).
+fn spec_from_issue_file(issue: &IssueFile) -> ImportedIssueSpec {
+    ImportedIssueSpec {
+        uuid: issue.uuid,
+        title: issue.title.clone(),
+        description: issue.description.clone(),
+        priority: issue.priority.as_str().to_string(),
+        parent_uuid: issue.parent_uuid,
+        closed: issue.status == crate::models::IssueStatus::Closed,
+        labels: issue.labels.clone(),
+        comments: issue
+            .comments
+            .iter()
+            .map(|c| ImportedCommentSpec {
+                author: c.author.clone(),
+                content: c.content.clone(),
+                created_at: c.created_at,
+                kind: c.kind.clone(),
+            })
+            .collect(),
+        blockers: issue.blockers.clone(),
+    }
+}
+
+/// Lower a legacy `ExportData` envelope into specs. Legacy issues have no
+/// uuids, so fresh ones are generated; parent references (old display ids)
+/// are resolved through the generated uuids.
+fn specs_from_legacy(data: &ExportData) -> Vec<ImportedIssueSpec> {
+    let old_id_to_uuid: HashMap<i64, uuid::Uuid> = data
+        .issues
+        .iter()
+        .map(|i| (i.id, uuid::Uuid::new_v4()))
+        .collect();
+
+    data.issues
+        .iter()
+        .map(|issue| ImportedIssueSpec {
+            uuid: old_id_to_uuid[&issue.id],
+            title: issue.title.clone(),
+            description: issue.description.clone(),
+            priority: issue.priority.clone(),
+            parent_uuid: issue
+                .parent_id
+                .and_then(|pid| old_id_to_uuid.get(&pid).copied()),
+            closed: issue.status == "closed",
+            labels: issue.labels.clone(),
+            comments: issue
+                .comments
+                .iter()
+                .map(|c| ImportedCommentSpec {
+                    author: "import".to_string(),
+                    content: c.content.clone(),
+                    created_at: c
+                        .created_at
+                        .parse::<chrono::DateTime<chrono::Utc>>()
+                        .unwrap_or_else(|_| chrono::Utc::now()),
+                    kind: "note".to_string(),
+                })
+                .collect(),
+            blockers: Vec::new(),
+        })
+        .collect()
+}
+
+/// Import via the shared writer: one hub commit for the whole batch, display
+/// ids assigned by the reduction (GH#4, GH#5).
+fn import_shared(
+    db: &Database,
+    writer: &SharedWriter,
+    specs: &[ImportedIssueSpec],
+    format: &str,
+    input_path: &Path,
+) -> Result<()> {
+    println!(
+        "Importing {} issues from {} ({format} format, promoting to hub)",
+        specs.len(),
+        input_path.display()
+    );
+    let assigned = writer.import_issues(db, specs)?;
+    for (spec, (_uuid, new_id)) in specs.iter().zip(&assigned) {
+        println!("  Imported: {} {}", format_issue_id(*new_id), spec.title);
+    }
+    println!("Successfully imported {} issues", assigned.len());
+    Ok(())
 }
 
 fn import_issue_files(db: &Database, issues: &[IssueFile], input_path: &Path) -> Result<()> {
@@ -225,7 +325,7 @@ mod tests {
         let json = create_test_export(vec![make_issue(1, "Test issue", None, "open")]);
         let import_path = dir.path().join("import.json");
         fs::write(&import_path, json).unwrap();
-        let result = run_json(&db, &import_path);
+        let result = run_json(&db, None, &import_path);
         assert!(result.is_ok());
         let issues = db.list_issues(Some("all"), None, None).unwrap();
         assert_eq!(issues.len(), 1);
@@ -240,7 +340,7 @@ mod tests {
         ]);
         let import_path = dir.path().join("import.json");
         fs::write(&import_path, json).unwrap();
-        run_json(&db, &import_path).unwrap();
+        run_json(&db, None, &import_path).unwrap();
         let issues = db.list_issues(Some("all"), None, None).unwrap();
         assert_eq!(issues.len(), 2);
     }
@@ -251,7 +351,7 @@ mod tests {
         let json = create_test_export(vec![make_issue(1, "Closed", None, "closed")]);
         let import_path = dir.path().join("import.json");
         fs::write(&import_path, json).unwrap();
-        run_json(&db, &import_path).unwrap();
+        run_json(&db, None, &import_path).unwrap();
         let issues = db.list_issues(Some("closed"), None, None).unwrap();
         assert_eq!(issues.len(), 1);
     }
@@ -264,7 +364,7 @@ mod tests {
         let json = create_test_export(vec![issue]);
         let import_path = dir.path().join("import.json");
         fs::write(&import_path, json).unwrap();
-        run_json(&db, &import_path).unwrap();
+        run_json(&db, None, &import_path).unwrap();
         let issues = db.list_issues(Some("all"), None, None).unwrap();
         let labels = db.get_labels(issues[0].id).unwrap();
         assert!(labels.contains(&"bug".to_string()));
@@ -275,7 +375,7 @@ mod tests {
         let (db, dir) = setup_test_db();
         let import_path = dir.path().join("invalid.json");
         fs::write(&import_path, "not valid json").unwrap();
-        let result = run_json(&db, &import_path);
+        let result = run_json(&db, None, &import_path);
         assert!(result.is_err());
     }
 
@@ -283,7 +383,7 @@ mod tests {
     fn test_import_missing_file() {
         let (db, dir) = setup_test_db();
         let import_path = dir.path().join("nonexistent.json");
-        let result = run_json(&db, &import_path);
+        let result = run_json(&db, None, &import_path);
         assert!(result.is_err());
     }
 
@@ -293,7 +393,7 @@ mod tests {
         let json = create_test_export(vec![]);
         let import_path = dir.path().join("import.json");
         fs::write(&import_path, json).unwrap();
-        let result = run_json(&db, &import_path);
+        let result = run_json(&db, None, &import_path);
         assert!(result.is_ok());
     }
 
@@ -324,7 +424,7 @@ mod tests {
         let json = serde_json::to_string_pretty(&vec![issue]).unwrap();
         let import_path = dir.path().join("import.json");
         fs::write(&import_path, &json).unwrap();
-        run_json(&db, &import_path).unwrap();
+        run_json(&db, None, &import_path).unwrap();
         let issues = db.list_issues(Some("all"), None, None).unwrap();
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].title, "New format issue");
@@ -339,7 +439,7 @@ mod tests {
             let json = create_test_export(vec![make_issue(1, &title, None, "open")]);
             let import_path = dir.path().join("import.json");
             fs::write(&import_path, json).unwrap();
-            let result = run_json(&db, &import_path);
+            let result = run_json(&db, None, &import_path);
             prop_assert!(result.is_ok());
         }
     }
