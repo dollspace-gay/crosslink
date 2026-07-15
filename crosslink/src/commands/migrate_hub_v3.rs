@@ -468,10 +468,8 @@ fn github_branches_url(cache_dir: &Path, remote: &str) -> Option<String> {
     // git@github.com:owner/repo.git  OR  https://github.com/owner/repo(.git)
     let slug = if let Some(rest) = url.strip_prefix("git@github.com:") {
         rest.to_string()
-    } else if let Some(rest) = url.strip_prefix("https://github.com/") {
-        rest.to_string()
     } else {
-        return None;
+        url.strip_prefix("https://github.com/")?.to_string()
     };
     let slug = slug.strip_suffix(".git").unwrap_or(&slug);
     Some(format!("https://github.com/{slug}/branches"))
