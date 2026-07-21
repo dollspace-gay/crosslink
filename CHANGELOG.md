@@ -59,6 +59,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   usage error - the same exit code as the flags protocol - and every
   Write/Edit/Bash call was blocked with a false "AGENT PAUSED - an operator
   has paused this agent" message (gh#31).
+- `crosslink migrate to-shared` now works on v3 hubs (gh#4, second half). The
+  v2 body wrote worktree JSON and counters the reduction never reads, then
+  pushed the nonexistent legacy `crosslink/hub` ref ("src refspec does not
+  match any"). On v3 it now promotes SQLite-only issues (uuids the reduced
+  state does not know) through the event log via the same batch path
+  `import` uses - one commit, one hydration - preserving existing uuids (so
+  hydration replaces local rows in place instead of duplicating them) and
+  carrying free positive local ids into the reduction so local numbering
+  survives. Idempotent: already-promoted issues are skipped, so it doubles
+  as the recovery sweep for rows created before the hub was established.
+- Post-migrate `crosslink sync` no longer aborts with SQLite `Error code
+  1555: constraint failed` (gh#11). Preserved sqlite-only comments carry
+  positive v2/import-era ids while hydration inserts hub comments at frozen
+  positive display ids through a plain INSERT - a collision killed the whole
+  hydration transaction. The preservation restore now re-keys colliding
+  preserved comment ids to fresh negative local ids (comment ids are not FK
+  targets), mirroring the issue-id remap above it.
+- `crosslink create` / `quick` after a legacy `import` no longer silently lose
+  the new issue while reporting success (#5, related #4). Three fixes:
+  `crosslink import` on a v3 hub now promotes the whole batch through the
+  event log in a single commit, so imported issues get reduction-assigned
+  display ids and are hub-visible like created issues; hydration no longer
+  lets a preserved local-only issue silently REPLACE (INSERT OR REPLACE) a hub
+  issue occupying the same id — the local row is remapped to a negative local
+  id with a warning and both survive; and `create` verifies the new issue is
+  actually visible in `SQLite` after hydration, failing loudly instead of
+  reporting a phantom id. Also starts v3 negative comment-id numbering below
+  preserved comment ids (the v3 analogue of #681).
 - `crosslink sync` / `crosslink init` no longer fail on Git < 2.42.0 (e.g.
   Ubuntu 22.04 LTS, which ships Git 2.34.1) with `unknown option 'orphan'`.
   Hub-v3 and knowledge cache setup used `git worktree add --orphan` (added in

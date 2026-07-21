@@ -18,4 +18,6 @@ mod tests;
 // continue to use `crate::shared_writer::SharedWriter`, etc.
 pub use self::core::{PushOutcome, SharedWriter};
 pub use locks::LockClaimResult;
-pub use mutations::{DescriptionUpdate, FieldUpdate, IssueUpdate};
+pub use mutations::{
+    DescriptionUpdate, FieldUpdate, ImportedCommentSpec, ImportedIssueSpec, IssueUpdate,
+};

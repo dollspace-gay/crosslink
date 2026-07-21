@@ -3043,8 +3043,10 @@ fn main() -> Result<()> {
 
         Commands::Import { input } => {
             let db = get_db()?;
+            let crosslink_dir = find_crosslink_dir()?;
+            let writer = get_writer(&crosslink_dir);
             let path = std::path::Path::new(&input);
-            commands::import::run_json(&db, path)
+            commands::import::run_json(&db, writer.as_ref(), path)
         }
 
         Commands::Archive { action } => {
