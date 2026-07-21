@@ -319,11 +319,8 @@ fn extract_mod_name(line: &str) -> Option<String> {
     // Remove visibility qualifiers.
     let rest = if line.starts_with("pub(") {
         // pub(crate) mod foo, pub(super) mod foo, etc.
-        if let Some(idx) = line.find(')') {
-            line[idx + 1..].trim()
-        } else {
-            return None;
-        }
+        let idx = line.find(')')?;
+        line[idx + 1..].trim()
     } else if let Some(rest) = line.strip_prefix("pub ") {
         rest.trim()
     } else {

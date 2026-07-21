@@ -10,16 +10,25 @@ import sys
 import os
 from datetime import datetime, timezone
 
+# Add hooks directory to path for shared module import
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from crosslink_config import find_crosslink_binary, find_crosslink_dir
+
 
 # Sessions older than this (in hours) are considered stale and auto-ended
 STALE_SESSION_HOURS = 4
 
+_crosslink_bin = None
+
 
 def run_crosslink(args):
     """Run a crosslink command and return output."""
+    global _crosslink_bin
+    if _crosslink_bin is None:
+        _crosslink_bin = find_crosslink_binary(find_crosslink_dir())
     try:
         result = subprocess.run(
-            ["crosslink"] + args,
+            [_crosslink_bin] + args,
             capture_output=True,
             text=True,
             timeout=5
