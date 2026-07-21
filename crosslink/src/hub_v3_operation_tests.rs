@@ -116,6 +116,81 @@ fn hydrate_from_state_maps_issue_children() {
     assert!(!db.get_comments(1).unwrap().is_empty());
 }
 
+#[test]
+fn hydrate_from_state_remaps_local_only_issue_colliding_with_hub_display_id() {
+    // GH#5: a local-only issue (e.g. from a legacy `import`) occupying id 1
+    // must not silently REPLACE the hub issue the reduction assigned display
+    // id 1 — the hub issue keeps the id, the local-only issue is remapped to
+    // a negative local id, and both survive with their children.
+    let db = Database::open(Path::new(":memory:")).unwrap();
+    let local = db.create_issue("local only", None, "low").unwrap();
+    assert_eq!(
+        local, 1,
+        "test precondition: local-only issue occupies id 1"
+    );
+    db.add_label(local, "keep").unwrap();
+    db.add_comment(local, "local note", "note").unwrap();
+
+    let mut state = crate::checkpoint::CheckpointState::default();
+    let uuid = uuid::Uuid::new_v4();
+    state.display_id_map.insert(uuid, 1);
+    state
+        .issues
+        .insert(uuid, sample_compact_issue(uuid, 1, "from hub"));
+
+    crate::hydration::hydrate_from_state(&state, &db).unwrap();
+
+    let hub = db.get_issue(1).unwrap().expect("hub issue at id 1");
+    assert_eq!(hub.title, "from hub", "hub issue must not be shadowed");
+
+    let issues = db.list_issues(Some("all"), None, None).unwrap();
+    let local_row = issues
+        .iter()
+        .find(|i| i.title == "local only")
+        .expect("colliding local-only issue must survive hydration");
+    assert!(
+        local_row.id < 0,
+        "colliding local-only issue is remapped to a negative id, got {}",
+        local_row.id
+    );
+    assert!(
+        db.get_labels(local_row.id)
+            .unwrap()
+            .iter()
+            .any(|l| l == "keep"),
+        "labels follow the remapped issue"
+    );
+    assert!(
+        !db.get_comments(local_row.id).unwrap().is_empty(),
+        "comments follow the remapped issue"
+    );
+}
+
+#[test]
+fn hydrate_from_state_remap_is_stable_across_repeated_hydrations() {
+    // After the first pass remaps a colliding local-only issue to a negative
+    // id, subsequent hydrations must keep both issues without error.
+    let db = Database::open(Path::new(":memory:")).unwrap();
+    db.create_issue("local only", None, "low").unwrap();
+
+    let mut state = crate::checkpoint::CheckpointState::default();
+    let uuid = uuid::Uuid::new_v4();
+    state.display_id_map.insert(uuid, 1);
+    state
+        .issues
+        .insert(uuid, sample_compact_issue(uuid, 1, "from hub"));
+
+    crate::hydration::hydrate_from_state(&state, &db).unwrap();
+    crate::hydration::hydrate_from_state(&state, &db).unwrap();
+
+    let issues = db.list_issues(Some("all"), None, None).unwrap();
+    assert_eq!(issues.len(), 2, "both issues survive repeated hydration");
+    assert_eq!(
+        db.get_issue(1).unwrap().expect("hub issue").title,
+        "from hub"
+    );
+}
+
 fn sample_compact_issue(
     uuid: uuid::Uuid,
     display_id: i64,

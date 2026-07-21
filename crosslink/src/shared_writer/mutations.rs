@@ -21,6 +21,36 @@ use crate::db::Database;
 
 use super::core::{SharedWriter, WriteSet};
 
+/// One issue to promote to the hub during `crosslink import` (GH#4, GH#5).
+///
+/// A neutral shape both import formats (legacy `ExportData` envelope and
+/// `IssueFile` array) lower into, so the writer does not depend on command
+/// types. `uuid` is preserved from `IssueFile` input (keeping cross-machine
+/// identity) and freshly generated for legacy input.
+#[derive(Debug, Clone)]
+pub struct ImportedIssueSpec {
+    pub uuid: Uuid,
+    pub title: String,
+    pub description: Option<String>,
+    pub priority: String,
+    pub parent_uuid: Option<Uuid>,
+    pub closed: bool,
+    pub labels: Vec<String>,
+    pub comments: Vec<ImportedCommentSpec>,
+    /// Uuids of issues blocking this one (dangling references are skipped by
+    /// the reduction).
+    pub blockers: Vec<Uuid>,
+}
+
+/// A comment carried by an [`ImportedIssueSpec`].
+#[derive(Debug, Clone)]
+pub struct ImportedCommentSpec {
+    pub author: String,
+    pub content: String,
+    pub created_at: DateTime<Utc>,
+    pub kind: String,
+}
+
 /// Represents an update to a description field with three possible states:
 /// unchanged, cleared, or set to a new value.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -163,10 +193,22 @@ impl SharedWriter {
         )?;
 
         self.hydrate_with_retry(db);
+        // GH#5 guard: the reduction assigned a display id, but hydration can
+        // fail (or the row can be shadowed by a colliding local-only issue),
+        // leaving SQLite without the row while the CLI reports success.
+        // Confirm the uuid is actually visible in SQLite before reporting.
+        let sqlite_id = db.get_issue_id_by_uuid(&uuid.to_string());
         if let Some(id) = self.v3_assigned_display_id(&uuid) {
+            if sqlite_id.is_err() {
+                anyhow::bail!(
+                    "issue {uuid} was committed to the hub (display id {id}) but is not \
+                     visible in the local database after hydration; run `crosslink sync` \
+                     to recover, then verify with `crosslink list`"
+                );
+            }
             return Ok(id);
         }
-        db.get_issue_id_by_uuid(&uuid.to_string())
+        sqlite_id
     }
 
     /// Create a new issue: generate UUID, claim display ID, write JSON, push, hydrate.
@@ -200,6 +242,107 @@ impl SharedWriter {
             },
             &format!("create issue: {title}"),
         )
+    }
+
+    /// Import a batch of issues as hub events in a single commit (GH#4, GH#5).
+    ///
+    /// The direct-SQLite import path writes rows the reduction never sees:
+    /// they stay invisible to other agents, and their positive ids collide
+    /// with the display ids the reduction later assigns to new issues —
+    /// silently shadowing them. Routing the import through the event log
+    /// gives every imported issue a reduction-assigned display id and makes
+    /// it hub-visible like any created issue.
+    ///
+    /// All events (`IssueCreated`, plus `CommentAdded` / `StatusChanged` /
+    /// `DependencyAdded` per issue) are emitted in ONE `write_commit_push`,
+    /// so a large import is a single commit and a single hydration.
+    ///
+    /// Returns `(uuid, display_id)` pairs in input order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a priority fails to parse, git operations fail, or
+    /// an imported issue is not visible in `SQLite` after hydration.
+    pub fn import_issues(
+        &self,
+        db: &Database,
+        specs: &[ImportedIssueSpec],
+    ) -> Result<Vec<(Uuid, i64)>> {
+        let mut events = Vec::new();
+        for spec in specs {
+            // Parse up front so a bad priority fails before anything is committed.
+            let priority: crate::models::Priority = spec.priority.parse()?;
+            events.push(crate::events::Event::IssueCreated {
+                uuid: spec.uuid,
+                title: spec.title.clone(),
+                description: spec.description.clone(),
+                priority: priority.to_string(),
+                labels: spec.labels.clone(),
+                parent_uuid: spec.parent_uuid,
+                created_by: self.agent.agent_id.clone(),
+                display_id: None,
+                scheduled_at: None,
+                due_at: None,
+            });
+            for c in &spec.comments {
+                events.push(crate::events::Event::CommentAdded {
+                    issue_uuid: spec.uuid,
+                    comment_uuid: Uuid::new_v4(),
+                    display_id: None,
+                    author: c.author.clone(),
+                    content: c.content.clone(),
+                    created_at: c.created_at,
+                    kind: c.kind.clone(),
+                    trigger_type: None,
+                    intervention_context: None,
+                    driver_key_fingerprint: None,
+                    signed_by: None,
+                    signature: None,
+                });
+            }
+            for blocker in &spec.blockers {
+                events.push(crate::events::Event::DependencyAdded {
+                    blocked_uuid: spec.uuid,
+                    blocker_uuid: *blocker,
+                });
+            }
+            if spec.closed {
+                events.push(crate::events::Event::StatusChanged {
+                    uuid: spec.uuid,
+                    new_status: "closed".to_string(),
+                    closed_at: Some(Utc::now()),
+                });
+            }
+        }
+
+        self.write_commit_push(
+            |_writer| {
+                Ok(WriteSet {
+                    events: events.clone(),
+                })
+            },
+            &format!("import {} issues", specs.len()),
+        )?;
+
+        self.hydrate_with_retry(db);
+
+        let mut assigned = Vec::with_capacity(specs.len());
+        for spec in specs {
+            // Same visibility guard as create_issue_inner (GH#5): never report
+            // an id that `list` cannot see.
+            let Ok(sqlite_id) = db.get_issue_id_by_uuid(&spec.uuid.to_string()) else {
+                anyhow::bail!(
+                    "imported issue {} ('{}') was committed to the hub but is not \
+                     visible in the local database after hydration; run \
+                     `crosslink sync` to recover, then verify with `crosslink list`",
+                    spec.uuid,
+                    spec.title
+                );
+            };
+            let id = self.v3_assigned_display_id(&spec.uuid).unwrap_or(sqlite_id);
+            assigned.push((spec.uuid, id));
+        }
+        Ok(assigned)
     }
 
     /// Create a subissue under a parent.
