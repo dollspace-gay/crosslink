@@ -51,6 +51,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   reduces the persisted ref namespace when the cache is cold, the same idiom
   `load_milestone_by_id` already uses; this also repairs the `AlreadyHeld`
   pre-check in `claim_lock_v2` (gh#8).
+- Claude hooks now resolve the crosslink binary via `find_crosslink_binary()`
+  instead of a bare PATH lookup (`work-check.py` control-flags check,
+  `heartbeat.py`, `session-start.py`), and `check_control_flags` fails open
+  unless stdout parses as flag-state JSON with a blocking flag actually set.
+  Previously, a PATH binary too old to know `agent flags` exited 2 with a clap
+  usage error - the same exit code as the flags protocol - and every
+  Write/Edit/Bash call was blocked with a false "AGENT PAUSED - an operator
+  has paused this agent" message (gh#31).
 - `crosslink sync` / `crosslink init` no longer fail on Git < 2.42.0 (e.g.
   Ubuntu 22.04 LTS, which ships Git 2.34.1) with `unknown option 'orphan'`.
   Hub-v3 and knowledge cache setup used `git worktree add --orphan` (added in
