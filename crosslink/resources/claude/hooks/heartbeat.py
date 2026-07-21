@@ -14,6 +14,10 @@ import subprocess
 import sys
 import time
 
+# Add hooks directory to path for shared module import
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from crosslink_config import find_crosslink_binary
+
 HEARTBEAT_INTERVAL_SECONDS = 120  # 2 minutes
 
 
@@ -68,7 +72,7 @@ def main():
     # Push heartbeat in background (don't block the tool call)
     try:
         subprocess.Popen(
-            ["crosslink", "heartbeat"],
+            [find_crosslink_binary(crosslink_dir), "heartbeat"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )

@@ -21,6 +21,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 # Add hooks directory to path for shared module import
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from crosslink_config import (
+    find_crosslink_binary,
     find_crosslink_dir,
     is_agent_context,
     load_config_merged,
@@ -278,7 +279,7 @@ def check_control_flags(crosslink_dir):
     import subprocess
     try:
         proc = subprocess.run(
-            ["crosslink", "agent", "flags", "--strict"],
+            [find_crosslink_binary(crosslink_dir), "agent", "flags", "--strict"],
             capture_output=True,
             text=True,
             cwd=crosslink_dir,
@@ -288,38 +289,44 @@ def check_control_flags(crosslink_dir):
         # crosslink not on PATH or hung — fail open (don't block) so
         # missing tooling never wedges Claude Code.
         return
-    if proc.returncode == 0:
+    if proc.returncode != 2:
         return
-    if proc.returncode == 2:
-        try:
-            state = json.loads(proc.stdout.strip())
-        except (json.JSONDecodeError, ValueError):
-            state = {}
-        if state.get("kill"):
-            # GH#624: blocking messages MUST go to stderr — Claude Code only
-            # shows stderr to the model on exit 2; stdout is silently dropped.
-            print(
-                "AGENT KILL REQUESTED — an operator (dashboard or CLI) has "
-                "asked this agent to stop after the current tool use.\n"
-                "Acknowledge the request, summarise progress, then exit "
-                "your session cleanly. Do not attempt further tool calls.",
-                file=sys.stderr,
+    # clap also exits 2 for usage errors (e.g. a PATH binary too old to
+    # know `agent flags`, GH#31). Only valid flag-state JSON on stdout is
+    # the flags protocol; anything else is not a pause/kill signal and
+    # must fail open so version skew never wedges Claude Code.
+    try:
+        state = json.loads(proc.stdout.strip())
+    except (json.JSONDecodeError, ValueError):
+        return
+    if not isinstance(state, dict):
+        return
+    if state.get("kill"):
+        # GH#624: blocking messages MUST go to stderr — Claude Code only
+        # shows stderr to the model on exit 2; stdout is silently dropped.
+        print(
+            "AGENT KILL REQUESTED — an operator (dashboard or CLI) has "
+            "asked this agent to stop after the current tool use.\n"
+            "Acknowledge the request, summarise progress, then exit "
+            "your session cleanly. Do not attempt further tool calls.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    if state.get("paused") or state.get("reprioritise"):
+        hint = state.get("reprioritise")
+        extra = ""
+        if hint:
+            extra = (
+                f"\nReprioritise hint pending: switch focus to issue "
+                f"#{hint.get('issue_id')} when resuming."
             )
-        else:
-            hint = state.get("reprioritise")
-            extra = ""
-            if hint:
-                extra = (
-                    f"\nReprioritise hint pending: switch focus to issue "
-                    f"#{hint.get('issue_id')} when resuming."
-                )
-            print(
-                "AGENT PAUSED — an operator has paused this agent via the "
-                "dashboard. Tool use is blocked until they resume.\n"
-                "Wait for the resume signal or explain to the user that "
-                "you've been paused." + extra,
-                file=sys.stderr,
-            )
+        print(
+            "AGENT PAUSED — an operator has paused this agent via the "
+            "dashboard. Tool use is blocked until they resume.\n"
+            "Wait for the resume signal or explain to the user that "
+            "you've been paused." + extra,
+            file=sys.stderr,
+        )
         sys.exit(2)
 
 
