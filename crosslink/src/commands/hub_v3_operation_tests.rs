@@ -1061,6 +1061,7 @@ fn v3_import_issues_promotes_batch_to_hub() {
                 kind: "note".to_string(),
             }],
             blockers: vec![],
+            display_id: None,
         },
         crate::shared_writer::ImportedIssueSpec {
             uuid: child_uuid,
@@ -1072,6 +1073,7 @@ fn v3_import_issues_promotes_batch_to_hub() {
             labels: vec![],
             comments: vec![],
             blockers: vec![parent_uuid],
+            display_id: None,
         },
     ];
 
@@ -1146,4 +1148,47 @@ fn v3_create_after_direct_sqlite_rows_keeps_both_issues() {
         "direct row remapped, got {}",
         direct_row.id
     );
+}
+
+#[test]
+fn v3_to_shared_promotes_sqlite_only_rows() {
+    if !git_ok() {
+        return;
+    }
+    let hub = setup_migrated_v3_hub();
+    let db = Database::open(&hub.crosslink_dir.join("issues.db")).unwrap();
+
+    // Direct-SQLite rows the hub does not know (the GH#4 stranded population).
+    let a = db.create_issue("direct A", None, "medium").unwrap();
+    let b = db.create_issue("direct B", None, "low").unwrap();
+    db.add_comment(a, "carried comment", "note").unwrap();
+
+    crate::commands::migrate::to_shared(&hub.crosslink_dir, &db).unwrap();
+
+    // Promoted into the reduced state with local numbering preserved.
+    let source = crate::hub_source::RefHubSource::new(&hub.cache_dir).unwrap();
+    let state = crate::compaction::reduce(&source).unwrap().state;
+    let ids: std::collections::HashSet<i64> =
+        state.issues.values().filter_map(|i| i.display_id).collect();
+    assert!(
+        ids.contains(&a) && ids.contains(&b),
+        "promoted with preserved local ids"
+    );
+    let titles: Vec<&str> = state.issues.values().map(|i| i.title.as_str()).collect();
+    assert!(titles.contains(&"direct A") && titles.contains(&"direct B"));
+
+    // Visible and hub-backed locally after the import's hydration.
+    assert!(db.get_issue(a).unwrap().is_some());
+    assert_eq!(
+        db.get_comments(a).unwrap().len(),
+        1,
+        "comment carried through promotion"
+    );
+
+    // Idempotent: a second run migrates nothing and changes nothing.
+    let before = state.issues.len();
+    crate::commands::migrate::to_shared(&hub.crosslink_dir, &db).unwrap();
+    let source2 = crate::hub_source::RefHubSource::new(&hub.cache_dir).unwrap();
+    let state2 = crate::compaction::reduce(&source2).unwrap().state;
+    assert_eq!(state2.issues.len(), before, "second to-shared is a no-op");
 }

@@ -66,6 +66,7 @@ fn spec_from_issue_file(issue: &IssueFile) -> ImportedIssueSpec {
             })
             .collect(),
         blockers: issue.blockers.clone(),
+        display_id: None,
     }
 }
 
@@ -105,6 +106,7 @@ fn specs_from_legacy(data: &ExportData) -> Vec<ImportedIssueSpec> {
                 })
                 .collect(),
             blockers: Vec::new(),
+            display_id: None,
         })
         .collect()
 }

@@ -40,6 +40,10 @@ pub struct ImportedIssueSpec {
     /// Uuids of issues blocking this one (dangling references are skipped by
     /// the reduction).
     pub blockers: Vec<Uuid>,
+    /// Carry an existing display id into the reduction (GH#4 to-shared:
+    /// preserves local numbering when promoting SQLite-only rows). `None`
+    /// lets the reduction assign the next free id, as `import` does.
+    pub display_id: Option<i64>,
 }
 
 /// A comment carried by an [`ImportedIssueSpec`].
@@ -280,7 +284,7 @@ impl SharedWriter {
                 labels: spec.labels.clone(),
                 parent_uuid: spec.parent_uuid,
                 created_by: self.agent.agent_id.clone(),
-                display_id: None,
+                display_id: spec.display_id,
                 scheduled_at: None,
                 due_at: None,
             });

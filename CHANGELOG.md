@@ -25,6 +25,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- `crosslink migrate to-shared` now works on v3 hubs (gh#4, second half). The
+  v2 body wrote worktree JSON and counters the reduction never reads, then
+  pushed the nonexistent legacy `crosslink/hub` ref ("src refspec does not
+  match any"). On v3 it now promotes SQLite-only issues (uuids the reduced
+  state does not know) through the event log via the same batch path
+  `import` uses - one commit, one hydration - preserving existing uuids (so
+  hydration replaces local rows in place instead of duplicating them) and
+  carrying free positive local ids into the reduction so local numbering
+  survives. Idempotent: already-promoted issues are skipped, so it doubles
+  as the recovery sweep for rows created before the hub was established.
+- Post-migrate `crosslink sync` no longer aborts with SQLite `Error code
+  1555: constraint failed` (gh#11). Preserved sqlite-only comments carry
+  positive v2/import-era ids while hydration inserts hub comments at frozen
+  positive display ids through a plain INSERT - a collision killed the whole
+  hydration transaction. The preservation restore now re-keys colliding
+  preserved comment ids to fresh negative local ids (comment ids are not FK
+  targets), mirroring the issue-id remap above it.
 - `crosslink create` / `quick` after a legacy `import` no longer silently lose
   the new issue while reporting success (#5, related #4). Three fixes:
   `crosslink import` on a v3 hub now promotes the whole batch through the

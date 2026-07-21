@@ -969,6 +969,24 @@ fn restore_sqlite_only_issues(
     for (issue_id, label) in &saved_children.labels {
         db.insert_hydrated_label(mapped(*issue_id), label)?;
     }
+    // GH#11: comment PKs collide the same way issue ids do — preserved
+    // comments carry positive v2/import-era ids while the pass above inserts
+    // hub comments at frozen positive display ids. insert_hydrated_comment
+    // is a plain INSERT, so a collision aborts the whole hydration
+    // transaction with SQLITE_CONSTRAINT_PRIMARYKEY (error 1555): the
+    // post-migrate "sync cannot complete" failure. Re-key colliding
+    // preserved comment ids to fresh negative ids — comment ids are not
+    // FK targets, so only the PK itself moves.
+    let occupied_comments = occupied_comment_ids(db)?;
+    let mut next_comment_local = occupied_comments
+        .iter()
+        .copied()
+        .chain(saved_children.comments.iter().map(|c| c.0))
+        .min()
+        .unwrap_or(0)
+        .min(0)
+        - 1;
+    let mut comment_collisions: Vec<i64> = Vec::new();
     for (
         id,
         issue_id,
@@ -982,8 +1000,16 @@ fn restore_sqlite_only_issues(
         driver_key_fingerprint,
     ) in &saved_children.comments
     {
+        let comment_id = if occupied_comments.contains(id) {
+            let re_keyed = next_comment_local;
+            next_comment_local -= 1;
+            comment_collisions.push(*id);
+            re_keyed
+        } else {
+            *id
+        };
         db.insert_hydrated_comment(
-            *id,
+            comment_id,
             mapped(*issue_id),
             uuid.as_deref(),
             author.as_deref(),
@@ -995,6 +1021,15 @@ fn restore_sqlite_only_issues(
             driver_key_fingerprint.as_deref(),
         )?;
         stats.comments += 1;
+    }
+    if !comment_collisions.is_empty() {
+        comment_collisions.sort_unstable();
+        tracing::warn!(
+            "hydration: {} preserved comment(s) collide with hub-assigned comment id(s) \
+             {:?}; re-keyed to negative local ids so hydration does not abort (GH#11)",
+            comment_collisions.len(),
+            comment_collisions
+        );
     }
     for (blocker_id, blocked_id) in &saved_children.deps {
         db.insert_dependency_raw(mapped(*blocker_id), mapped(*blocked_id))?;
@@ -1018,6 +1053,18 @@ fn restore_sqlite_only_issues(
     }
 
     Ok(())
+}
+
+/// All comment ids currently present in `SQLite` (the hub-derived comment
+/// rows inserted earlier in this hydration pass). The restore pass must not
+/// re-insert a preserved comment at an id the hub already occupies (GH#11).
+fn occupied_comment_ids(db: &Database) -> Result<std::collections::HashSet<i64>> {
+    let ids = db
+        .conn
+        .prepare("SELECT id FROM comments")?
+        .query_map([], |row| row.get(0))?
+        .collect::<std::result::Result<std::collections::HashSet<i64>, _>>()?;
+    Ok(ids)
 }
 
 /// All issue ids currently present in `SQLite` (the hub-derived rows inserted
