@@ -541,8 +541,8 @@ pub fn serialize_frontmatter(fm: &PageFrontmatter) -> String {
         let _ = writeln!(out, "contributors: [{}]", escaped_contribs.join(", "));
     }
 
-    let _ = writeln!(out, "created: {}", &fm.created);
-    let _ = writeln!(out, "updated: {}", &fm.updated);
+    let _ = writeln!(out, "created: {}", fm.created);
+    let _ = writeln!(out, "updated: {}", fm.updated);
     out.push_str("---\n");
 
     out
