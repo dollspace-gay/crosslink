@@ -25,6 +25,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- `crosslink integrity` no longer false-FAILs `counters` and `hydration` on a
+  v3 hub. Both checks read legacy v2 worktree artifacts (meta/counters.json,
+  issues/*.json) that v3 never materializes, fabricating "next_display_id is
+  1" and "0 issues in JSON, N in SQLite" against healthy hubs - and steering
+  users toward a `--repair --accept-data-loss` that wiped local shared tables
+  and restored nothing. On v3 the checks now compare against the reduced
+  checkpoint state (the same source the already-v3-aware `locks` check uses),
+  and hydration repair re-hydrates from that state instead of the empty
+  worktree (gh#7).
+- Hydration no longer multiplies hub comments. Comments have no unique uuid
+  index, so a hub comment adopted into the sqlite-only preservation snapshot
+  (via a numeric issue-id collision, e.g. after a legacy import) was restored
+  next to the fresh copy each pass re-inserted - one extra byte-identical
+  copy per mutating invocation. Comment hydration and the preservation
+  restore now dedup by uuid, which also collapses previously accumulated
+  duplicates back to a single copy on the next hydration. Refused v2
+  mutations are additionally side-effect-free: the legacy-layout refusal now
+  fires before the hub write lock is acquired (gh#12).
+- `crosslink locks release` is no longer a silent no-op from a fresh process
+  on a v3 hub. `read_lock_v2`'s v3 branch consulted only the in-process
+  `last_v3_state` cache - empty in any process that had not yet performed a
+  v3 mutation - so release reported "was not locked" while `locks list`
+  (which reads the checkpoint) showed the claim. The v3 read now lazily
+  reduces the persisted ref namespace when the cache is cold, the same idiom
+  `load_milestone_by_id` already uses; this also repairs the `AlreadyHeld`
+  pre-check in `claim_lock_v2` (gh#8).
+- Claude hooks now resolve the crosslink binary via `find_crosslink_binary()`
+  instead of a bare PATH lookup (`work-check.py` control-flags check,
+  `heartbeat.py`, `session-start.py`), and `check_control_flags` fails open
+  unless stdout parses as flag-state JSON with a blocking flag actually set.
+  Previously, a PATH binary too old to know `agent flags` exited 2 with a clap
+  usage error - the same exit code as the flags protocol - and every
+  Write/Edit/Bash call was blocked with a false "AGENT PAUSED - an operator
+  has paused this agent" message (gh#31).
 - `crosslink migrate to-shared` now works on v3 hubs (gh#4, second half). The
   v2 body wrote worktree JSON and counters the reduction never reads, then
   pushed the nonexistent legacy `crosslink/hub` ref ("src refspec does not

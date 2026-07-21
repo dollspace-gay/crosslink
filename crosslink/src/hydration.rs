@@ -791,13 +791,20 @@ fn hydrate_issues(
             let comments_dir = issues_dir.join(issue.uuid.to_string()).join("comments");
             if let Ok(v2_comments) = read_comment_files(&comments_dir) {
                 for cf in &v2_comments {
+                    let cf_uuid = cf.uuid.to_string();
+                    // GH#12: comments have no unique uuid index, so hydration
+                    // must dedup manually (duplicate hub files, or rows that
+                    // survive outside the cleared shared set).
+                    if comment_uuid_exists(db, &cf_uuid)? {
+                        continue;
+                    }
                     let comment_created = cf.created_at.to_rfc3339();
                     let v2_id = next_v2_comment_id;
                     next_v2_comment_id -= 1;
                     db.insert_hydrated_comment(
                         v2_id,
                         display_id,
-                        Some(&cf.uuid.to_string()),
+                        Some(&cf_uuid),
                         Some(&cf.author),
                         &cf.content,
                         &comment_created,
@@ -912,6 +919,22 @@ fn snapshot_children(db: &Database, preserved_ids: &[i64]) -> Result<SavedChildr
     })
 }
 
+/// Whether a comment with this uuid is already present in `SQLite`.
+///
+/// Comments have no unique index on `uuid` (unlike `issues.uuid`), so
+/// hydration must dedup manually: without it, a hub comment adopted into the
+/// preserved snapshot (via a numeric issue-id collision) is re-inserted next
+/// to the fresh hub copy on every pass — one extra copy per mutating
+/// invocation (GH#12).
+fn comment_uuid_exists(db: &Database, uuid: &str) -> Result<bool> {
+    let count: i64 = db.conn.query_row(
+        "SELECT COUNT(*) FROM comments WHERE uuid = ?1",
+        [uuid],
+        |row| row.get(0),
+    )?;
+    Ok(count > 0)
+}
+
 /// Re-insert SQLite-only issues and their child data after hydration clears shared tables.
 ///
 /// Runs AFTER the hub-derived rows are inserted, and `insert_hydrated_issue`
@@ -1000,6 +1023,15 @@ fn restore_sqlite_only_issues(
         driver_key_fingerprint,
     ) in &saved_children.comments
     {
+        // GH#12: a snapshot adopted via a numeric issue-id collision carries
+        // copies of hub comments the hydration pass above just re-inserted;
+        // restoring those verbatim is the +1-copy-per-pass growth. uuid-less
+        // local comments always restore.
+        if let Some(u) = uuid.as_deref() {
+            if comment_uuid_exists(db, u)? {
+                continue;
+            }
+        }
         let comment_id = if occupied_comments.contains(id) {
             let re_keyed = next_comment_local;
             next_comment_local -= 1;
@@ -1861,6 +1893,70 @@ mod tests {
         let comments = db.get_comments(1).unwrap();
         assert_eq!(comments.len(), 1);
         assert_eq!(comments[0].content, "Standalone comment");
+    }
+
+    #[test]
+    fn test_hydrate_v2_comment_dedup_across_passes() {
+        let (db, _dir) = setup_test_db();
+        let cache = tempdir().unwrap();
+
+        // A direct-SQLite issue occupying numeric id 1 (created_by NULL ->
+        // classified sqlite-only and preserved across hydration passes).
+        let local_id = db.create_issue("Local-only issue", None, "medium").unwrap();
+        assert_eq!(local_id, 1);
+
+        // Hub issue whose display id collides with the local row's id, plus
+        // one hub comment. GH#12 growth mechanism: after pass 1 the hub
+        // comment sits on numeric id 1, so pass 2's preservation snapshot
+        // adopts it and restores it NEXT TO the fresh copy pass 2 inserts —
+        // one extra copy per pass without the uuid dedup guard.
+        let issue = make_issue(1, "Hub issue");
+        let issue_uuid = issue.uuid;
+        let issue_dir = cache.path().join("issues").join(issue_uuid.to_string());
+        std::fs::create_dir_all(&issue_dir).unwrap();
+        write_issue_file(&issue_dir.join("issue.json"), &issue).unwrap();
+
+        let comments_dir = issue_dir.join("comments");
+        std::fs::create_dir_all(&comments_dir).unwrap();
+        let comment_uuid = Uuid::new_v4();
+        let cf = CommentFile {
+            uuid: comment_uuid,
+            issue_uuid,
+            author: "agent-1".to_string(),
+            content: "Hub comment".to_string(),
+            created_at: Utc::now(),
+            kind: "note".to_string(),
+            trigger_type: None,
+            intervention_context: None,
+            driver_key_fingerprint: None,
+            signed_by: None,
+            signature: None,
+        };
+        write_comment_file(&comments_dir.join(format!("{comment_uuid}.json")), &cf).unwrap();
+        write_layout_version(&cache.path().join("meta"), 2).unwrap();
+
+        let uuid_count = |db: &Database| -> i64 {
+            db.conn
+                .query_row(
+                    "SELECT COUNT(*) FROM comments WHERE uuid = ?1",
+                    [comment_uuid.to_string()],
+                    |row| row.get(0),
+                )
+                .unwrap()
+        };
+
+        hydrate_to_sqlite(cache.path(), &db).unwrap();
+        assert_eq!(uuid_count(&db), 1, "one copy after the first pass");
+
+        hydrate_to_sqlite(cache.path(), &db).unwrap();
+        assert_eq!(
+            uuid_count(&db),
+            1,
+            "hub comment must not multiply across hydration passes"
+        );
+
+        hydrate_to_sqlite(cache.path(), &db).unwrap();
+        assert_eq!(uuid_count(&db), 1, "still one copy after a third pass");
     }
 
     #[test]

@@ -524,6 +524,43 @@ fn v3_lock_claim_confirm_winner_and_loser() {
 }
 
 #[test]
+fn v3_lock_release_works_from_fresh_process() {
+    if !git_ok() {
+        return;
+    }
+    let hub = setup_migrated_v3_hub();
+    let db = Database::open(&hub.crosslink_dir.join("issues.db")).unwrap();
+    let writer = SharedWriter::new(&hub.crosslink_dir).unwrap().unwrap();
+    let issue_id = writer
+        .create_issue(&db, "Held across processes", None, "high", None, None)
+        .unwrap();
+    assert_eq!(
+        writer.claim_lock_v2(issue_id, None).unwrap(),
+        crate::shared_writer::LockClaimResult::Claimed
+    );
+
+    // A fresh SharedWriter models a new process (`crosslink locks release`):
+    // its last_v3_state cache starts empty. GH#8: read_lock_v2 returned
+    // Ok(None) from the cold cache, so release reported "was not locked"
+    // while `locks list` (checkpoint read) showed the claim.
+    let cold = SharedWriter::new(&hub.crosslink_dir).unwrap().unwrap();
+    assert!(
+        cold.read_lock_v2(issue_id).unwrap().is_some(),
+        "cold reader must see the persisted claim"
+    );
+    assert!(
+        cold.release_lock_v2(issue_id).unwrap(),
+        "release from a fresh process must find and release the held lock"
+    );
+
+    let after = SharedWriter::new(&hub.crosslink_dir).unwrap().unwrap();
+    assert!(
+        after.read_lock_v2(issue_id).unwrap().is_none(),
+        "released lock must be gone for the next fresh process"
+    );
+}
+
+#[test]
 fn v3_offline_mutation_durable_then_delivered() {
     if !git_ok() {
         return;

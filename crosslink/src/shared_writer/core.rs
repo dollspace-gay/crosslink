@@ -326,12 +326,13 @@ impl SharedWriter {
         event: crate::events::Event,
         _message: &str,
     ) -> Result<PushOutcome> {
-        // Serialize access to the hub cache via SyncManager's lock (#372)
-        let lock_guard = self.sync.acquire_lock()?;
-
+        // GH#12: refuse BEFORE acquiring the hub write lock so a refused v2
+        // mutation is side-effect-free (not even a .hub-write-lock file).
         if !self.is_v3() {
             bail!(V2_WRITE_REFUSAL);
         }
+        // Serialize access to the hub cache via SyncManager's lock (#372)
+        let lock_guard = self.sync.acquire_lock()?;
         self.commit_v3(vec![event], &lock_guard)
     }
 
@@ -808,7 +809,7 @@ impl SharedWriter {
     /// the caller drives hydration onto its own `&Database` via
     /// [`Self::hydrate_with_retry`], which dispatches to `hydrate_from_state`
     /// under V3 using this cached state.
-    fn refresh_v3_state(&self) -> Result<()> {
+    pub(super) fn refresh_v3_state(&self) -> Result<()> {
         let source = crate::hub_source::RefHubSource::new(&self.cache_dir)
             .context("v3: failed to construct RefHubSource for state refresh")?;
         let outcome =
@@ -909,12 +910,13 @@ impl SharedWriter {
     where
         F: FnMut(&Self) -> Result<WriteSet>,
     {
-        // Serialize access to the hub cache via SyncManager's lock (#400, #457)
-        let lock_guard = self.sync.acquire_lock()?;
-
+        // GH#12: refuse BEFORE acquiring the hub write lock so a refused v2
+        // mutation is side-effect-free (not even a .hub-write-lock file).
         if !self.is_v3() {
             bail!(V2_WRITE_REFUSAL);
         }
+        // Serialize access to the hub cache via SyncManager's lock (#400, #457)
+        let lock_guard = self.sync.acquire_lock()?;
 
         // Run prepare ONCE: it produces the events that drive the ref-only write.
         let write_set = prepare(self)?;
