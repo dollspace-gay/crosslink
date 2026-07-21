@@ -808,7 +808,7 @@ impl SharedWriter {
     /// the caller drives hydration onto its own `&Database` via
     /// [`Self::hydrate_with_retry`], which dispatches to `hydrate_from_state`
     /// under V3 using this cached state.
-    fn refresh_v3_state(&self) -> Result<()> {
+    pub(super) fn refresh_v3_state(&self) -> Result<()> {
         let source = crate::hub_source::RefHubSource::new(&self.cache_dir)
             .context("v3: failed to construct RefHubSource for state refresh")?;
         let outcome =

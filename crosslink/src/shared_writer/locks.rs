@@ -200,6 +200,16 @@ impl SharedWriter {
         // claim-confirm read). This mirrors the v2 read-materialized-lock-file
         // step but over `state.locks` instead of `locks/<id>.json`.
         if self.is_v3() {
+            // GH#8: `last_v3_state` is populated only by a prior commit_v3 /
+            // refresh_v3_state in THIS process. A fresh process (e.g.
+            // `crosslink locks release`) read `None` here and reported "not
+            // locked" while `locks list` (checkpoint read) showed the claim.
+            // Reduce the persisted ref namespace on demand so a cold reader
+            // sees the same state a warm one would (same lazy-refresh idiom
+            // as `load_milestone_by_id`).
+            if self.last_v3_state.borrow().is_none() {
+                self.refresh_v3_state()?;
+            }
             let state = self.last_v3_state.borrow();
             return Ok(state.as_ref().and_then(|s| {
                 s.locks

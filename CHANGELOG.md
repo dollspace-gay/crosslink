@@ -25,6 +25,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- `crosslink locks release` is no longer a silent no-op from a fresh process
+  on a v3 hub. `read_lock_v2`'s v3 branch consulted only the in-process
+  `last_v3_state` cache - empty in any process that had not yet performed a
+  v3 mutation - so release reported "was not locked" while `locks list`
+  (which reads the checkpoint) showed the claim. The v3 read now lazily
+  reduces the persisted ref namespace when the cache is cold, the same idiom
+  `load_milestone_by_id` already uses; this also repairs the `AlreadyHeld`
+  pre-check in `claim_lock_v2` (gh#8).
 - `crosslink sync` / `crosslink init` no longer fail on Git < 2.42.0 (e.g.
   Ubuntu 22.04 LTS, which ships Git 2.34.1) with `unknown option 'orphan'`.
   Hub-v3 and knowledge cache setup used `git worktree add --orphan` (added in
