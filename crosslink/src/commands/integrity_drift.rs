@@ -169,15 +169,28 @@ impl HydrationDriftReport {
 ///
 /// Returns an error if the temp database cannot be created, hydration
 /// from JSON fails, ATTACH fails, or any diff query fails.
-pub fn detect(cache_dir: &Path, main_db: &Database) -> Result<HydrationDriftReport> {
-    // 1. Build the JSON-derived view in an isolated temp database.
+pub fn detect(
+    cache_dir: &Path,
+    main_db: &Database,
+    v3_state: Option<&crate::checkpoint::CheckpointState>,
+) -> Result<HydrationDriftReport> {
+    // 1. Build the JSON-derived view in an isolated temp database. On a v3
+    // hub the worktree has no issue files — the view must come from the
+    // reduced checkpoint state or every hydrated row reports sqlite-only
+    // (GH#7). The temp database starts empty, so hydrate_from_state's
+    // preservation pass has nothing to preserve and the view is pure state.
     let temp_dir = tempfile::tempdir().context("create temp dir for drift detection")?;
     let temp_db_path = temp_dir.path().join("hydrated-view.sqlite");
     {
         let temp_db =
             Database::open(&temp_db_path).context("open temp drift-detection database")?;
-        hydrate_to_sqlite(cache_dir, &temp_db)
-            .context("hydrate JSON into temp database for drift detection")?;
+        if let Some(state) = v3_state {
+            crate::hydration::hydrate_from_state(state, &temp_db)
+                .context("hydrate reduced state into temp database for drift detection")?;
+        } else {
+            hydrate_to_sqlite(cache_dir, &temp_db)
+                .context("hydrate JSON into temp database for drift detection")?;
+        }
         // Explicit drop so the connection releases the file before ATTACH.
     }
 
@@ -452,7 +465,7 @@ mod tests {
         setup_empty_cache(crosslink_dir);
         let db = Database::open(&dir.path().join("test.db")).unwrap();
 
-        let report = detect(&crosslink_dir.join(HUB_CACHE_DIR), &db).unwrap();
+        let report = detect(&crosslink_dir.join(HUB_CACHE_DIR), &db, None).unwrap();
         assert!(
             report.is_empty(),
             "empty SQLite + empty JSON should report no drift, got: {report:?}"
@@ -517,7 +530,7 @@ mod tests {
         hydrate_to_sqlite(&cache_dir, &db).unwrap();
         db.add_dependency(2, 1).unwrap();
 
-        let report = detect(&cache_dir, &db).unwrap();
+        let report = detect(&cache_dir, &db, None).unwrap();
 
         assert_eq!(
             report.sqlite_only_dependencies,
