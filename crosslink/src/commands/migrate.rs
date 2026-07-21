@@ -31,6 +31,14 @@ pub fn to_shared(crosslink_dir: &Path, db: &Database) -> Result<()> {
     sync.init_cache()?;
     sync.fetch()?;
 
+    // GH#4 (second half): on a v3 hub the v2 body below writes worktree JSON
+    // and counters the reduction never reads, then pushes the nonexistent
+    // legacy `crosslink/hub` ref ("src refspec does not match any"). Route
+    // the migration through the event log instead.
+    if sync.hub_mode().is_v3() {
+        return to_shared_v3(crosslink_dir, db, &sync);
+    }
+
     let cache_dir = sync.cache_path().to_path_buf();
     let issues_dir = cache_dir.join("issues");
     let meta_dir = cache_dir.join("meta");
@@ -305,6 +313,152 @@ fn git_in_dir(dir: &Path, args: &[&str]) -> Result<std::process::Output> {
 }
 
 use anyhow::Context;
+
+/// V3 analogue of `to_shared` (GH#4): promote SQLite-only issues — rows whose
+/// uuid the reduced state does not know — through the event log in a single
+/// commit, via the same batch path `crosslink import` uses. Idempotent:
+/// already-promoted issues are skipped, so it can be re-run to sweep up rows
+/// created before the hub was established.
+fn to_shared_v3(crosslink_dir: &Path, db: &Database, sync: &SyncManager) -> Result<()> {
+    let source = crate::hub_source::RefHubSource::new(sync.cache_path())
+        .map_err(|e| anyhow::anyhow!("v3: construct RefHubSource for to-shared: {e}"))?;
+    let outcome = crate::compaction::reduce(&source)
+        .map_err(|e| anyhow::anyhow!("v3: reduce for to-shared: {e}"))?;
+    let state = outcome.state;
+
+    let hub_uuids: std::collections::HashSet<String> =
+        state.issues.keys().map(Uuid::to_string).collect();
+    let used_ids: std::collections::HashSet<i64> =
+        state.issues.values().filter_map(|i| i.display_id).collect();
+
+    let specs = specs_from_db(db, &hub_uuids, &used_ids)?;
+    if specs.is_empty() {
+        println!("No SQLite-only issues to migrate - the hub already covers the local database.");
+        return Ok(());
+    }
+
+    let writer = crate::shared_writer::SharedWriter::new(crosslink_dir)?.ok_or_else(|| {
+        anyhow::anyhow!(
+            "v3 migration needs an initialized shared writer (agent identity and hub cache)"
+        )
+    })?;
+    let assigned = writer.import_issues(db, &specs)?;
+    println!(
+        "Migrated {} issue(s) to the v3 hub event log.",
+        assigned.len()
+    );
+    Ok(())
+}
+
+/// Build [`crate::shared_writer::ImportedIssueSpec`]s for every `SQLite` issue
+/// the hub does not know. Existing uuids are preserved (so hydration replaces
+/// the local row in place instead of duplicating it); rows without a uuid get
+/// a fresh one. Positive local ids are carried into the reduction when free,
+/// preserving local numbering.
+fn specs_from_db(
+    db: &Database,
+    hub_uuids: &std::collections::HashSet<String>,
+    used_ids: &std::collections::HashSet<i64>,
+) -> Result<Vec<crate::shared_writer::ImportedIssueSpec>> {
+    struct Row {
+        id: i64,
+        uuid: Option<String>,
+        title: String,
+        description: Option<String>,
+        priority: String,
+        parent_id: Option<i64>,
+        status: String,
+    }
+
+    let rows: Vec<Row> = db
+        .conn
+        .prepare(
+            "SELECT id, uuid, title, description, priority, parent_id, status \
+             FROM issues ORDER BY id",
+        )?
+        .query_map([], |row| {
+            Ok(Row {
+                id: row.get(0)?,
+                uuid: row.get(1)?,
+                title: row.get(2)?,
+                description: row.get(3)?,
+                priority: row.get(4)?,
+                parent_id: row.get(5)?,
+                status: row.get(6)?,
+            })
+        })?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+
+    // id -> uuid over ALL rows (hub-backed parents/blockers resolve too).
+    let mut id_to_uuid: HashMap<i64, Uuid> = HashMap::new();
+    for row in &rows {
+        let uuid = row
+            .uuid
+            .as_deref()
+            .and_then(|u| u.parse::<Uuid>().ok())
+            .unwrap_or_else(Uuid::new_v4);
+        id_to_uuid.insert(row.id, uuid);
+    }
+
+    let mut specs = Vec::new();
+    for row in &rows {
+        let uuid = id_to_uuid[&row.id];
+        if hub_uuids.contains(&uuid.to_string()) {
+            continue; // already promoted
+        }
+
+        let comments = db
+            .conn
+            .prepare(
+                "SELECT author, content, created_at, kind FROM comments \
+                 WHERE issue_id = ?1 ORDER BY id",
+            )?
+            .query_map([row.id], |r| {
+                Ok((
+                    r.get::<_, Option<String>>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, String>(3)?,
+                ))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?
+            .into_iter()
+            .map(
+                |(author, content, created_at, kind)| crate::shared_writer::ImportedCommentSpec {
+                    author: author.unwrap_or_else(|| "migrate".to_string()),
+                    content,
+                    created_at: created_at
+                        .parse::<chrono::DateTime<Utc>>()
+                        .unwrap_or_else(|_| Utc::now()),
+                    kind,
+                },
+            )
+            .collect();
+
+        let blockers: Vec<Uuid> = db
+            .conn
+            .prepare("SELECT blocker_id FROM dependencies WHERE blocked_id = ?1")?
+            .query_map([row.id], |r| r.get::<_, i64>(0))?
+            .collect::<std::result::Result<Vec<i64>, _>>()?
+            .into_iter()
+            .filter_map(|bid| id_to_uuid.get(&bid).copied())
+            .collect();
+
+        specs.push(crate::shared_writer::ImportedIssueSpec {
+            uuid,
+            title: row.title.clone(),
+            description: row.description.clone(),
+            priority: row.priority.clone(),
+            parent_uuid: row.parent_id.and_then(|pid| id_to_uuid.get(&pid).copied()),
+            closed: row.status == "closed",
+            labels: db.get_labels(row.id)?,
+            comments,
+            blockers,
+            display_id: (row.id > 0 && !used_ids.contains(&row.id)).then_some(row.id),
+        });
+    }
+    Ok(specs)
+}
 
 #[cfg(test)]
 mod tests {
