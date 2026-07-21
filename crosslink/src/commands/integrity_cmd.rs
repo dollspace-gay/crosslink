@@ -4,8 +4,9 @@ use std::path::Path;
 use anyhow::{bail, Context};
 use std::path::PathBuf;
 
+use crate::checkpoint::CheckpointState;
 use crate::db::{Database, SCHEMA_VERSION};
-use crate::hydration::hydrate_to_sqlite;
+use crate::hydration::{hydrate_from_state, hydrate_to_sqlite};
 use crate::identity::AgentConfig;
 use crate::issue_file::{
     read_all_issue_files, read_all_milestone_files, read_comment_files, read_counters,
@@ -117,6 +118,21 @@ fn check_schema(db: &Database, _repair: bool) -> Result<CheckResult> {
     })
 }
 
+/// Reduce the v3 ref namespace into a checkpoint state when the hub uses the
+/// v3 layout. Returns `Ok(None)` on a v2 hub so callers keep the legacy
+/// worktree-file paths (GH#7).
+fn v3_reduced_state(crosslink_dir: &Path) -> Result<Option<CheckpointState>> {
+    let sync = SyncManager::new(crosslink_dir)?;
+    if !sync.hub_mode().is_v3() {
+        return Ok(None);
+    }
+    let cache_dir = crosslink_dir.join(HUB_CACHE_DIR);
+    let source = crate::hub_source::RefHubSource::new(&cache_dir)
+        .context("v3: construct RefHubSource for integrity check")?;
+    let outcome = crate::compaction::reduce(&source).context("v3: reduce for integrity check")?;
+    Ok(Some(outcome.state))
+}
+
 fn check_counters(crosslink_dir: &Path, db: &Database, repair: bool) -> Result<CheckResult> {
     let cache_dir = crosslink_dir.join(HUB_CACHE_DIR);
     if !cache_dir.exists() {
@@ -124,6 +140,13 @@ fn check_counters(crosslink_dir: &Path, db: &Database, repair: bool) -> Result<C
             name: "counters".to_string(),
             status: CheckStatus::Skipped("sync not configured".to_string()),
         });
+    }
+
+    // GH#7: a v3 hub never materializes meta/counters.json — reading it
+    // fabricates {1,1,1} and false-FAILs any hub with issues. On v3 the
+    // counters live in the reduced checkpoint state.
+    if let Some(state) = v3_reduced_state(crosslink_dir)? {
+        return check_counters_v3(&state, db, repair);
     }
 
     let counters_path = cache_dir.join("meta").join("counters.json");
@@ -178,6 +201,53 @@ fn check_counters(crosslink_dir: &Path, db: &Database, repair: bool) -> Result<C
     })
 }
 
+/// V3 counters check: compare the reduced checkpoint's counters against
+/// `SQLite` maxima. There is no counters file to repair on v3 — the reducer
+/// derives the counters from the event log — so `--repair` surfaces the
+/// divergence honestly instead of faking a fix (GH#7).
+fn check_counters_v3(state: &CheckpointState, db: &Database, repair: bool) -> Result<CheckResult> {
+    let expected_display = db.get_max_display_id()? + 1;
+    let expected_comment = db.get_max_comment_id()? + 1;
+
+    let display_ok = state.next_display_id >= expected_display;
+    let comment_ok = state.next_comment_id >= expected_comment;
+    if display_ok && comment_ok {
+        return Ok(CheckResult {
+            name: "counters".to_string(),
+            status: CheckStatus::Pass,
+        });
+    }
+
+    let mut issues = Vec::new();
+    if !display_ok {
+        issues.push(format!(
+            "checkpoint next_display_id is {}, expected >= {}",
+            state.next_display_id, expected_display
+        ));
+    }
+    if !comment_ok {
+        issues.push(format!(
+            "checkpoint next_comment_id is {}, expected >= {}",
+            state.next_comment_id, expected_comment
+        ));
+    }
+    let details = issues.join("; ");
+
+    let status = if repair {
+        CheckStatus::Fail(format!(
+            "{details}; not repairable on v3 (counters are derived from the \
+             event log by reduction) — the divergence indicates SQLite-only \
+             rows, see `crosslink integrity hydration`"
+        ))
+    } else {
+        CheckStatus::Fail(details)
+    };
+    Ok(CheckResult {
+        name: "counters".to_string(),
+        status,
+    })
+}
+
 fn check_hydration(
     crosslink_dir: &Path,
     db: &Database,
@@ -192,11 +262,20 @@ fn check_hydration(
         });
     }
 
+    // GH#7: on a v3 hub the worktree has no issues/ files and no counters —
+    // the JSON view must come from the reduced checkpoint state or every
+    // hydrated row false-reports as sqlite-only.
+    let v3_state = v3_reduced_state(crosslink_dir)?;
+
     // ---- 1. Count check (cheap, surfaces JSON↔SQLite size differences) ----
-    let count_details = collect_count_mismatch(&cache_dir, db)?;
+    let count_details = if let Some(state) = v3_state.as_ref() {
+        collect_count_mismatch_v3(state, db)?
+    } else {
+        collect_count_mismatch(&cache_dir, db)?
+    };
 
     // ---- 2. Content-level drift check (catches same-count divergence) ----
-    let drift = super::integrity_drift::detect(&cache_dir, db)?;
+    let drift = super::integrity_drift::detect(&cache_dir, db, v3_state.as_ref())?;
 
     // ---- 3. Decide the disposition ----
     if count_details.is_empty() && drift.is_empty() {
@@ -244,6 +323,22 @@ fn check_hydration(
                 "{summary}; refusing destructive repair (would lose state with no JSON \
                  representation). Snapshot at {snapshot_rel}. Re-run with \
                  --accept-data-loss to proceed, or restore from the snapshot."
+            )),
+        });
+    }
+
+    // GH#7: on v3, the v2 re-emit would write worktree JSON nothing reads,
+    // and clear_shared_data + hydrate_to_sqlite against the empty issues/
+    // dir is wipe-then-restore-nothing. Repair instead re-hydrates from the
+    // reduced state, which clears inside its own transaction, preserves
+    // SQLite-only issues, and guards against an empty state.
+    if let Some(state) = v3_state.as_ref() {
+        let stats = hydrate_from_state(state, db)?;
+        return Ok(CheckResult {
+            name: "hydration".to_string(),
+            status: CheckStatus::Repaired(format!(
+                "re-hydrated {} issues, {} comments from reduced state; snapshot at {snapshot_rel}",
+                stats.issues, stats.comments
             )),
         });
     }
@@ -330,6 +425,35 @@ fn collect_count_mismatch(cache_dir: &Path, db: &Database) -> Result<Vec<String>
     if json_milestone_count != db_milestone_count {
         details.push(format!(
             "{json_milestone_count} milestones in JSON, {db_milestone_count} in SQLite"
+        ));
+    }
+    Ok(details)
+}
+
+/// V3 analogue of [`collect_count_mismatch`]: compare the reduced checkpoint
+/// state's issue/milestone counts against `SQLite` (GH#7). Provisional
+/// milestones (no frozen display id) are excluded — `hydrate_from_state`
+/// skips them, so they can never appear in `SQLite`.
+fn collect_count_mismatch_v3(state: &CheckpointState, db: &Database) -> Result<Vec<String>> {
+    let state_issue_count = state.issues.len() as i64;
+    let db_issue_count = db.get_issue_count()?;
+
+    let state_milestone_count = state
+        .milestones
+        .values()
+        .filter(|m| m.display_id.is_some())
+        .count() as i64;
+    let db_milestone_count = db.get_milestone_count()?;
+
+    let mut details = Vec::new();
+    if state_issue_count != db_issue_count {
+        details.push(format!(
+            "{state_issue_count} issues in reduced state, {db_issue_count} in SQLite"
+        ));
+    }
+    if state_milestone_count != db_milestone_count {
+        details.push(format!(
+            "{state_milestone_count} milestones in reduced state, {db_milestone_count} in SQLite"
         ));
     }
     Ok(details)
